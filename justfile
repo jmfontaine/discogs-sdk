@@ -1,0 +1,87 @@
+set quiet := true
+
+_list:
+    just --list
+
+# Check for unused or undeclared deps
+deps-unused:
+    uv run deptry src
+
+# Update deps to latest versions
+deps-update:
+    uv lock --upgrade
+    uv sync --all-extras --all-groups
+
+# Find dead code
+dead-code:
+    #!/usr/bin/env bash
+    output=$(uv run deadcode src tests examples 2>&1)
+    echo "$output"
+    echo "$output" | grep -q "DC0" && exit 1 || exit 0
+
+# Run formatters
+format:
+    uv run pyproject-fmt pyproject.toml
+    uv run ruff format
+
+# Check formatting without modifying files
+format-check:
+    uv run pyproject-fmt --check pyproject.toml
+    uv run ruff format --check
+
+# Generate sync code from async sources
+generate-sync:
+    uv run python scripts/generate_sync.py
+
+# Run linter
+lint:
+    uv run ruff check
+
+# Run linter and fix issues
+lint-fix:
+    uv run ruff check --fix
+
+# Run pre-commit on all files
+pre-commit:
+    pre-commit run --all-files
+
+# Install pre-commit hooks
+pre-commit-install:
+    pre-commit install
+
+# Update pre-commit hooks to latest versions
+pre-commit-update:
+    pre-commit autoupdate --freeze
+
+# Run all quality assurance checks
+qa: dead-code deps-unused format-check lint sync-check type-check verify-types
+
+# Set local dev environment up
+setup:
+    uv sync --all-extras --all-groups  # Install dependencies
+    pre-commit install  # Install pre-commit hooks
+    echo "Run 'source .venv/bin/activate' to activate the Python virtual environment"
+
+# Check sync code is up to date with async sources
+sync-check:
+    uv run python scripts/generate_sync.py --check
+
+# Run tests
+test *args:
+    uv run pytest --cov --cov-report=term-missing {{ args }}
+
+# Run integration tests
+test-integration *args:
+    uv run pytest -m integration {{ args }}
+
+# Run type checker
+type-check:
+    uv run ty check
+
+# Verify OAuth flow interactively
+verify-oauth:
+    uv run python scripts/verify_oauth.py
+
+# Audit public API type annotation coverage
+verify-types:
+    uv run pyright --ignoreexternal --verifytypes discogs_sdk

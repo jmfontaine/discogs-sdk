@@ -1,0 +1,89 @@
+# This file is auto-generated from the async version.
+# Do not edit directly — edit the corresponding file in _async/ instead.
+
+from __future__ import annotations
+from typing import TYPE_CHECKING, Any, Iterator, Generic, TypeVar
+from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from discogs_sdk._sync._client import Discogs
+T = TypeVar("T", bound=BaseModel)
+
+
+class SyncPage(Generic[T]):
+    """Auto-paging async iterator over Discogs paginated responses.
+
+    Discogs pagination format::
+
+        {
+            "pagination": {"page": 1, "pages": 5, "urls": {"next": "..."}},
+            "<items_key>": [...]
+        }
+
+    For nested responses (e.g. submissions), set ``items_path`` to traverse
+    into the response body before extracting items::
+
+        {"submissions": {"releases": [...]}}
+        items_path=["submissions", "releases"]
+    """
+
+    def __init__(
+        self,
+        client: Discogs,
+        path: str,
+        model_cls: type[T],
+        items_key: str,
+        *,
+        params: dict[str, Any] | None = None,
+        items_path: list[str] | None = None,
+    ) -> None:
+        self._client = client
+        self._path = path
+        self._params = {**(params or {}), "page": 1}
+        self._model_cls = model_cls
+        self._items_key = items_key
+        self._items_path = items_path
+        self._items: list[T] = []
+        self._index = 0
+        self._next_url: str | None = None
+        self._exhausted = False
+        self._first_page_fetched = False
+
+    def _fetch_page(self) -> None:
+        if self._next_url:
+            response = self._client._send("GET", self._next_url)
+        else:
+            response = self._client._send("GET", self._client._build_url(self._path), params=self._params)
+        body = response.json()
+        self._client._maybe_raise(response.status_code, body, retry_after=response.headers.get("Retry-After"))
+        pagination = body.get("pagination", {})
+        urls = pagination.get("urls", {})
+        self._next_url = urls.get("next")
+        if not self._next_url:
+            self._exhausted = True
+        if self._items_path:
+            container = body
+            for key in self._items_path:
+                container = container.get(key, {})
+            raw_items = container if isinstance(container, list) else []
+        else:
+            raw_items = body.get(self._items_key, [])
+        self._items = [self._model_cls.model_validate(item) for item in raw_items]
+        self._index = 0
+        self._first_page_fetched = True
+
+    def __iter__(self) -> Iterator[T]:
+        return self
+
+    def __next__(self) -> T:
+        if not self._first_page_fetched:
+            self._fetch_page()
+        if self._index >= len(self._items):
+            if self._exhausted:
+                raise StopIteration
+            self._fetch_page()
+            if not self._items:
+                raise StopIteration
+        item = self._items[self._index]
+        self._index += 1
+        return item

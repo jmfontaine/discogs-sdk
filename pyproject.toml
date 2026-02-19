@@ -1,0 +1,77 @@
+[build-system]
+build-backend = "uv_build"
+requires = [ "uv-build>=0.10.3,<0.11" ]
+
+[project]
+name = "discogs-sdk"
+version = "0.1.0"
+description = "Modern Python client for the Discogs API"
+readme = "README.md"
+keywords = [ "api", "discogs", "music", "python", "sdk" ]
+license = "Apache-2.0"
+authors = [ { name = "Jean-Marc Fontaine", email = "jm@jmfontaine.net" } ]
+requires-python = ">=3.10"
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Typing :: Typed",
+]
+dependencies = [ "httpx>=0.28", "pydantic>=2.12", "typing-extensions>=4" ]
+optional-dependencies.cache = [ "hishel>=0.1" ]
+urls.Homepage = "https://github.com/jmfontaine/discogs-sdk"
+urls.Issues = "https://github.com/jmfontaine/discogs-sdk/issues"
+urls.Repository = "https://github.com/jmfontaine/discogs-sdk"
+
+[dependency-groups]
+dev = [
+  "ast-comments>=1.2",
+  "deadcode>=2.4.1",
+  "deptry>=0.24",
+  "pyproject-fmt>=2.16.1",
+  "pyright>=1.1.408",
+  "ruff>=0.15.2",
+  "ty>=0.0.17",
+]
+test = [ "pytest>=8.3", "pytest-asyncio>=0.24", "pytest-cov>=6", "respx>=0.22" ]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 120
+lint.per-file-ignores."examples/*" = [ "E402", "F811" ]
+
+[tool.deptry]
+per_rule_ignores.DEP001 = [ "tomllib" ]
+
+[tool.pyproject-fmt]
+column_width = 120
+max_supported_python = "3.14"
+
+[tool.pytest]
+ini_options.addopts = "-m 'not integration'"
+ini_options.asyncio_mode = "auto"
+ini_options.markers = [
+  "integration: hits the real Discogs API (requires DISCOGS_TOKEN)",
+]
+ini_options.testpaths = [ "tests" ]
+
+[tool.coverage]
+run.source = [ "discogs_sdk" ]
+report.show_missing = true
+report.skip_empty = true
+
+[tool.deadcode]
+ignore_bodies_if_inherits_from = [ "SDKModel" ]
+ignore_names = [
+  "_clean_discogs_env",
+  "model_config",
+  "prices",
+  "pytestmark",
+  "return_value",
+]
