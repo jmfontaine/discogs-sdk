@@ -66,6 +66,9 @@ run.source = [ "discogs_sdk" ]
 report.show_missing = true
 report.skip_empty = true
 
+[tool.ty]
+rules.unused-ignore-comment = "ignore"
+
 [tool.deadcode]
 ignore_bodies_if_inherits_from = [ "SDKModel" ]
 ignore_names = [
