@@ -56,6 +56,28 @@ pre-commit-update:
 # Run all quality assurance checks
 qa: dead-code deps-unused format-check lint sync-check type-check verify-types
 
+# Tag, push, and monitor the publish workflow
+release:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    version=$(uv run python -c "import tomllib, pathlib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+    tag="v${version}"
+    if git rev-parse "$tag" >/dev/null 2>&1; then
+        echo "Error: tag $tag already exists"
+        exit 1
+    fi
+    if [ -n "$(git status --porcelain)" ]; then
+        echo "Error: working tree is not clean"
+        exit 1
+    fi
+    echo "Creating signed tag $tag..."
+    git tag -s "$tag" -m "Release $tag"
+    echo "Pushing main and $tag to origin..."
+    git push origin main "$tag"
+    echo "Waiting for publish workflow to start..."
+    sleep 5
+    gh run watch --exit-status "$(gh run list --workflow=publish.yml --branch="$tag" --limit=1 --json=databaseId --jq='.[0].databaseId')"
+
 # Set local dev environment up
 setup:
     uv sync --all-extras --all-groups  # Install dependencies

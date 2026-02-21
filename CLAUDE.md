@@ -27,6 +27,7 @@ just deps-update        # Update deps to latest versions
 just test-integration   # Run integration tests (requires DISCOGS_TOKEN)
 just verify-types       # Audit public API type annotation coverage (informational, not a gate)
 just verify-oauth       # Verify OAuth flow interactively
+just release            # Tag, push, and monitor the publish workflow
 just pre-commit         # Run pre-commit hooks on all files
 just pre-commit-install # Install pre-commit hooks
 just pre-commit-update  # Update pre-commit hooks to latest versions
@@ -145,6 +146,16 @@ Only listings with status `For Sale`, `Draft`, or `Expired` can be modified. Sol
 ### 403 Mapped to ForbiddenError
 
 Authenticated requests that lack permission (e.g., accessing another user's private collection) raise `ForbiddenError`.
+
+## Releasing
+
+Publishing is fully automated via CI. The `publish.yml` workflow triggers on `v*` tag push.
+
+1. Update `version` in `pyproject.toml`
+2. Commit the version bump
+3. Run `just release` — creates a signed tag, pushes, and monitors the workflow
+
+The workflow runs QA + tests, publishes to PyPI via Trusted Publishers (OIDC), and creates a GitHub release with auto-generated notes. The `pypi` GitHub environment must exist on the repo.
 
 ## Key Conventions
 
