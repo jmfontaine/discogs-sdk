@@ -6,7 +6,6 @@ import os
 import random
 import time
 import urllib.parse
-from pathlib import Path
 from typing import Any
 
 from discogs_sdk._exceptions import (
@@ -22,6 +21,7 @@ logger = logging.getLogger("discogs_sdk")
 
 DEFAULT_BASE_URL = "https://api.discogs.com"
 DEFAULT_TIMEOUT = 30.0
+DEFAULT_CACHE_TTL = 3600.0
 _RETRY_STATUSES: frozenset[int] = frozenset({429, 500, 502, 503, 504})
 
 try:
@@ -61,14 +61,6 @@ def build_oauth_header(
         params["oauth_callback"] = callback
     header_parts = ", ".join(f'{k}="{urllib.parse.quote(v, safe="")}"' for k, v in params.items())
     return f"OAuth {header_parts}"
-
-
-def _default_cache_dir() -> Path:
-    """Return the default cache directory (XDG-compliant)."""
-    xdg = os.environ.get("XDG_CACHE_HOME")
-    if xdg:
-        return Path(xdg) / "discogs-sdk"
-    return Path.home() / ".cache" / "discogs-sdk"
 
 
 class BaseClient:

@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-import sys
-from unittest.mock import MagicMock, patch
-
 import httpx
-import pytest
 import respx
 
 from discogs_sdk import AsyncDiscogs
+from discogs_sdk._cache import MemoryCache, SQLiteCache
 from tests.conftest import BASE_URL
 
 
@@ -23,66 +20,89 @@ class TestCustomHttpClient:
 
 
 class TestCacheBranch:
-    def test_cache_without_hishel_raises(self):
-        with patch.dict(sys.modules, {"hishel": None, "hishel.httpx": None}):
-            with pytest.raises(ImportError, match="hishel is required"):
-                AsyncDiscogs(token="t", cache=True)
+    def test_cache_true_creates_memory_cache(self):
+        client = AsyncDiscogs(token="t", cache=True)
+        assert isinstance(client._cache, MemoryCache)
 
-    def test_cache_with_hishel(self, tmp_path):
-        mock_cache_client = MagicMock()
-        mock_storage = MagicMock()
-        mock_hishel = MagicMock()
-        mock_hishel.AsyncSqliteStorage = MagicMock(return_value=mock_storage)
-        mock_httpx_module = MagicMock()
-        mock_httpx_module.AsyncCacheClient = MagicMock(return_value=mock_cache_client)
-        with patch.dict(sys.modules, {"hishel": mock_hishel, "hishel.httpx": mock_httpx_module}):
-            client = AsyncDiscogs(token="t", cache=True, cache_dir=tmp_path)
-            assert client._http_client is mock_cache_client
-            assert client._owns_client is True
+    def test_cache_false_leaves_cache_none(self):
+        client = AsyncDiscogs(token="t", cache=False)
+        assert client._cache is None
 
-    def test_cache_default_dir(self, tmp_path):
-        mock_cache_client = MagicMock()
-        mock_storage = MagicMock()
-        mock_hishel = MagicMock()
-        mock_hishel.AsyncSqliteStorage = MagicMock(return_value=mock_storage)
-        mock_httpx_module = MagicMock()
-        mock_httpx_module.AsyncCacheClient = MagicMock(return_value=mock_cache_client)
-        xdg_cache = tmp_path / "xdg-cache"
-        with (
-            patch.dict(sys.modules, {"hishel": mock_hishel, "hishel.httpx": mock_httpx_module}),
-            patch.dict("os.environ", {"XDG_CACHE_HOME": str(xdg_cache)}),
-        ):
-            AsyncDiscogs(token="t", cache=True)
-            db_path = mock_hishel.AsyncSqliteStorage.call_args[1]["database_path"]
-            assert db_path == xdg_cache / "discogs-sdk" / "cache.db"
-            assert (xdg_cache / "discogs-sdk").is_dir()
+    def test_cache_ttl_passed_through(self):
+        client = AsyncDiscogs(token="t", cache=True, cache_ttl=120)
+        assert client._cache is not None
+        assert client._cache._ttl == 120
 
-    def test_cache_custom_dir(self, tmp_path):
-        mock_cache_client = MagicMock()
-        mock_storage = MagicMock()
-        mock_hishel = MagicMock()
-        mock_hishel.AsyncSqliteStorage = MagicMock(return_value=mock_storage)
-        mock_httpx_module = MagicMock()
-        mock_httpx_module.AsyncCacheClient = MagicMock(return_value=mock_cache_client)
-        custom_dir = tmp_path / "my-cache"
-        with patch.dict(sys.modules, {"hishel": mock_hishel, "hishel.httpx": mock_httpx_module}):
-            AsyncDiscogs(token="t", cache=True, cache_dir=custom_dir)
-            db_path = mock_hishel.AsyncSqliteStorage.call_args[1]["database_path"]
-            assert db_path == custom_dir / "cache.db"
-            assert custom_dir.is_dir()
+    def test_cache_dir_creates_sqlite_cache(self, tmp_path):
+        client = AsyncDiscogs(token="t", cache=True, cache_dir=tmp_path)
+        assert isinstance(client._cache, SQLiteCache)
+        client._cache.close()
 
-    def test_cache_storage_passed_to_client(self, tmp_path):
-        mock_cache_client = MagicMock()
-        mock_storage = MagicMock()
-        mock_hishel = MagicMock()
-        mock_hishel.AsyncSqliteStorage = MagicMock(return_value=mock_storage)
-        mock_httpx_module = MagicMock()
-        mock_httpx_module.AsyncCacheClient = MagicMock(return_value=mock_cache_client)
-        with patch.dict(sys.modules, {"hishel": mock_hishel, "hishel.httpx": mock_httpx_module}):
-            AsyncDiscogs(token="t", cache=True, cache_dir=tmp_path)
-            mock_httpx_module.AsyncCacheClient.assert_called_once()
-            call_kwargs = mock_httpx_module.AsyncCacheClient.call_args[1]
-            assert call_kwargs["storage"] is mock_storage
+    async def test_cached_get_served_without_http(self):
+        """Second GET for the same URL returns cached response, no network call."""
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/1").mock(return_value=httpx.Response(200, json={"id": 1}))
+            client = AsyncDiscogs(token="t", cache=True)
+            # First call: hits the network
+            r1 = await client._send("GET", f"{BASE_URL}/releases/1")
+            assert r1.status_code == 200
+            assert route.call_count == 1
+            # Second call: served from cache
+            r2 = await client._send("GET", f"{BASE_URL}/releases/1")
+            assert r2.status_code == 200
+            assert route.call_count == 1  # no additional HTTP call
+            await client.close()
+
+    async def test_post_not_cached(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.post("/some/endpoint").mock(return_value=httpx.Response(200, json={}))
+            client = AsyncDiscogs(token="t", cache=True)
+            await client._send("POST", f"{BASE_URL}/some/endpoint")
+            await client._send("POST", f"{BASE_URL}/some/endpoint")
+            assert route.call_count == 2
+            await client.close()
+
+    async def test_non_2xx_not_cached(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/404").mock(return_value=httpx.Response(404, json={"message": "not found"}))
+            client = AsyncDiscogs(token="t", cache=True, max_retries=0)
+            await client._send("GET", f"{BASE_URL}/releases/404")
+            await client._send("GET", f"{BASE_URL}/releases/404")
+            assert route.call_count == 2
+            await client.close()
+
+    async def test_no_cache_context_manager(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/1").mock(return_value=httpx.Response(200, json={"id": 1}))
+            client = AsyncDiscogs(token="t", cache=True)
+            # Populate cache
+            await client._send("GET", f"{BASE_URL}/releases/1")
+            assert route.call_count == 1
+            # Inside no_cache: bypasses cache
+            async with client.no_cache():
+                await client._send("GET", f"{BASE_URL}/releases/1")
+            assert route.call_count == 2
+            # Outside no_cache: cache is re-enabled
+            await client._send("GET", f"{BASE_URL}/releases/1")
+            assert route.call_count == 2  # served from cache
+            await client.close()
+
+    def test_clear_cache_with_cache(self):
+        client = AsyncDiscogs(token="t", cache=True)
+        assert client._cache is not None
+        client._cache.set("k", 200, {}, b"x")
+        client.clear_cache()
+        assert client._cache.get("k") is None
+
+    def test_clear_cache_without_cache(self):
+        client = AsyncDiscogs(token="t", cache=False)
+        client.clear_cache()  # should not raise
+
+    async def test_close_closes_sqlite_cache(self, tmp_path):
+        client = AsyncDiscogs(token="t", cache=True, cache_dir=tmp_path)
+        assert isinstance(client._cache, SQLiteCache)
+        await client.close()
+        assert client._cache._db is None  # SQLite connection closed
 
 
 class TestOAuthInSend:

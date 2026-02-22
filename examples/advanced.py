@@ -4,7 +4,7 @@ Covers:
   - Exception hierarchy and catching patterns
   - Rate limit handling
   - Custom User-Agent
-  - HTTP caching with hishel
+  - Response caching
   - Custom httpx client
   - Exports (inventory CSV download)
   - Uploads (inventory CSV import)
@@ -74,20 +74,64 @@ client = Discogs(
 )
 
 
-# ━━ HTTP caching with hishel ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Install: pip install discogs-sdk[cache]  (or: uv add discogs-sdk[cache])
-# Caches responses locally, respecting HTTP cache headers.
-# Default location: $XDG_CACHE_HOME/discogs-sdk/ or ~/.cache/discogs-sdk/
+# ━━ Response caching ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# In-memory cache with 1-hour TTL (default):
 cached_client = Discogs(token="YOUR_TOKEN_HERE", cache=True)
 
-# Use a custom cache directory:
-cached_client = Discogs(token="YOUR_TOKEN_HERE", cache=True, cache_dir="/tmp/my-cache")
+# Custom TTL (5 minutes) and SQLite persistence:
+cached_client = Discogs(token="YOUR_TOKEN_HERE", cache=True, cache_ttl=300, cache_dir="/tmp/my-cache")
 
 # Repeated calls for the same resource hit the cache:
 r1 = cached_client.releases.get(352665)
 _ = r1.title  # HTTP GET — cached
 r2 = cached_client.releases.get(352665)
 _ = r2.title  # served from cache
+
+# Bypass the cache for a specific block:
+with cached_client.no_cache():
+    fresh = cached_client.releases.get(352665)
+    _ = fresh.title  # always hits the API
+
+# Purge all cached responses:
+cached_client.clear_cache()
+
+
+# ━━ Custom cache backend ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Subclass ResponseCache to plug in any storage backend.
+# Implement get(), set(), clear(), and close().
+import threading
+
+from discogs_sdk._cache import ResponseCache
+
+CacheEntry = tuple[int, dict[str, str], bytes]
+
+
+class DictCache(ResponseCache):
+    """Minimal custom cache — unbounded dict, no expiry."""
+
+    def __init__(self) -> None:
+        super().__init__(ttl=0)
+        self._lock = threading.Lock()
+        self._store: dict[str, tuple[int, dict[str, str], bytes]] = {}
+
+    def get(self, key: str) -> CacheEntry | None:
+        with self._lock:
+            return self._store.get(key)
+
+    def set(self, key: str, status_code: int, headers: dict[str, str], body: bytes) -> None:
+        with self._lock:
+            self._store[key] = (status_code, headers, body)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._store.clear()
+
+    def close(self) -> None:
+        pass
+
+
+# Pass the custom cache instance directly:
+client = Discogs(token="YOUR_TOKEN_HERE", cache=DictCache())
 
 
 # ━━ Custom User-Agent ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

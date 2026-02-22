@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-import sys
-from unittest.mock import MagicMock, patch
-
 import httpx
-import pytest
 import respx
 
 from discogs_sdk import Discogs
+from discogs_sdk._cache import MemoryCache, SQLiteCache
 from tests.conftest import BASE_URL
 
 
@@ -23,19 +20,52 @@ class TestCustomHttpClient:
 
 
 class TestCacheBranch:
-    def test_cache_without_hishel_raises(self):
-        with patch.dict(sys.modules, {"hishel": None, "hishel.httpx": None}):
-            with pytest.raises(ImportError, match="hishel is required"):
-                Discogs(token="t", cache=True)
+    def test_cache_true_creates_memory_cache(self):
+        client = Discogs(token="t", cache=True)
+        assert isinstance(client._cache, MemoryCache)
 
-    def test_cache_with_hishel(self):
-        mock_cache_client = MagicMock()
-        mock_module = MagicMock()
-        mock_module.SyncCacheClient = MagicMock(return_value=mock_cache_client)
-        with patch.dict(sys.modules, {"hishel": MagicMock(), "hishel.httpx": mock_module}):
+    def test_cache_false_leaves_cache_none(self):
+        client = Discogs(token="t", cache=False)
+        assert client._cache is None
+
+    def test_cache_ttl_passed_through(self):
+        client = Discogs(token="t", cache=True, cache_ttl=120)
+        assert client._cache is not None
+        assert client._cache._ttl == 120
+
+    def test_cache_dir_creates_sqlite_cache(self, tmp_path):
+        client = Discogs(token="t", cache=True, cache_dir=tmp_path)
+        assert isinstance(client._cache, SQLiteCache)
+        client._cache.close()
+
+    def test_cached_get_served_without_http(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/1").mock(return_value=httpx.Response(200, json={"id": 1}))
             client = Discogs(token="t", cache=True)
-            assert client._http_client is mock_cache_client
-            assert client._owns_client is True
+            r1 = client._send("GET", f"{BASE_URL}/releases/1")
+            assert r1.status_code == 200
+            assert route.call_count == 1
+            r2 = client._send("GET", f"{BASE_URL}/releases/1")
+            assert r2.status_code == 200
+            assert route.call_count == 1
+            client.close()
+
+    def test_no_cache_context_manager(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/1").mock(return_value=httpx.Response(200, json={"id": 1}))
+            client = Discogs(token="t", cache=True)
+            client._send("GET", f"{BASE_URL}/releases/1")
+            assert route.call_count == 1
+            with client.no_cache():
+                client._send("GET", f"{BASE_URL}/releases/1")
+            assert route.call_count == 2
+            client._send("GET", f"{BASE_URL}/releases/1")
+            assert route.call_count == 2
+            client.close()
+
+    def test_clear_cache_noop_when_disabled(self):
+        client = Discogs(token="t", cache=False)
+        client.clear_cache()  # should not raise
 
 
 class TestOAuthInSend:

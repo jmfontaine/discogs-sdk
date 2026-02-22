@@ -32,7 +32,7 @@ with Discogs() as client:
 - **Sub-resource chaining** — `client.releases.get(id).rating.get()` — intermediate accessors never trigger HTTP
 - **Automatic retries** — retries on 429/5xx with exponential backoff and `Retry-After` support
 - **Three auth modes** — personal token, consumer key/secret, or full OAuth 1.0a
-- **Optional caching** — `cache=True` enables [hishel](https://github.com/karpetrosyan/hishel)-backed HTTP caching
+- **Optional caching** — `cache=True` enables TTL-based response caching (in-memory or SQLite)
 
 ## Why discogs-sdk?
 
@@ -60,14 +60,6 @@ with Discogs() as client:
 pip install discogs-sdk
 # or
 uv add discogs-sdk
-```
-
-With HTTP caching support:
-
-```bash
-pip install discogs-sdk[cache]
-# or
-uv add discogs-sdk[cache]
 ```
 
 Requires Python 3.10+.
@@ -275,7 +267,9 @@ The [`examples/`](examples/) directory has runnable scripts for every feature:
 | `base_url` | `https://api.discogs.com` | API base URL |
 | `timeout` | `30.0` | Request timeout in seconds |
 | `max_retries` | `3` | Max retries on 429/5xx/connection errors |
-| `cache` | `False` | Enable HTTP caching (requires `discogs-sdk[cache]`) |
+| `cache` | `False` | Enable response caching |
+| `cache_ttl` | `3600.0` | Cache time-to-live in seconds |
+| `cache_dir` | `None` | Directory for SQLite cache; in-memory when omitted |
 | `http_client` | `None` | Custom `httpx.Client` or `httpx.AsyncClient` |
 
 Credentials are resolved in order: constructor args > environment variables.

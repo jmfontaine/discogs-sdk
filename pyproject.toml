@@ -24,7 +24,6 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [ "httpx>=0.28", "pydantic>=2.12", "typing-extensions>=4" ]
-optional-dependencies.cache = [ "hishel>=0.1" ]
 urls.Homepage = "https://github.com/jmfontaine/discogs-sdk"
 urls.Issues = "https://github.com/jmfontaine/discogs-sdk/issues"
 urls.Repository = "https://github.com/jmfontaine/discogs-sdk"
