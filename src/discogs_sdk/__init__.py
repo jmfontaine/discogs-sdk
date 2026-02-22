@@ -1,4 +1,5 @@
 from discogs_sdk._async._client import AsyncDiscogs
+from discogs_sdk._base_client import MediaType
 from discogs_sdk._sync._client import Discogs
 from discogs_sdk._exceptions import (
     AuthenticationError,
@@ -69,6 +70,8 @@ __all__ = [
     # Clients
     "AsyncDiscogs",
     "Discogs",
+    # Client config
+    "MediaType",
     # Exceptions
     "DiscogsError",
     "DiscogsConnectionError",

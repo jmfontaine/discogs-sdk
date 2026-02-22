@@ -50,10 +50,20 @@ class TestBuildHeaders:
         headers = c._build_headers()
         assert "Authorization" not in headers
 
-    def test_includes_accept_json(self):
+    def test_default_accept_header(self):
         c = BaseClient(token="t")
         headers = c._build_headers()
-        assert headers["Accept"] == "application/json"
+        assert headers["Accept"] == "application/vnd.discogs.v2.discogs+json"
+
+    def test_accept_header_html(self):
+        c = BaseClient(token="t", media_type="html")
+        headers = c._build_headers()
+        assert headers["Accept"] == "application/vnd.discogs.v2.html+json"
+
+    def test_accept_header_plaintext(self):
+        c = BaseClient(token="t", media_type="plaintext")
+        headers = c._build_headers()
+        assert headers["Accept"] == "application/vnd.discogs.v2.plaintext+json"
 
     def test_key_secret_auth(self, monkeypatch):
         monkeypatch.delenv("DISCOGS_TOKEN", raising=False)

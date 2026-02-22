@@ -6,7 +6,7 @@ import os
 import random
 import time
 import urllib.parse
-from typing import Any
+from typing import Any, Literal
 
 from discogs_sdk._exceptions import (
     AuthenticationError,
@@ -30,6 +30,8 @@ except importlib.metadata.PackageNotFoundError:  # pragma: no cover — package 
     _SDK_VERSION = "0.0.0"
 
 USER_AGENT = f"discogs-sdk/{_SDK_VERSION} +https://github.com/jmfontaine/discogs-sdk"
+
+MediaType = Literal["discogs", "html", "plaintext"]
 
 
 def _generate_nonce() -> str:
@@ -76,11 +78,13 @@ class BaseClient:
         timeout: float = DEFAULT_TIMEOUT,
         max_retries: int = 3,
         user_agent: str | None = None,
+        media_type: MediaType = "discogs",
     ) -> None:
         self.base_url: str = base_url.rstrip("/")
         self.timeout: float = timeout
         self.max_retries: int = max_retries
         self._user_agent: str = user_agent if user_agent else USER_AGENT
+        self._media_type: MediaType = media_type
 
         # Resolve credentials: constructor arg → env var
         self._token = token or os.environ.get("DISCOGS_TOKEN")
@@ -105,7 +109,7 @@ class BaseClient:
     def _build_headers(self) -> dict[str, str]:
         headers = {
             "User-Agent": self._user_agent,
-            "Accept": "application/json",
+            "Accept": f"application/vnd.discogs.v2.{self._media_type}+json",
         }
         if self._token:
             headers["Authorization"] = f"Discogs token={self._token}"

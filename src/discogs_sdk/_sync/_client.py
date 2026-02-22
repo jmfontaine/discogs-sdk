@@ -11,7 +11,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from typing_extensions import Self
 import httpx
-from discogs_sdk._base_client import DEFAULT_BASE_URL, DEFAULT_CACHE_TTL, DEFAULT_TIMEOUT, BaseClient, _RETRY_STATUSES
+from discogs_sdk._base_client import (
+    DEFAULT_BASE_URL,
+    DEFAULT_CACHE_TTL,
+    DEFAULT_TIMEOUT,
+    BaseClient,
+    MediaType,
+    _RETRY_STATUSES,
+)
 from discogs_sdk._cache import MemoryCache, ResponseCache, SQLiteCache
 from discogs_sdk._exceptions import DiscogsConnectionError
 from discogs_sdk._sync.resources.artists import Artists
@@ -58,6 +65,7 @@ class Discogs(BaseClient):
         cache_dir: str | Path | None = None,
         http_client: httpx.Client | None = None,
         user_agent: str | None = None,
+        media_type: MediaType = "discogs",
     ) -> None:
         """Create an async Discogs client.
 
@@ -80,6 +88,8 @@ class Discogs(BaseClient):
             http_client: Custom ``httpx.Client`` to use instead of creating one.
             user_agent: Custom User-Agent string. Replaces the default entirely.
                 Should follow RFC 1945 product token format for best compatibility with Discogs.
+            media_type: Response text format. ``"discogs"`` returns Discogs markup,
+                ``"html"`` returns HTML, ``"plaintext"`` returns plain text.
         """
         super().__init__(
             token=token,
@@ -91,6 +101,7 @@ class Discogs(BaseClient):
             timeout=timeout,
             max_retries=max_retries,
             user_agent=user_agent,
+            media_type=media_type,
         )
         if http_client is not None:
             self._http_client = http_client
