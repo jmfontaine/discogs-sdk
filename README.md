@@ -241,18 +241,18 @@ The [`examples/`](examples/) directory has runnable scripts for every feature:
 
 | Parameter | Default | Description |
 |---|---|---|
-| `token` | `None` | Personal access token |
+| `access_token_secret` | `None` | OAuth access token secret |
+| `access_token` | `None` | OAuth access token |
+| `base_url` | `https://api.discogs.com` | API base URL |
+| `cache_dir` | `None` | Directory for SQLite cache; in-memory when omitted |
+| `cache_ttl` | `3600.0` | Cache time-to-live in seconds |
+| `cache` | `False` | Enable response caching, or pass a custom `ResponseCache` instance |
 | `consumer_key` | `None` | OAuth consumer key |
 | `consumer_secret` | `None` | OAuth consumer secret |
-| `access_token` | `None` | OAuth access token |
-| `access_token_secret` | `None` | OAuth access token secret |
-| `base_url` | `https://api.discogs.com` | API base URL |
-| `timeout` | `30.0` | Request timeout in seconds |
-| `max_retries` | `3` | Max retries on 429/5xx/connection errors |
-| `cache` | `False` | Enable response caching |
-| `cache_ttl` | `3600.0` | Cache time-to-live in seconds |
-| `cache_dir` | `None` | Directory for SQLite cache; in-memory when omitted |
 | `http_client` | `None` | Custom `httpx.Client` or `httpx.AsyncClient` |
+| `max_retries` | `3` | Max retries on 429/5xx/connection errors |
+| `timeout` | `30.0` | Request timeout in seconds |
+| `token` | `None` | Personal access token |
 
 Credentials are resolved in order: constructor args > environment variables.
 
