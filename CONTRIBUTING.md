@@ -11,7 +11,7 @@ before you invest significant time.
 Before opening an issue, search [existing issues](https://github.com/jmfontaine/discogs-sdk/issues) to avoid duplicates.
 
 **Bug reports** should include:
-- Python version and discogs-sdk version (`python --version`, `pip show discogs-sdk`)
+- Python version and discogs-sdk version (`python --version`, `pip show discogs-sdk` or `uv pip show discogs-sdk`)
 - Minimal code example that reproduces the issue
 - Full traceback or error message
 
@@ -28,34 +28,41 @@ just setup
 
 This installs dependencies with [uv](https://docs.astral.sh/uv/) and sets up pre-commit hooks.
 
+> [!TIP]
+> The task runner is [just](https://github.com/casey/just). If you don't have it installed, you can run the underlying
+> commands directly. Check [`justfile`](justfile) to see what each recipe runs — most are one-line `uv run` commands.
+> For example, `just test` runs `uv run pytest --cov --cov-report=term-missing`.
+
 ## Development workflow
 
-The task runner is `just` (not `make`). Key commands:
+Key commands:
 
 ```bash
-just test               # Unit tests with coverage (fast, no network)
-just qa                 # All checks: dead-code, format, lint, type-check, unused-deps
-just lint-fix           # Auto-fix lint issues
 just format             # Auto-format code
 just generate-sync      # Regenerate _sync/ from _async/ sources
+just lint-fix           # Auto-fix lint issues
+just qa                 # All checks (see PR checklist below)
+just sync-check         # Verify _sync/ is up to date without regenerating
+just test               # Unit tests with coverage (fast, no network)
+just type-check         # Run type checker
 ```
+
+Run `just --list` to see all available commands.
 
 ### Async-first architecture
 
-`src/discogs_sdk/_async/` is the source of truth. The `_sync/` directory is auto-generated via AST transformation.
-
 > [!WARNING]
-> `_sync/` source files and `tests/sync/` tests are auto-generated. Never edit them
-> directly — your changes will be overwritten. Edit the `_async/` originals instead,
-> then run `just generate-sync`.
+> `_sync/` source files are auto-generated from `_async/` via AST transformation.
+> Never edit them directly — your changes will be overwritten. Edit the `_async/`
+> originals instead, then run `just generate-sync`.
 
 ### Adding a new resource
 
-1. Add the resource to `src/discogs_sdk/_async/resources/`
+1. Add the resource to `src/discogs_sdk/_async/resources/`, export from `_async/resources/__init__.py`
 2. Wire it into `src/discogs_sdk/_async/_client.py`
 3. Add models to `src/discogs_sdk/models/`, export from `models/__init__.py` and `__init__.py`
-4. Write tests in `tests/async/`
-5. Run `just generate-sync` to create the sync variant and tests
+4. Write tests in `tests/async/` and `tests/sync/`
+5. Run `just generate-sync` to create the sync source code
 
 ## Testing
 
@@ -67,7 +74,8 @@ just test tests/async/test_releases.py             # Single file
 just test tests/async/test_releases.py -k test_get # Single test
 ```
 
-Unit tests use [respx](https://github.com/lundberg/respx) to mock HTTP at the transport level. They never hit the network.
+Unit tests use [respx](https://github.com/lundberg/respx) to mock HTTP at the transport level. They never hit the
+network.
 
 ### Integration tests
 
@@ -91,7 +99,8 @@ If you use [direnv](https://direnv.net/), the `.envrc` already loads `.env` auto
 
 #### OAuth token setup
 
-Some integration tests verify that OAuth 1.0a signed requests work against the real API. These require pre-authorized tokens.
+Some integration tests verify that OAuth 1.0a signed requests work against the real API. These require pre-authorized
+tokens.
 
 **One-time setup:**
 
@@ -143,17 +152,20 @@ From then on, `just test-integration` automatically runs both the personal token
 
 #### Rate limits
 
-The Discogs API allows 60 authenticated requests per minute. The integration test suite uses ~30 calls with a session-scoped client, so it stays well within the limit. Avoid running the suite in a tight loop.
+The Discogs API allows 60 authenticated requests per minute. The integration test suite uses ~30 calls with a
+session-scoped client, so it stays well within the limit. Avoid running the suite in a tight loop.
 
 ## Code style
 
 - Python 3.10+, ruff targets 3.14, line length 120
-- Formatting and linting handled by ruff (`just format`, `just lint`)
+- Formatting and linting handled by ruff (`just format`, `just lint-fix`)
 - Type checking with ty (`just type-check`)
+- Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/): `<type>: <description>`
+  (e.g., `feat: add list items resource`, `fix: handle rate limit retry`)
 
 ## Submitting a pull request
 
-1. Fork the repo and create a branch from `main` (e.g., `fix-rate-limit-retry`, `add-list-items`)
+1. Fork the repo and create a branch from `main` (e.g., `fix/rate-limit-retry`, `feat/add-list-items`)
 2. Make your changes — if touching `_async/`, run `just generate-sync`
 3. Add or update tests
 4. Run `just qa` to catch issues before CI does
@@ -161,18 +173,18 @@ The Discogs API allows 60 authenticated requests per minute. The integration tes
 
 ### PR checklist
 
+Before opening a PR, make sure the following are done:
+
 - [ ] Tests added or updated and passing (`just test`)
-- [ ] `just qa` passes (format, lint, type-check, dead-code, unused-deps)
+- [ ] `just qa` passes
 - [ ] Sync code regenerated if `_async/` changed (`just generate-sync`)
 - [ ] New public APIs exported from `__init__.py`
 
 ### What to expect
 
-A maintainer will review your PR, usually within a few days. Change requests are
-normal and collaborative. Push additional commits to the same branch — no need
-to force-push or squash until asked.
+A maintainer will review your PR, usually within a few days. Change requests are normal and collaborative.
+Push additional commits to the same branch — no need to force-push or squash until asked.
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the
-[Apache License 2.0](LICENSE.txt).
+By contributing, you agree that your contributions will be licensed under the [Apache License 2.0](LICENSE.txt).
