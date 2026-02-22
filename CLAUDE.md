@@ -91,7 +91,7 @@ Env vars: `DISCOGS_TOKEN`, `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `D
 
 - HTTP mocking uses `respx` at the transport level via `respx_mock` fixture
 - Shared payload factories in `tests/conftest.py` (`make_release()`, `make_artist()`, etc.)
-- Async tests in `tests/async/`, sync tests auto-generated in `tests/sync/`
+- Async tests in `tests/async/`, sync tests in `tests/sync/` (both hand-maintained)
 - `pytest-asyncio` with `asyncio_mode="auto"` — no need for `@pytest.mark.asyncio`
 - Integration tests marked with `@pytest.mark.integration`, excluded by default
 
