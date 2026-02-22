@@ -18,6 +18,8 @@ class MasterVersions(AsyncAPIResource):
         country: str | None = None,
         sort: str | None = None,
         sort_order: str | None = None,
+        page: int | None = None,
+        per_page: int | None = None,
     ) -> AsyncPage[MasterVersion]:
         params = {
             k: v
@@ -26,6 +28,8 @@ class MasterVersions(AsyncAPIResource):
                 "country": country,
                 "sort": sort,
                 "sort_order": sort_order,
+                "page": page,
+                "per_page": per_page,
             }.items()
             if v
         }

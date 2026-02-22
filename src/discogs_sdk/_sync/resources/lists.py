@@ -15,9 +15,14 @@ class UserLists(SyncAPIResource):
         super().__init__(client)
         self._username = username
 
-    def list(self) -> SyncPage[ListSummary]:
+    def list(self, *, page: int | None = None, per_page: int | None = None) -> SyncPage[ListSummary]:
+        params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return SyncPage(
-            client=self._client, items_key="lists", model_cls=ListSummary, path=f"/users/{self._username}/lists"
+            client=self._client,
+            items_key="lists",
+            model_cls=ListSummary,
+            params=params,
+            path=f"/users/{self._username}/lists",
         )
 
 

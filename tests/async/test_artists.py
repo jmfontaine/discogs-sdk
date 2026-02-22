@@ -41,6 +41,22 @@ class TestArtistReleases:
         assert len(results) == 2
         assert all(isinstance(r, ArtistRelease) for r in results)
 
+    async def test_releases_list_with_page_and_per_page(self, client, respx_mock):
+        respx_mock.get("/artists/40/releases").mock(
+            return_value=httpx.Response(
+                200, json=make_paginated_response("releases", [make_artist_release()], page=2, per_page=25)
+            )
+        )
+        lazy = client.artists.get(40)
+        page = lazy.releases.list(page=2, per_page=25)
+        results = [item async for item in page]
+        assert len(results) == 1
+        assert page.page == 2
+        assert page.per_page == 25
+        request = respx_mock.calls.last.request
+        assert request.url.params["page"] == "2"
+        assert request.url.params["per_page"] == "25"
+
     async def test_releases_list_with_sort(self, client, respx_mock):
         respx_mock.get("/artists/40/releases").mock(
             return_value=httpx.Response(200, json=make_paginated_response("releases", [make_artist_release()]))

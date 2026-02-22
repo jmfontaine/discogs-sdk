@@ -112,8 +112,12 @@ class FolderReleases(AsyncAPIResource):
         *,
         sort: str | None = None,
         sort_order: str | None = None,
+        page: int | None = None,
+        per_page: int | None = None,
     ) -> AsyncPage[CollectionItem]:
-        params = {k: v for k, v in {"sort": sort, "sort_order": sort_order}.items() if v}
+        params = {
+            k: v for k, v in {"sort": sort, "sort_order": sort_order, "page": page, "per_page": per_page}.items() if v
+        }
         return AsyncPage(
             client=self._client,
             items_key="releases",
@@ -176,11 +180,18 @@ class CollectionReleaseRef:
         self._username = username
         self._release_id = release_id
 
-    def list(self) -> AsyncPage[CollectionItem]:
+    def list(
+        self,
+        *,
+        page: int | None = None,
+        per_page: int | None = None,
+    ) -> AsyncPage[CollectionItem]:
+        params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return AsyncPage(
             client=self._client,
             items_key="releases",
             model_cls=CollectionItem,
+            params=params,
             path=f"/users/{self._username}/collection/releases/{self._release_id}",
         )
 

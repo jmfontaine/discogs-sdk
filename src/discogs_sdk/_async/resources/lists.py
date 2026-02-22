@@ -13,11 +13,18 @@ class UserLists(AsyncAPIResource):
         super().__init__(client)
         self._username = username
 
-    def list(self) -> AsyncPage[ListSummary]:
+    def list(
+        self,
+        *,
+        page: int | None = None,
+        per_page: int | None = None,
+    ) -> AsyncPage[ListSummary]:
+        params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return AsyncPage(
             client=self._client,
             items_key="lists",
             model_cls=ListSummary,
+            params=params,
             path=f"/users/{self._username}/lists",
         )
 

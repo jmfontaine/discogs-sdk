@@ -78,6 +78,8 @@ def make_paginated_response(
     *,
     page: int = 1,
     pages: int = 1,
+    per_page: int = 50,
+    total_items: int | None = None,
     next_url: str | None = None,
 ) -> dict[str, Any]:
     urls: dict[str, str] = {}
@@ -87,8 +89,8 @@ def make_paginated_response(
         "pagination": {
             "page": page,
             "pages": pages,
-            "per_page": 50,
-            "items": len(items),
+            "per_page": per_page,
+            "items": total_items if total_items is not None else len(items),
             "urls": urls,
         },
         items_key: items,

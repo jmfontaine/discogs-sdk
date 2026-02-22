@@ -12,8 +12,11 @@ class Exports(SyncAPIResource):
     def get(self, export_id: int) -> LazyResource:
         return LazyResource(client=self._client, model_cls=Export, path=f"/inventory/export/{export_id}")
 
-    def list(self) -> SyncPage[Export]:
-        return SyncPage(client=self._client, items_key="items", model_cls=Export, path="/inventory/export")
+    def list(self, *, page: int | None = None, per_page: int | None = None) -> SyncPage[Export]:
+        params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
+        return SyncPage(
+            client=self._client, items_key="items", model_cls=Export, params=params, path="/inventory/export"
+        )
 
     def download(self, export_id: int) -> bytes:
         return self._get_binary(f"/inventory/export/{export_id}/download")

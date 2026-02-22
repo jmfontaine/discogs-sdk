@@ -12,10 +12,17 @@ class Wantlist(AsyncAPIResource):
         super().__init__(client)
         self._username = username
 
-    def list(self) -> AsyncPage[Want]:
+    def list(
+        self,
+        *,
+        page: int | None = None,
+        per_page: int | None = None,
+    ) -> AsyncPage[Want]:
+        params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return AsyncPage(
             client=self._client,
             path=f"/users/{self._username}/wants",
+            params=params,
             model_cls=Want,
             items_key="wants",
         )

@@ -20,9 +20,20 @@ class MasterVersions(SyncAPIResource):
         country: str | None = None,
         sort: str | None = None,
         sort_order: str | None = None,
+        page: int | None = None,
+        per_page: int | None = None,
     ) -> SyncPage[MasterVersion]:
         params = {
-            k: v for k, v in {"format": format, "country": country, "sort": sort, "sort_order": sort_order}.items() if v
+            k: v
+            for k, v in {
+                "format": format,
+                "country": country,
+                "sort": sort,
+                "sort_order": sort_order,
+                "page": page,
+                "per_page": per_page,
+            }.items()
+            if v
         }
         return SyncPage(
             client=self._client,

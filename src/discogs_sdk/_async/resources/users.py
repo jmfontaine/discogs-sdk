@@ -42,12 +42,19 @@ class UserSubmissionArtists(AsyncAPIResource):
         super().__init__(client)
         self._username = username
 
-    def list(self) -> AsyncPage[Artist]:
+    def list(
+        self,
+        *,
+        page: int | None = None,
+        per_page: int | None = None,
+    ) -> AsyncPage[Artist]:
+        params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return AsyncPage(
             client=self._client,
             items_key="submissions",
             items_path=["submissions", "artists"],
             model_cls=Artist,
+            params=params,
             path=f"/users/{self._username}/submissions",
         )
 
@@ -57,12 +64,19 @@ class UserSubmissionLabels(AsyncAPIResource):
         super().__init__(client)
         self._username = username
 
-    def list(self) -> AsyncPage[Label]:
+    def list(
+        self,
+        *,
+        page: int | None = None,
+        per_page: int | None = None,
+    ) -> AsyncPage[Label]:
+        params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return AsyncPage(
             client=self._client,
             items_key="submissions",
             items_path=["submissions", "labels"],
             model_cls=Label,
+            params=params,
             path=f"/users/{self._username}/submissions",
         )
 
@@ -72,12 +86,19 @@ class UserSubmissions(AsyncAPIResource):
         super().__init__(client)
         self._username = username
 
-    def list(self) -> AsyncPage[Release]:
+    def list(
+        self,
+        *,
+        page: int | None = None,
+        per_page: int | None = None,
+    ) -> AsyncPage[Release]:
+        params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return AsyncPage(
             client=self._client,
             items_key="submissions",
             items_path=["submissions", "releases"],
             model_cls=Release,
+            params=params,
             path=f"/users/{self._username}/submissions",
         )
 
@@ -100,8 +121,12 @@ class UserContributions(AsyncAPIResource):
         *,
         sort: str | None = None,
         sort_order: str | None = None,
+        page: int | None = None,
+        per_page: int | None = None,
     ) -> AsyncPage[Release]:
-        params = {k: v for k, v in {"sort": sort, "sort_order": sort_order}.items() if v}
+        params = {
+            k: v for k, v in {"sort": sort, "sort_order": sort_order, "page": page, "per_page": per_page}.items() if v
+        }
         return AsyncPage(
             client=self._client,
             items_key="contributions",
@@ -122,8 +147,20 @@ class UserInventory(AsyncAPIResource):
         sort: str | None = None,
         sort_order: str | None = None,
         status: str | None = None,
+        page: int | None = None,
+        per_page: int | None = None,
     ) -> AsyncPage[Listing]:
-        params = {k: v for k, v in {"sort": sort, "sort_order": sort_order, "status": status}.items() if v}
+        params = {
+            k: v
+            for k, v in {
+                "sort": sort,
+                "sort_order": sort_order,
+                "status": status,
+                "page": page,
+                "per_page": per_page,
+            }.items()
+            if v
+        }
         return AsyncPage(
             client=self._client,
             items_key="listings",

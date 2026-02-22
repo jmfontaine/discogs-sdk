@@ -14,11 +14,18 @@ class Exports(AsyncAPIResource):
             path=f"/inventory/export/{export_id}",
         )
 
-    def list(self) -> AsyncPage[Export]:
+    def list(
+        self,
+        *,
+        page: int | None = None,
+        per_page: int | None = None,
+    ) -> AsyncPage[Export]:
+        params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return AsyncPage(
             client=self._client,
             items_key="items",
             model_cls=Export,
+            params=params,
             path="/inventory/export",
         )
 

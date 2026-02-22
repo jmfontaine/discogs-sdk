@@ -19,11 +19,18 @@ class Uploads(AsyncAPIResource):
         response = await self._post_file("/inventory/upload/delete", file_path=file)
         self._raise_for_error(response)
 
-    def list(self) -> AsyncPage[Upload]:
+    def list(
+        self,
+        *,
+        page: int | None = None,
+        per_page: int | None = None,
+    ) -> AsyncPage[Upload]:
+        params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return AsyncPage(
             client=self._client,
             items_key="items",
             model_cls=Upload,
+            params=params,
             path="/inventory/upload",
         )
 

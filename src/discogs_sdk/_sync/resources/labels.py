@@ -13,9 +13,14 @@ class LabelReleases(SyncAPIResource):
         super().__init__(client)
         self._label_id = label_id
 
-    def list(self) -> SyncPage[LabelRelease]:
+    def list(self, *, page: int | None = None, per_page: int | None = None) -> SyncPage[LabelRelease]:
+        params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return SyncPage(
-            client=self._client, items_key="releases", model_cls=LabelRelease, path=f"/labels/{self._label_id}/releases"
+            client=self._client,
+            items_key="releases",
+            model_cls=LabelRelease,
+            params=params,
+            path=f"/labels/{self._label_id}/releases",
         )
 
 

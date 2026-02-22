@@ -21,8 +21,11 @@ class Uploads(SyncAPIResource):
         response = self._post_file("/inventory/upload/delete", file_path=file)
         self._raise_for_error(response)
 
-    def list(self) -> SyncPage[Upload]:
-        return SyncPage(client=self._client, items_key="items", model_cls=Upload, path="/inventory/upload")
+    def list(self, *, page: int | None = None, per_page: int | None = None) -> SyncPage[Upload]:
+        params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
+        return SyncPage(
+            client=self._client, items_key="items", model_cls=Upload, params=params, path="/inventory/upload"
+        )
 
     def get(self, upload_id: int) -> LazyResource:
         return LazyResource(client=self._client, model_cls=Upload, path=f"/inventory/upload/{upload_id}")

@@ -13,8 +13,17 @@ class ArtistReleases(SyncAPIResource):
         super().__init__(client)
         self._artist_id = artist_id
 
-    def list(self, *, sort: str | None = None, sort_order: str | None = None) -> SyncPage[ArtistRelease]:
-        params = {k: v for k, v in {"sort": sort, "sort_order": sort_order}.items() if v}
+    def list(
+        self,
+        *,
+        sort: str | None = None,
+        sort_order: str | None = None,
+        page: int | None = None,
+        per_page: int | None = None,
+    ) -> SyncPage[ArtistRelease]:
+        params = {
+            k: v for k, v in {"sort": sort, "sort_order": sort_order, "page": page, "per_page": per_page}.items() if v
+        }
         return SyncPage(
             client=self._client,
             path=f"/artists/{self._artist_id}/releases",

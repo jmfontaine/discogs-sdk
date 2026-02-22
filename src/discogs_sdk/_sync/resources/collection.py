@@ -100,8 +100,17 @@ class FolderReleases(SyncAPIResource):
     def get(self, release_id: int) -> FolderReleaseRef:
         return FolderReleaseRef(self._client, self._username, self._folder_id, release_id)
 
-    def list(self, *, sort: str | None = None, sort_order: str | None = None) -> SyncPage[CollectionItem]:
-        params = {k: v for k, v in {"sort": sort, "sort_order": sort_order}.items() if v}
+    def list(
+        self,
+        *,
+        sort: str | None = None,
+        sort_order: str | None = None,
+        page: int | None = None,
+        per_page: int | None = None,
+    ) -> SyncPage[CollectionItem]:
+        params = {
+            k: v for k, v in {"sort": sort, "sort_order": sort_order, "page": page, "per_page": per_page}.items() if v
+        }
         return SyncPage(
             client=self._client, items_key="releases", model_cls=CollectionItem, params=params, path=self._base_path()
         )
@@ -158,11 +167,13 @@ class CollectionReleaseRef:
         self._username = username
         self._release_id = release_id
 
-    def list(self) -> SyncPage[CollectionItem]:
+    def list(self, *, page: int | None = None, per_page: int | None = None) -> SyncPage[CollectionItem]:
+        params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return SyncPage(
             client=self._client,
             items_key="releases",
             model_cls=CollectionItem,
+            params=params,
             path=f"/users/{self._username}/collection/releases/{self._release_id}",
         )
 

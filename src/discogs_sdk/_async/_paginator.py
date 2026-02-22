@@ -39,7 +39,7 @@ class AsyncPage(Generic[T]):
     ) -> None:
         self._client = client
         self._path = path
-        self._params = {**(params or {}), "page": 1}
+        self._params = {"page": 1, **(params or {})}
         self._model_cls = model_cls
         self._items_key = items_key
         self._items_path = items_path
@@ -49,6 +49,11 @@ class AsyncPage(Generic[T]):
         self._next_url: str | None = None
         self._exhausted = False
         self._first_page_fetched = False
+
+        self._page_number: int | None = None
+        self._per_page: int | None = None
+        self._total_items: int | None = None
+        self._total_pages: int | None = None
 
     async def _fetch_page(self) -> None:
         if self._next_url:
@@ -64,6 +69,11 @@ class AsyncPage(Generic[T]):
         self._client._maybe_raise(response.status_code, body, retry_after=response.headers.get("Retry-After"))
 
         pagination = body.get("pagination", {})
+        self._page_number = pagination.get("page")
+        self._per_page = pagination.get("per_page")
+        self._total_items = pagination.get("items")
+        self._total_pages = pagination.get("pages")
+
         urls = pagination.get("urls", {})
         self._next_url = urls.get("next")
         if not self._next_url:
@@ -80,6 +90,26 @@ class AsyncPage(Generic[T]):
         self._items = [self._model_cls.model_validate(item) for item in raw_items]
         self._index = 0
         self._first_page_fetched = True
+
+    @property
+    def page(self) -> int | None:
+        """Current page number, or ``None`` if no page has been fetched yet."""
+        return self._page_number
+
+    @property
+    def per_page(self) -> int | None:
+        """Number of items per page, or ``None`` if no page has been fetched yet."""
+        return self._per_page
+
+    @property
+    def total_items(self) -> int | None:
+        """Total number of items across all pages, or ``None`` if no page has been fetched yet."""
+        return self._total_items
+
+    @property
+    def total_pages(self) -> int | None:
+        """Total number of pages, or ``None`` if no page has been fetched yet."""
+        return self._total_pages
 
     def __aiter__(self) -> AsyncIterator[T]:
         return self

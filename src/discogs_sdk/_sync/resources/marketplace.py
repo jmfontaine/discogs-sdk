@@ -19,11 +19,13 @@ class OrderMessages(SyncAPIResource):
         super().__init__(client)
         self._order_id = order_id
 
-    def list(self) -> SyncPage[OrderMessage]:
+    def list(self, *, page: int | None = None, per_page: int | None = None) -> SyncPage[OrderMessage]:
+        params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return SyncPage(
             client=self._client,
             items_key="messages",
             model_cls=OrderMessage,
+            params=params,
             path=f"/marketplace/orders/{self._order_id}/messages",
         )
 
@@ -43,9 +45,25 @@ class MarketplaceOrders(SyncAPIResource):
         )
 
     def list(
-        self, *, status: str | None = None, sort: str | None = None, sort_order: str | None = None
+        self,
+        *,
+        status: str | None = None,
+        sort: str | None = None,
+        sort_order: str | None = None,
+        page: int | None = None,
+        per_page: int | None = None,
     ) -> SyncPage[Order]:
-        params = {k: v for k, v in {"status": status, "sort": sort, "sort_order": sort_order}.items() if v}
+        params = {
+            k: v
+            for k, v in {
+                "status": status,
+                "sort": sort,
+                "sort_order": sort_order,
+                "page": page,
+                "per_page": per_page,
+            }.items()
+            if v
+        }
         return SyncPage(
             client=self._client, items_key="orders", model_cls=Order, params=params, path="/marketplace/orders"
         )
