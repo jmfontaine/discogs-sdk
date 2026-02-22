@@ -40,6 +40,7 @@ NAME_MAP: dict[str, str] = {
     "aclose": "close",
     "AsyncAPIResource": "SyncAPIResource",
     "AsyncCacheClient": "SyncCacheClient",
+    "AsyncSqliteStorage": "SyncSqliteStorage",
     "AsyncClient": "Client",
     "asynccontextmanager": "contextmanager",
     "AsyncDiscogs": "Discogs",

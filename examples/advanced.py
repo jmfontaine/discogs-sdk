@@ -77,7 +77,11 @@ client = Discogs(
 # ━━ HTTP caching with hishel ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Install: pip install discogs-sdk[cache]  (or: uv add discogs-sdk[cache])
 # Caches responses locally, respecting HTTP cache headers.
+# Default location: $XDG_CACHE_HOME/discogs-sdk/ or ~/.cache/discogs-sdk/
 cached_client = Discogs(token="YOUR_TOKEN_HERE", cache=True)
+
+# Use a custom cache directory:
+cached_client = Discogs(token="YOUR_TOKEN_HERE", cache=True, cache_dir="/tmp/my-cache")
 
 # Repeated calls for the same resource hit the cache:
 r1 = cached_client.releases.get(352665)

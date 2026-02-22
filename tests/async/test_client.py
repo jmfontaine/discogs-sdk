@@ -28,14 +28,61 @@ class TestCacheBranch:
             with pytest.raises(ImportError, match="hishel is required"):
                 AsyncDiscogs(token="t", cache=True)
 
-    def test_cache_with_hishel(self):
+    def test_cache_with_hishel(self, tmp_path):
         mock_cache_client = MagicMock()
-        mock_module = MagicMock()
-        mock_module.AsyncCacheClient = MagicMock(return_value=mock_cache_client)
-        with patch.dict(sys.modules, {"hishel": MagicMock(), "hishel.httpx": mock_module}):
-            client = AsyncDiscogs(token="t", cache=True)
+        mock_storage = MagicMock()
+        mock_hishel = MagicMock()
+        mock_hishel.AsyncSqliteStorage = MagicMock(return_value=mock_storage)
+        mock_httpx_module = MagicMock()
+        mock_httpx_module.AsyncCacheClient = MagicMock(return_value=mock_cache_client)
+        with patch.dict(sys.modules, {"hishel": mock_hishel, "hishel.httpx": mock_httpx_module}):
+            client = AsyncDiscogs(token="t", cache=True, cache_dir=tmp_path)
             assert client._http_client is mock_cache_client
             assert client._owns_client is True
+
+    def test_cache_default_dir(self, tmp_path):
+        mock_cache_client = MagicMock()
+        mock_storage = MagicMock()
+        mock_hishel = MagicMock()
+        mock_hishel.AsyncSqliteStorage = MagicMock(return_value=mock_storage)
+        mock_httpx_module = MagicMock()
+        mock_httpx_module.AsyncCacheClient = MagicMock(return_value=mock_cache_client)
+        xdg_cache = tmp_path / "xdg-cache"
+        with (
+            patch.dict(sys.modules, {"hishel": mock_hishel, "hishel.httpx": mock_httpx_module}),
+            patch.dict("os.environ", {"XDG_CACHE_HOME": str(xdg_cache)}),
+        ):
+            AsyncDiscogs(token="t", cache=True)
+            db_path = mock_hishel.AsyncSqliteStorage.call_args[1]["database_path"]
+            assert db_path == xdg_cache / "discogs-sdk" / "cache.db"
+            assert (xdg_cache / "discogs-sdk").is_dir()
+
+    def test_cache_custom_dir(self, tmp_path):
+        mock_cache_client = MagicMock()
+        mock_storage = MagicMock()
+        mock_hishel = MagicMock()
+        mock_hishel.AsyncSqliteStorage = MagicMock(return_value=mock_storage)
+        mock_httpx_module = MagicMock()
+        mock_httpx_module.AsyncCacheClient = MagicMock(return_value=mock_cache_client)
+        custom_dir = tmp_path / "my-cache"
+        with patch.dict(sys.modules, {"hishel": mock_hishel, "hishel.httpx": mock_httpx_module}):
+            AsyncDiscogs(token="t", cache=True, cache_dir=custom_dir)
+            db_path = mock_hishel.AsyncSqliteStorage.call_args[1]["database_path"]
+            assert db_path == custom_dir / "cache.db"
+            assert custom_dir.is_dir()
+
+    def test_cache_storage_passed_to_client(self, tmp_path):
+        mock_cache_client = MagicMock()
+        mock_storage = MagicMock()
+        mock_hishel = MagicMock()
+        mock_hishel.AsyncSqliteStorage = MagicMock(return_value=mock_storage)
+        mock_httpx_module = MagicMock()
+        mock_httpx_module.AsyncCacheClient = MagicMock(return_value=mock_cache_client)
+        with patch.dict(sys.modules, {"hishel": mock_hishel, "hishel.httpx": mock_httpx_module}):
+            AsyncDiscogs(token="t", cache=True, cache_dir=tmp_path)
+            mock_httpx_module.AsyncCacheClient.assert_called_once()
+            call_kwargs = mock_httpx_module.AsyncCacheClient.call_args[1]
+            assert call_kwargs["storage"] is mock_storage
 
 
 class TestOAuthInSend:

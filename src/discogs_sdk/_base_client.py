@@ -6,6 +6,7 @@ import os
 import random
 import time
 import urllib.parse
+from pathlib import Path
 from typing import Any
 
 from discogs_sdk._exceptions import (
@@ -60,6 +61,14 @@ def build_oauth_header(
         params["oauth_callback"] = callback
     header_parts = ", ".join(f'{k}="{urllib.parse.quote(v, safe="")}"' for k, v in params.items())
     return f"OAuth {header_parts}"
+
+
+def _default_cache_dir() -> Path:
+    """Return the default cache directory (XDG-compliant)."""
+    xdg = os.environ.get("XDG_CACHE_HOME")
+    if xdg:
+        return Path(xdg) / "discogs-sdk"
+    return Path.home() / ".cache" / "discogs-sdk"
 
 
 class BaseClient:

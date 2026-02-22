@@ -6,13 +6,14 @@ import time
 if True:  # ASYNC
     import asyncio
 from functools import cached_property
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from typing_extensions import Self
 
 import httpx
 
-from discogs_sdk._base_client import DEFAULT_BASE_URL, DEFAULT_TIMEOUT, BaseClient, _RETRY_STATUSES
+from discogs_sdk._base_client import DEFAULT_BASE_URL, DEFAULT_TIMEOUT, BaseClient, _RETRY_STATUSES, _default_cache_dir
 from discogs_sdk._exceptions import DiscogsConnectionError
 from discogs_sdk._async.resources.artists import Artists
 from discogs_sdk._async.resources.exports import Exports
@@ -54,6 +55,7 @@ class AsyncDiscogs(BaseClient):
         timeout: float = DEFAULT_TIMEOUT,
         max_retries: int = 3,
         cache: bool = False,
+        cache_dir: str | Path | None = None,
         http_client: httpx.AsyncClient | None = None,
         user_agent: str | None = None,
     ) -> None:
@@ -69,6 +71,9 @@ class AsyncDiscogs(BaseClient):
             timeout: Request timeout in seconds.
             max_retries: Max retries on 429/5xx/connection errors.
             cache: Enable HTTP caching (requires ``discogs-sdk[cache]``).
+            cache_dir: Directory for the cache database. Defaults to
+                ``$XDG_CACHE_HOME/discogs-sdk`` or ``~/.cache/discogs-sdk``.
+                Ignored when *cache* is ``False``.
             http_client: Custom ``httpx.AsyncClient`` to use instead of creating one.
             user_agent: Custom User-Agent string. Replaces the default entirely.
                 Should follow RFC 1945 product token format for best compatibility with Discogs.
@@ -89,12 +94,17 @@ class AsyncDiscogs(BaseClient):
             self._owns_client = False
         elif cache:
             try:
+                from hishel import AsyncSqliteStorage  # ty: ignore[unresolved-import]
                 from hishel.httpx import AsyncCacheClient  # ty: ignore[unresolved-import]
             except ImportError:
                 raise ImportError(
                     "hishel is required for caching support. Install it with: pip install discogs-sdk[cache]"
                 ) from None
+            cache_path = Path(cache_dir) if cache_dir else _default_cache_dir()
+            cache_path.mkdir(parents=True, exist_ok=True)
+            storage = AsyncSqliteStorage(database_path=cache_path / "cache.db")
             self._http_client = AsyncCacheClient(
+                storage=storage,
                 headers=self._build_headers(),
                 timeout=self.timeout,
             )
