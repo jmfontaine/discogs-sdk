@@ -165,3 +165,5 @@ The workflow runs QA + tests, publishes to PyPI via Trusted Publishers (OIDC), a
 - New models: add to `models/`, export from `models/__init__.py` and `__init__.py`
 - `py.typed` marker present (PEP 561) — the package is typed
 - `examples/` contains runnable usage examples (quickstart, auth, database, collection, marketplace, async)
+- All examples in docs, README, docstrings, and `examples/` must use Nine Inch Nails related data (artist 3857, release 352665, master 3719, label 647 Nothing Records, etc.)
+- Run `git` commands directly, never with `git -C`

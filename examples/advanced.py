@@ -197,14 +197,14 @@ for item in disc_list.items:
     print(f"  {item.display_title} ({item.type})")
 
 # List a user's lists (paginated).
-user = client.users.get("susan.salkeld")
+user = client.users.get("jmfontaine")
 for summary in user.lists.list():
     print(f"  [{summary.id}] {summary.name}")
 
 
 # ━━ User profile ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Get any user's public profile.
-user = client.users.get("susan.salkeld")
+user = client.users.get("jmfontaine")
 print(f"{user.username}: {user.name}")
 print(f"Location: {user.location}")
 
@@ -216,7 +216,7 @@ client.users.get("your_username").update(
 )
 
 # ━━ User contributions and submissions ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-user = client.users.get("susan.salkeld")
+user = client.users.get("jmfontaine")
 
 for contrib in user.contributions.list(sort="added", sort_order="desc"):
     print(f"  {contrib.title}")

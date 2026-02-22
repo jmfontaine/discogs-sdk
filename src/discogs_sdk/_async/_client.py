@@ -54,8 +54,8 @@ class AsyncDiscogs(BaseClient):
     Use as a context manager to ensure the HTTP client is properly closed::
 
         async with AsyncDiscogs(token="...") as client:
-            release = await client.releases.get(249504)
-            print(release.title)
+            release = await client.releases.get(352665)
+            print(release.title)  # The Downward Spiral
     """
 
     def __init__(
