@@ -8,51 +8,18 @@
   <a href="https://github.com/jmfontaine/discogs-sdk/blob/main/LICENSE.txt"><img src="https://img.shields.io/pypi/l/discogs-sdk.svg" alt="License"></a>
 </p>
 
-A typed Python client for the [Discogs API](https://www.discogs.com/developers). Sync and async, with Pydantic models, automatic pagination, and lazy resource loading.
+discogs-sdk is a modern Python client for the [Discogs API](https://www.discogs.com/developers) with full endpoint coverage, a fluent chainable syntax, and built-in response caching.
 
 ```python
 from discogs_sdk import Discogs
 
-# Reads DISCOGS_TOKEN from environment
 with Discogs() as client:
     release = client.releases.get(352665)
     print(f"{release.title} ({release.year})")
-    # The Downward Spiral (1994)
 
     for result in client.search(query="Nine Inch Nails", type="artist"):
         print(result.title)
 ```
-
-## Features
-
-- **Sync and async** — `Discogs` for synchronous code, `AsyncDiscogs` for async/await
-- **Typed models** — every response is a Pydantic v2 model with `extra="allow"` for undocumented fields
-- **Lazy resources** — `.get()` returns a lightweight proxy; HTTP fires only when you access data
-- **Auto-pagination** — iterate results with `for`/`async for`; pages are fetched on demand
-- **Sub-resource chaining** — `client.releases.get(id).rating.get()` — intermediate accessors never trigger HTTP
-- **Automatic retries** — retries on 429/5xx with exponential backoff and `Retry-After` support
-- **Three auth modes** — personal token, consumer key/secret, or full OAuth 1.0a
-- **Optional caching** — `cache=True` enables TTL-based response caching (in-memory or SQLite)
-
-## Why discogs-sdk?
-
-- **Typed models** — Pydantic v2 models give you autocomplete and IDE support instead of untyped dicts
-- **Lazy loading that respects rate limits** — `.get()` returns a proxy; HTTP fires only when you access data, minimizing calls against the 60 req/min limit
-- **Sync + async from one codebase** — async-first source with auto-generated sync client, identical APIs
-- **Auto-pagination** — iterate results with `for`/`async for`; no manual page math
-- **Modern stack** — built on httpx and Pydantic v2, not requests and raw dicts
-
-### How it compares
-
-| Feature | discogs-sdk | python3-discogs-client | Raw API |
-|---|---|---|---|
-| Typed models (Pydantic) | Yes | No | No |
-| Async support | Yes | No | Manual |
-| Auto-pagination | Yes | Yes | Manual |
-| Lazy loading | Yes | No | N/A |
-| Rate limit handling | Automatic retry | Manual | Manual |
-| OAuth 1.0a | Yes | Yes | Manual |
-| HTTP caching | Built-in opt-in | No | Manual |
 
 ## Installation
 
@@ -63,6 +30,32 @@ uv add discogs-sdk
 ```
 
 Requires Python 3.10+.
+
+## Features
+
+- **Full API Coverage** — Every endpoint in the Discogs API v2
+- **Fluent API** — Chain sub-resources naturally: `client.releases.get(id).rating.get()`
+- **Lazy Loading** — No HTTP calls until you actually need the data
+- **Effortless Pagination** — Browse results without managing pages or offsets
+- **Rate Limit Friendly** — Automatically stay within API limits
+- **Built-in Caching** — Optional TTL-based caching reduces API calls
+- **Flexible Auth** — Supports personal tokens, consumer key/secret, or full OAuth 1.0a
+- **Type Safe** — Get autocomplete and IDE support
+- **Async & Sync** — Full support for both synchronous and asynchronous workflows
+
+### How it compares
+
+| | discogs-sdk | python3-discogs-client |
+|---|---|---|
+| Full API coverage | ✓ | Partial |
+| Fluent sub-resource chaining | ✓ | ✗ |
+| Lazy loading | ✓ | ✗ |
+| Auto-pagination | ✓ | ✓ |
+| Automatic rate limit handling | ✓ | ✗ |
+| Caching | ✓ | ✗ |
+| OAuth 1.0a | ✓ | ✓ |
+| Type safe (Pydantic models) | ✓ | ✗ |
+| Async & sync | ✓ | ✗ |
 
 ## Quick start
 
@@ -86,7 +79,7 @@ You can also pass credentials explicitly:
 client = Discogs(token="your-token-here")
 ```
 
-The SDK supports three auth modes: personal token, consumer key/secret, and OAuth 1.0a. All credentials resolve via constructor arg > environment variable (`DISCOGS_TOKEN`, `DISCOGS_CONSUMER_KEY`, etc.). See [`examples/authentication.py`](examples/authentication.py) for the full OAuth flow.
+The SDK supports three auth modes: personal token, consumer key/secret, and OAuth 1.0a. Credentials passed to the constructor take precedence over environment variables (`DISCOGS_TOKEN`, `DISCOGS_CONSUMER_KEY`, etc.). See [`examples/authentication.py`](examples/authentication.py) for the full OAuth flow.
 
 > [!TIP]
 > Use a `.env` file with [python-dotenv](https://pypi.org/project/python-dotenv/) or
@@ -153,25 +146,6 @@ async def main():
 asyncio.run(main())
 ```
 
-### Marketplace
-
-```python
-# Listings
-listing = client.marketplace.listings.get(123456789)
-new = client.marketplace.listings.create(
-    release_id=352665, condition="Very Good Plus (VG+)", price=25.00,
-)
-client.marketplace.listings.update(new.id, price=22.50)
-client.marketplace.listings.delete(new.id)
-
-# Orders
-for order in client.marketplace.orders.list(status="Payment Received"):
-    print(f"Order {order.id}: {order.status}")
-
-# Fee lookup
-fee = client.marketplace.fee.get(price=25.00, currency="USD")
-```
-
 ### Collection
 
 ```python
@@ -203,6 +177,25 @@ for want in user.wantlist.list():
     print(want.basic_information.title)
 ```
 
+### Marketplace
+
+```python
+# Listings
+listing = client.marketplace.listings.get(123456789)
+new = client.marketplace.listings.create(
+    release_id=352665, condition="Very Good Plus (VG+)", price=25.00,
+)
+client.marketplace.listings.update(new.id, price=22.50)
+client.marketplace.listings.delete(new.id)
+
+# Orders
+for order in client.marketplace.orders.list(status="Payment Received"):
+    print(f"Order {order.id}: {order.status}")
+
+# Fee lookup
+fee = client.marketplace.fee.get(price=25.00, currency="USD")
+```
+
 ### Error handling
 
 ```python
@@ -223,25 +216,14 @@ The full exception hierarchy:
 
 ```
 DiscogsError
-+-- DiscogsConnectionError
-+-- DiscogsAPIError
-    +-- AuthenticationError  (401)
-    +-- ForbiddenError       (403)
-    +-- NotFoundError        (404)
-    +-- ValidationError      (422)
-    +-- RateLimitError       (429)
+├── DiscogsConnectionError
+└── DiscogsAPIError
+    ├── AuthenticationError  (401)
+    ├── ForbiddenError       (403)
+    ├── NotFoundError        (404)
+    ├── ValidationError      (422)
+    └── RateLimitError       (429)
 ```
-
-## API coverage
-
-| Area | Resources |
-|---|---|
-| **Database** | Releases, Artists, Masters, Labels, Search |
-| **Marketplace** | Listings, Orders, Order Messages, Fees |
-| **Collection** | Folders, Releases, Instances, Custom Fields, Value |
-| **User** | Profile, Identity, Wantlist, Contributions, Submissions, Inventory, Lists |
-| **Inventory** | Exports (request/download CSV), Uploads (add/change/delete CSV) |
-| **Lists** | Get list by ID, browse user lists |
 
 ## Examples
 
@@ -280,20 +262,26 @@ Model fields use clean Python names. Where the Discogs API uses inconsistent or 
 
 | API field | Python attribute | Models |
 |---|---|---|
-| `uri150` | `uri_150` | `Image` |
 | `anv` | `name_variation` | `ArtistCredit` |
-| `extraartists` | `extra_artists` | `Release`, `Track` |
-| `namevariations` | `name_variations` | `Artist` |
-| `qty` | `quantity` | `Format` |
 | `catno` | `catalog_number` | `LabelCredit`, `Company`, `LabelRelease`, `SearchResult` |
-| `sublabels` | `sub_labels` | `Label` |
+| `created_ts` | `created_at` | `Export`, `Upload`, `List_` |
 | `curr_abbr` | `currency_code` | `OriginalPrice`, `User` |
 | `curr_id` | `currency_id` | `OriginalPrice` |
-| `created_ts` | `created_at` | `Export`, `Upload`, `List_` |
+| `extraartists` | `extra_artists` | `Release`, `Track` |
 | `finished_ts` | `finished_at` | `Export`, `Upload` |
 | `modified_ts` | `modified_at` | `List_` |
+| `namevariations` | `name_variations` | `Artist` |
+| `qty` | `quantity` | `Format` |
+| `sublabels` | `sub_labels` | `Label` |
+| `uri150` | `uri_150` | `Image` |
 
-Both names work when constructing models manually (`Image(uri150="...")` and `Image(uri_150="...")` are equivalent). When accessing attributes, use the Python name: `image.uri_150`.
+Both names work as attributes, so you can use whichever you prefer:
+
+```python
+release = client.releases.get(352665)  # The Downward Spiral
+print(release.extra_artists)  # Python name
+print(release.extraartists)   # API name — same value
+```
 
 ## Contributing
 
