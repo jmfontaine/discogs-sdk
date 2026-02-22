@@ -3,6 +3,10 @@ set quiet := true
 _list:
     just --list
 
+# Preview release notes for unreleased changes
+changelog-preview:
+    uvx git-cliff --unreleased
+
 # Check for unused or undeclared deps
 deps-unused:
     uv run deptry src
