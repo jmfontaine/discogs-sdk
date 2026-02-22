@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import ClassVar, Literal
+from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -47,6 +47,13 @@ CurrencyCode = Literal[
 
 class SDKModel(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow")
+
+    def __getattr__(self, name: str) -> Any:
+        for field_name, field_info in type(self).model_fields.items():
+            alias = field_info.validation_alias or field_info.alias
+            if alias == name:
+                return self.__dict__.get(field_name)
+        return super().__getattr__(name)  # type: ignore[misc]  # Pydantic BaseModel.__getattr__ exists at runtime
 
 
 class Price(SDKModel):
