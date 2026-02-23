@@ -105,6 +105,10 @@ Where the Discogs API uses inconsistent or cryptic field names (`uri150`, `anv`,
 
 Embedded objects like `SubLabel`, `ArtistCredit`, and `LabelCredit` stay minimal — they contain only what the API returns inline. They do **not** auto-fetch the full resource. This is deliberate: hidden HTTP calls are dangerous given the 60/min rate limit. Users who need the full object use `client.labels.get(sublabel.id)` explicitly, which is consistent with the SDK's lazy-loading contract (no HTTP until you ask for it).
 
+## Discogs API Documentation
+
+The official Discogs API documentation is available locally in `docs/discogs_api/` as Markdown files. This directory is git-ignored for copyright reasons. Use these files as a reference when implementing or verifying API endpoints, request/response shapes, and query parameters.
+
 ## Discogs API Quirks
 
 ### Rate Limits
