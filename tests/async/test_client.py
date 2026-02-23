@@ -38,6 +38,11 @@ class TestCacheBranch:
         assert isinstance(client._cache, SQLiteCache)
         client._cache.close()
 
+    def test_cache_accepts_response_cache_instance(self):
+        cache = MemoryCache(ttl=60)
+        client = AsyncDiscogs(token="t", cache=cache)
+        assert client._cache is cache
+
     async def test_cached_get_served_without_http(self):
         """Second GET for the same URL returns cached response, no network call."""
         with respx.mock(base_url=BASE_URL) as router:

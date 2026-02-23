@@ -38,6 +38,11 @@ class TestCacheBranch:
         assert isinstance(client._cache, SQLiteCache)
         client._cache.close()
 
+    def test_cache_accepts_response_cache_instance(self):
+        cache = MemoryCache(ttl=60)
+        client = Discogs(token="t", cache=cache)
+        assert client._cache is cache
+
     def test_cached_get_served_without_http(self):
         with respx.mock(base_url=BASE_URL) as router:
             route = router.get("/releases/1").mock(return_value=httpx.Response(200, json={"id": 1}))
@@ -62,6 +67,13 @@ class TestCacheBranch:
             client._send("GET", f"{BASE_URL}/releases/1")
             assert route.call_count == 2
             client.close()
+
+    def test_clear_cache_with_cache(self):
+        client = Discogs(token="t", cache=True)
+        assert client._cache is not None
+        client._cache.set("k", 200, {}, b"x")
+        client.clear_cache()
+        assert client._cache.get("k") is None
 
     def test_clear_cache_noop_when_disabled(self):
         client = Discogs(token="t", cache=False)
