@@ -58,6 +58,32 @@ class TestCacheBranch:
             assert route.call_count == 1  # no additional HTTP call
             await client.close()
 
+    async def test_cached_response_strips_content_encoding(self):
+        """Cache hit with original content-encoding: gzip must not corrupt the body.
+
+        Regression: the cache stored decompressed bodies with the original
+        content-encoding header, causing httpx to double-decompress on cache hit.
+        """
+        import gzip
+
+        compressed = gzip.compress(b'{"id": 1}')
+        with respx.mock(base_url=BASE_URL) as router:
+            router.get("/releases/1").mock(
+                return_value=httpx.Response(
+                    200,
+                    content=compressed,
+                    headers={"content-encoding": "gzip", "content-type": "application/json"},
+                )
+            )
+            client = AsyncDiscogs(token="t", cache=True)
+            r1 = await client._send("GET", f"{BASE_URL}/releases/1")
+            assert r1.json() == {"id": 1}
+            # Cache hit: must not fail with zlib/decompression error
+            r2 = await client._send("GET", f"{BASE_URL}/releases/1")
+            assert r2.json() == {"id": 1}
+            assert "content-encoding" not in r2.headers
+            await client.close()
+
     async def test_post_not_cached(self):
         with respx.mock(base_url=BASE_URL) as router:
             route = router.post("/some/endpoint").mock(return_value=httpx.Response(200, json={}))

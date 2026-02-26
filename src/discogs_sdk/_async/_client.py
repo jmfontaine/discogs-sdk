@@ -203,10 +203,17 @@ class AsyncDiscogs(BaseClient):
             if response.status_code not in _RETRY_STATUSES or attempt == self.max_retries:
                 if use_cache and 200 <= response.status_code < 300:
                     assert self._cache is not None  # narrowed by use_cache
+                    # response.content is already decompressed by httpx, so strip
+                    # transport-layer headers that describe the wire encoding.
+                    cache_headers = {
+                        k: v
+                        for k, v in response.headers.items()
+                        if k.lower() not in ("content-encoding", "content-length", "transfer-encoding")
+                    }
                     self._cache.set(
                         cache_key,
                         response.status_code,
-                        dict(response.headers),
+                        cache_headers,
                         response.content,
                     )
                 return response

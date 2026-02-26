@@ -176,7 +176,14 @@ class Discogs(BaseClient):
             if response.status_code not in _RETRY_STATUSES or attempt == self.max_retries:
                 if use_cache and 200 <= response.status_code < 300:
                     assert self._cache is not None  # narrowed by use_cache
-                    self._cache.set(cache_key, response.status_code, dict(response.headers), response.content)
+                    # response.content is already decompressed by httpx, so strip
+                    # transport-layer headers that describe the wire encoding.
+                    cache_headers = {
+                        k: v
+                        for k, v in response.headers.items()
+                        if k.lower() not in ("content-encoding", "content-length", "transfer-encoding")
+                    }
+                    self._cache.set(cache_key, response.status_code, cache_headers, response.content)
                 return response
             delay = self._retry_delay(attempt, retry_after=response.headers.get("Retry-After"))
             logger.info(
