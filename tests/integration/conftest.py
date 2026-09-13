@@ -22,7 +22,9 @@ from discogs_sdk import Discogs
 # that followed a successful write, and the API exposes nothing to wait on, so
 # the only lever is retrying. Remove this if the lag turns out to have been a
 # transient Discogs fault rather than normal behaviour.
-def eventually(predicate: Callable[[], bool], *, attempts: int = 4, delay: float = 1.0) -> bool:
+def eventually(
+    predicate: Callable[[], bool], *, attempts: int = 4, delay: float = 1.0
+) -> bool:
     """Poll ``predicate`` until it holds, to tolerate observed read-after-write lag.
 
     A wantlist entry has been seen missing from the next read after a successful

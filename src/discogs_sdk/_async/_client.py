@@ -48,7 +48,9 @@ logger = logging.getLogger("discogs_sdk")
 
 # Clients whose cache is bypassed in the current execution context. Held as a
 # ContextVar so concurrent tasks and threads cannot clobber each other's state.
-_CACHE_BYPASS: ContextVar[frozenset[int]] = ContextVar("discogs_sdk_cache_bypass", default=frozenset())
+_CACHE_BYPASS: ContextVar[frozenset[int]] = ContextVar(
+    "discogs_sdk_cache_bypass", default=frozenset()
+)
 _CACHEABLE_METHODS = frozenset({"GET", "HEAD"})
 
 
@@ -117,7 +119,8 @@ class AsyncDiscogs(BaseClient):
                 authentication is preserved and its responses are not cached,
                 because the SDK cannot tell whose account they belong to.
             user_agent: Custom User-Agent string. Replaces the default entirely.
-                Should follow RFC 1945 product token format for best compatibility with Discogs.
+                Should follow RFC 1945 product token format for best
+                compatibility with Discogs.
             media_type: Response text format. ``"discogs"`` returns Discogs markup,
                 ``"html"`` returns HTML, ``"plaintext"`` returns plain text.
         """
@@ -147,7 +150,9 @@ class AsyncDiscogs(BaseClient):
             self._cache = cache
         elif cache:
             self._cache = (
-                SQLiteCache(ttl=cache_ttl, cache_dir=Path(cache_dir)) if cache_dir else MemoryCache(ttl=cache_ttl)
+                SQLiteCache(ttl=cache_ttl, cache_dir=Path(cache_dir))
+                if cache_dir
+                else MemoryCache(ttl=cache_ttl)
             )
 
     async def _send(
@@ -201,7 +206,9 @@ class AsyncDiscogs(BaseClient):
             if cached is not None:
                 status, cached_headers, body = cached
                 logger.debug("Cache hit: %s %s", method, url)
-                return httpx2.Response(status_code=status, headers=cached_headers, content=body)
+                return httpx2.Response(
+                    status_code=status, headers=cached_headers, content=body
+                )
 
         for attempt in range(self.max_retries + 1):
             logger.debug("HTTP request: %s %s", method, url)
@@ -210,12 +217,17 @@ class AsyncDiscogs(BaseClient):
                 response = await self._http_client.request(method, url, **kwargs)
             except (httpx2.NetworkError, httpx2.TimeoutException) as exc:
                 elapsed_ms = (time.monotonic() - t0) * 1000
-                if attempt == self.max_retries or not may_retry_transport_error(method, exc):
-                    logger.debug("HTTP connection error after %.0fms: %s", elapsed_ms, exc)
+                if attempt == self.max_retries or not may_retry_transport_error(
+                    method, exc
+                ):
+                    logger.debug(
+                        "HTTP connection error after %.0fms: %s", elapsed_ms, exc
+                    )
                     raise DiscogsConnectionError(str(exc)) from exc
                 delay = self._retry_delay(attempt)
                 logger.info(
-                    "Retrying %s %s (attempt %d/%d) after connection error (%.0fms), waiting %.1fs",
+                    "Retrying %s %s (attempt %d/%d) after connection error "
+                    "(%.0fms), waiting %.1fs",
                     method,
                     url,
                     attempt + 2,
@@ -238,7 +250,10 @@ class AsyncDiscogs(BaseClient):
                 elapsed_ms,
             )
 
-            if not may_retry_status(method, response.status_code) or attempt == self.max_retries:
+            if (
+                not may_retry_status(method, response.status_code)
+                or attempt == self.max_retries
+            ):
                 if use_cache and 200 <= response.status_code < 300:
                     assert self._cache is not None  # narrowed by use_cache
                     # response.content is already decompressed by httpx2, so strip
@@ -246,7 +261,12 @@ class AsyncDiscogs(BaseClient):
                     cache_headers = {
                         k: v
                         for k, v in response.headers.items()
-                        if k.lower() not in ("content-encoding", "content-length", "transfer-encoding")
+                        if k.lower()
+                        not in (
+                            "content-encoding",
+                            "content-length",
+                            "transfer-encoding",
+                        )
                     }
                     self._cache.set(
                         cache_key,
@@ -259,7 +279,9 @@ class AsyncDiscogs(BaseClient):
                 self._raise_for_response(response)
                 return response
 
-            delay = self._retry_delay(attempt, retry_after=response.headers.get("Retry-After"))
+            delay = self._retry_delay(
+                attempt, retry_after=response.headers.get("Retry-After")
+            )
             logger.info(
                 "Retrying %s %s (attempt %d/%d) after status %d, waiting %.1fs",
                 method,

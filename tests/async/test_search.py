@@ -11,7 +11,9 @@ from tests.conftest import BASE_URL, make_paginated_response, make_search_result
 class TestSearch:
     async def test_query_remapped_to_q(self, client, respx_mock):
         respx_mock.get("/database/search").mock(
-            return_value=respx.MockResponse(200, json=make_paginated_response("results", [make_search_result()]))
+            return_value=respx.MockResponse(
+                200, json=make_paginated_response("results", [make_search_result()])
+            )
         )
         results = [item async for item in client.search(query="nine inch nails")]
         assert len(results) == 1
@@ -21,7 +23,9 @@ class TestSearch:
 
     async def test_none_values_filtered(self, client, respx_mock):
         respx_mock.get("/database/search").mock(
-            return_value=respx.MockResponse(200, json=make_paginated_response("results", [make_search_result()]))
+            return_value=respx.MockResponse(
+                200, json=make_paginated_response("results", [make_search_result()])
+            )
         )
         results = [item async for item in client.search(query="test", type=None)]
         assert len(results) == 1
@@ -31,7 +35,9 @@ class TestSearch:
     async def test_returns_search_results(self, client, respx_mock):
         items = [make_search_result(id=i, title=f"R{i}") for i in range(3)]
         respx_mock.get("/database/search").mock(
-            return_value=respx.MockResponse(200, json=make_paginated_response("results", items))
+            return_value=respx.MockResponse(
+                200, json=make_paginated_response("results", items)
+            )
         )
         results = [item async for item in client.search(query="test")]
         assert len(results) == 3
@@ -63,9 +69,14 @@ class TestSearch:
 
     async def test_additional_params(self, client, respx_mock):
         respx_mock.get("/database/search").mock(
-            return_value=respx.MockResponse(200, json=make_paginated_response("results", [make_search_result()]))
+            return_value=respx.MockResponse(
+                200, json=make_paginated_response("results", [make_search_result()])
+            )
         )
-        results = [item async for item in client.search(query="test", type="release", year="1994")]
+        results = [
+            item
+            async for item in client.search(query="test", type="release", year="1994")
+        ]
         assert len(results) == 1
 
 
@@ -84,7 +95,9 @@ class TestSearchResultModel:
         respx_mock.get("/database/search").mock(
             return_value=respx.MockResponse(
                 200,
-                json=make_paginated_response("results", [{"id": 1, "title": "T", "_unknown_extra_field": "test"}]),
+                json=make_paginated_response(
+                    "results", [{"id": 1, "title": "T", "_unknown_extra_field": "test"}]
+                ),
             )
         )
         results = [item async for item in client.search(query="t")]

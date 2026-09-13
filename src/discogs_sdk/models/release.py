@@ -27,7 +27,9 @@ class Release(SDKModel):
     date_added: str | None = None
     date_changed: str | None = None
     estimated_weight: int | None = None
-    extra_artists: list[ArtistCredit] | None = Field(default=None, validation_alias="extraartists")
+    extra_artists: list[ArtistCredit] | None = Field(
+        default=None, validation_alias="extraartists"
+    )
     format_quantity: int | None = None
     formats: list[Format] | None = None
     genres: list[str] | None = None

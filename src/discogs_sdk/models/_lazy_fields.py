@@ -34,7 +34,12 @@ if TYPE_CHECKING:
         Video,
     )
     from discogs_sdk.models.list_ import ListItem
-    from discogs_sdk.models.marketplace import ListingRelease, OrderItem, OriginalPrice, ShippingInfo
+    from discogs_sdk.models.marketplace import (
+        ListingRelease,
+        OrderItem,
+        OriginalPrice,
+        ShippingInfo,
+    )
     from discogs_sdk.models.release import RatingInfo
 
 

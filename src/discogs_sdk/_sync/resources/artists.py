@@ -30,7 +30,14 @@ class ArtistReleases(SyncAPIResource):
         per_page: int | None = None,
     ) -> SyncPage[ArtistRelease]:
         params = {
-            k: v for k, v in {"sort": sort, "sort_order": sort_order, "page": page, "per_page": per_page}.items() if v
+            k: v
+            for k, v in {
+                "sort": sort,
+                "sort_order": sort_order,
+                "page": page,
+                "per_page": per_page,
+            }.items()
+            if v
         }
         return SyncPage(
             client=self._client,

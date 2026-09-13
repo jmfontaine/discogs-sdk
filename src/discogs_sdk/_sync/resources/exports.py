@@ -18,10 +18,16 @@ class Exports(SyncAPIResource):
     def get(self, export_id: int) -> ExportProxy:
         return ExportProxy(self._client, f"/inventory/export/{export_id}", Export)
 
-    def list(self, *, page: int | None = None, per_page: int | None = None) -> SyncPage[Export]:
+    def list(
+        self, *, page: int | None = None, per_page: int | None = None
+    ) -> SyncPage[Export]:
         params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return SyncPage(
-            client=self._client, items_key="items", model_cls=Export, params=params, path="/inventory/export"
+            client=self._client,
+            items_key="items",
+            model_cls=Export,
+            params=params,
+            path="/inventory/export",
         )
 
     def download(self, export_id: int) -> bytes:

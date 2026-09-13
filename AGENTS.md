@@ -178,7 +178,7 @@ page or the upload API — there is no `pip yank`), then bump the patch version 
 
 ## Key Conventions
 
-- Python 3.10+ required (CI tests through 3.15), ruff targets 3.10 to match `requires-python`, line length 120
+- Python 3.10+ required (CI tests through 3.15), ruff targets 3.10 to match `requires-python`, line length 88
 - Workarounds that are knowingly less than ideal carry a `KLUDGE:` comment stating what is wrong and what
   removes it. Grep for `KLUDGE` to find them; do not add one without a removal condition
 - Python 3.15 needs `pydantic>=2.14.0b2` (earlier pins lack cp315 wheels), declared in `pyproject.toml`

@@ -18,27 +18,39 @@ _REQUEST_TOKEN_PATH = "/oauth/request_token"
 
 
 def get_request_token(
-    consumer_key: str, consumer_secret: str, callback_url: str = "oob", *, base_url: str = DEFAULT_BASE_URL
+    consumer_key: str,
+    consumer_secret: str,
+    callback_url: str = "oob",
+    *,
+    base_url: str = DEFAULT_BASE_URL,
 ) -> RequestToken:
     """Step 1-2 of the OAuth flow: obtain a request token and authorize URL.
 
     Returns a RequestToken with the token, secret, and a URL to redirect
     the user to for authorization.
     """
-    auth_header = build_oauth_header(callback=callback_url, consumer_key=consumer_key, consumer_secret=consumer_secret)
+    auth_header = build_oauth_header(
+        callback=callback_url,
+        consumer_key=consumer_key,
+        consumer_secret=consumer_secret,
+    )
     headers = {
         "Content-Type": "application/x-www-form-urlencoded",
         "Authorization": auth_header,
         "User-Agent": USER_AGENT,
     }
     with httpx2.Client() as client:
-        response = client.get(f"{base_url.rstrip('/')}{_REQUEST_TOKEN_PATH}", headers=headers)
+        response = client.get(
+            f"{base_url.rstrip('/')}{_REQUEST_TOKEN_PATH}", headers=headers
+        )
     response.raise_for_status()
     parsed = parse_qs(response.text)
     token = parsed["oauth_token"][0]
     token_secret = parsed["oauth_token_secret"][0]
     return RequestToken(
-        authorize_url=f"{_AUTHORIZE_URL}?oauth_token={token}", oauth_token_secret=token_secret, oauth_token=token
+        authorize_url=f"{_AUTHORIZE_URL}?oauth_token={token}",
+        oauth_token_secret=token_secret,
+        oauth_token=token,
     )
 
 
@@ -69,7 +81,12 @@ def get_access_token(
         "User-Agent": USER_AGENT,
     }
     with httpx2.Client() as client:
-        response = client.post(f"{base_url.rstrip('/')}{_ACCESS_TOKEN_PATH}", headers=headers)
+        response = client.post(
+            f"{base_url.rstrip('/')}{_ACCESS_TOKEN_PATH}", headers=headers
+        )
     response.raise_for_status()
     parsed = parse_qs(response.text)
-    return AccessToken(oauth_token=parsed["oauth_token"][0], oauth_token_secret=parsed["oauth_token_secret"][0])
+    return AccessToken(
+        oauth_token=parsed["oauth_token"][0],
+        oauth_token_secret=parsed["oauth_token_secret"][0],
+    )

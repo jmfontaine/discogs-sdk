@@ -46,7 +46,9 @@ class PriceSuggestionsProxy(LazyResource[PriceSuggestions], PriceSuggestionsFiel
     """Lazy suggested prices per condition for a release."""
 
 
-class MarketplaceReleaseStatsProxy(LazyResource[MarketplaceReleaseStats], MarketplaceReleaseStatsFields):
+class MarketplaceReleaseStatsProxy(
+    LazyResource[MarketplaceReleaseStats], MarketplaceReleaseStatsFields
+):
     """Lazy marketplace statistics for a release."""
 
 
@@ -55,15 +57,23 @@ class ReleaseRating(SyncAPIResource):
         super().__init__(client)
         self._release_id = release_id
 
-    def get(self, username: str | None = None) -> CommunityRatingProxy | UserReleaseRatingProxy:
+    def get(
+        self, username: str | None = None
+    ) -> CommunityRatingProxy | UserReleaseRatingProxy:
         if username:
             return UserReleaseRatingProxy(
-                self._client, f"/releases/{self._release_id}/rating/{username}", UserReleaseRating
+                self._client,
+                f"/releases/{self._release_id}/rating/{username}",
+                UserReleaseRating,
             )
-        return CommunityRatingProxy(self._client, f"/releases/{self._release_id}/rating", CommunityRating)
+        return CommunityRatingProxy(
+            self._client, f"/releases/{self._release_id}/rating", CommunityRating
+        )
 
     def update(self, username: str, rating: int) -> UserReleaseRating:
-        response = self._put(f"/releases/{self._release_id}/rating/{username}", json={"rating": rating})
+        response = self._put(
+            f"/releases/{self._release_id}/rating/{username}", json={"rating": rating}
+        )
         return self._parse_response(response, UserReleaseRating)
 
     def delete(self, username: str) -> None:
@@ -76,7 +86,9 @@ class ReleaseStatsResource(SyncAPIResource):
         self._release_id = release_id
 
     def get(self) -> ReleaseStatsProxy:
-        return ReleaseStatsProxy(self._client, f"/releases/{self._release_id}/stats", ReleaseStats)
+        return ReleaseStatsProxy(
+            self._client, f"/releases/{self._release_id}/stats", ReleaseStats
+        )
 
 
 class ReleasePriceSuggestions(SyncAPIResource):
@@ -86,7 +98,9 @@ class ReleasePriceSuggestions(SyncAPIResource):
 
     def get(self) -> PriceSuggestionsProxy:
         return PriceSuggestionsProxy(
-            self._client, f"/marketplace/price_suggestions/{self._release_id}", PriceSuggestions
+            self._client,
+            f"/marketplace/price_suggestions/{self._release_id}",
+            PriceSuggestions,
         )
 
 
@@ -95,7 +109,9 @@ class ReleaseMarketplaceStats(SyncAPIResource):
         super().__init__(client)
         self._release_id = release_id
 
-    def get(self, *, curr_abbr: CurrencyCode | None = None) -> MarketplaceReleaseStatsProxy:
+    def get(
+        self, *, curr_abbr: CurrencyCode | None = None
+    ) -> MarketplaceReleaseStatsProxy:
         """Marketplace stats for the release, priced in *curr_abbr* when given."""
         return MarketplaceReleaseStatsProxy(
             self._client,
@@ -110,9 +126,14 @@ class ReleaseProxy(LazyResource[Release], ReleaseFields):
 
     _release_id: int
 
-    def __init__(self, client: Discogs, release_id: int, *, curr_abbr: CurrencyCode | None = None) -> None:
+    def __init__(
+        self, client: Discogs, release_id: int, *, curr_abbr: CurrencyCode | None = None
+    ) -> None:
         super().__init__(
-            client, f"/releases/{release_id}", Release, params={"curr_abbr": curr_abbr} if curr_abbr else None
+            client,
+            f"/releases/{release_id}",
+            Release,
+            params={"curr_abbr": curr_abbr} if curr_abbr else None,
         )
         self._release_id = release_id
 
@@ -134,6 +155,8 @@ class ReleaseProxy(LazyResource[Release], ReleaseFields):
 
 
 class Releases(SyncAPIResource):
-    def get(self, release_id: int, *, curr_abbr: CurrencyCode | None = None) -> ReleaseProxy:
+    def get(
+        self, release_id: int, *, curr_abbr: CurrencyCode | None = None
+    ) -> ReleaseProxy:
         """The release, with marketplace prices in *curr_abbr* when given."""
         return ReleaseProxy(self._client, release_id, curr_abbr=curr_abbr)

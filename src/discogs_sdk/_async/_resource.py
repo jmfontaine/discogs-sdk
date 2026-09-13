@@ -16,7 +16,9 @@ class AsyncAPIResource:
     def __init__(self, client: AsyncDiscogs) -> None:
         self._client = client
 
-    def _parse_list_response(self, response: httpx2.Response, model_cls: type[_M], items_key: str) -> list[_M]:
+    def _parse_list_response(
+        self, response: httpx2.Response, model_cls: type[_M], items_key: str
+    ) -> list[_M]:
         """Return a validated list from a keyed array. Failures already raised in ``_send``."""
         data = response.json()
         return [model_cls.model_validate(item) for item in data.get(items_key, [])]
@@ -28,7 +30,9 @@ class AsyncAPIResource:
     async def _delete(self, path: str) -> httpx2.Response:
         return await self._request("DELETE", path)
 
-    async def _get(self, path: str, *, params: dict[str, Any] | None = None) -> httpx2.Response:
+    async def _get(
+        self, path: str, *, params: dict[str, Any] | None = None
+    ) -> httpx2.Response:
         return await self._request("GET", path, params=params)
 
     async def _get_binary(self, path: str) -> bytes:

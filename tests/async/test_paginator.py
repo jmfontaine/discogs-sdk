@@ -15,7 +15,9 @@ class TestSinglePage:
     async def test_iterates_all_items(self, client, respx_mock):
         items = [make_release(id=i, title=f"R{i}") for i in range(3)]
         respx_mock.get("/releases").mock(
-            return_value=respx.MockResponse(200, json=make_paginated_response("releases", items))
+            return_value=respx.MockResponse(
+                200, json=make_paginated_response("releases", items)
+            )
         )
         page = AsyncPage(
             client=client,
@@ -30,9 +32,17 @@ class TestSinglePage:
 
     async def test_stops_after_single_page(self, client, respx_mock):
         respx_mock.get("/releases").mock(
-            return_value=respx.MockResponse(200, json=make_paginated_response("releases", [make_release()]))
+            return_value=respx.MockResponse(
+                200, json=make_paginated_response("releases", [make_release()])
+            )
         )
-        page = AsyncPage(client=client, path="/releases", params={}, model_cls=Release, items_key="releases")
+        page = AsyncPage(
+            client=client,
+            path="/releases",
+            params={},
+            model_cls=Release,
+            items_key="releases",
+        )
         results = [item async for item in page]
         assert len(results) == 1
         assert respx_mock.calls.call_count == 1
@@ -60,7 +70,13 @@ class TestMultiPage:
             ]
         )
         respx_mock.get("/releases").mock(side_effect=lambda req: next(responses))
-        page = AsyncPage(client=client, path="/releases", params={}, model_cls=Release, items_key="releases")
+        page = AsyncPage(
+            client=client,
+            path="/releases",
+            params={},
+            model_cls=Release,
+            items_key="releases",
+        )
         results = [item async for item in page]
         assert len(results) == 2
         assert results[0].id == 1
@@ -70,9 +86,17 @@ class TestMultiPage:
 class TestEmptyPage:
     async def test_empty_yields_nothing(self, client, respx_mock):
         respx_mock.get("/releases").mock(
-            return_value=respx.MockResponse(200, json=make_paginated_response("releases", []))
+            return_value=respx.MockResponse(
+                200, json=make_paginated_response("releases", [])
+            )
         )
-        page = AsyncPage(client=client, path="/releases", params={}, model_cls=Release, items_key="releases")
+        page = AsyncPage(
+            client=client,
+            path="/releases",
+            params={},
+            model_cls=Release,
+            items_key="releases",
+        )
         results = [item async for item in page]
         assert results == []
 
@@ -95,7 +119,13 @@ class TestEmptyNextPage:
             ]
         )
         respx_mock.get("/releases").mock(side_effect=lambda req: next(responses))
-        page = AsyncPage(client=client, path="/releases", params={}, model_cls=Release, items_key="releases")
+        page = AsyncPage(
+            client=client,
+            path="/releases",
+            params={},
+            model_cls=Release,
+            items_key="releases",
+        )
         results = [item async for item in page]
         assert len(results) == 1
         assert results[0].id == 1
@@ -107,7 +137,9 @@ class TestItemsPath:
             "pagination": {"page": 1, "pages": 1, "urls": {}},
             "submissions": {"releases": [make_release(id=1), make_release(id=2)]},
         }
-        respx_mock.get("/users/trent_reznor/submissions").mock(return_value=respx.MockResponse(200, json=body))
+        respx_mock.get("/users/trent_reznor/submissions").mock(
+            return_value=respx.MockResponse(200, json=body)
+        )
         page = AsyncPage(
             client=client,
             path="/users/trent_reznor/submissions",
@@ -121,7 +153,9 @@ class TestItemsPath:
 
     async def test_missing_items_path_key(self, client, respx_mock):
         body = {"pagination": {"page": 1, "pages": 1, "urls": {}}}
-        respx_mock.get("/users/trent_reznor/submissions").mock(return_value=respx.MockResponse(200, json=body))
+        respx_mock.get("/users/trent_reznor/submissions").mock(
+            return_value=respx.MockResponse(200, json=body)
+        )
         page = AsyncPage(
             client=client,
             path="/users/trent_reznor/submissions",
@@ -136,8 +170,16 @@ class TestItemsPath:
 
 class TestErrors:
     async def test_error_on_first_page(self, no_retry_client, respx_mock):
-        respx_mock.get("/releases").mock(return_value=respx.MockResponse(500, json={"message": "Server Error"}))
-        page = AsyncPage(client=no_retry_client, path="/releases", params={}, model_cls=Release, items_key="releases")
+        respx_mock.get("/releases").mock(
+            return_value=respx.MockResponse(500, json={"message": "Server Error"})
+        )
+        page = AsyncPage(
+            client=no_retry_client,
+            path="/releases",
+            params={},
+            model_cls=Release,
+            items_key="releases",
+        )
         with pytest.raises(DiscogsAPIError):
             async for _ in page:
                 pass
@@ -153,7 +195,13 @@ class TestErrors:
         error_response = respx.MockResponse(500, json={"message": "Server Error"})
         responses = iter([respx.MockResponse(200, json=page1), error_response])
         respx_mock.get("/releases").mock(side_effect=lambda req: next(responses))
-        page = AsyncPage(client=no_retry_client, path="/releases", params={}, model_cls=Release, items_key="releases")
+        page = AsyncPage(
+            client=no_retry_client,
+            path="/releases",
+            params={},
+            model_cls=Release,
+            items_key="releases",
+        )
         with pytest.raises(DiscogsAPIError):
             async for _ in page:
                 pass
@@ -161,7 +209,13 @@ class TestErrors:
 
 class TestPaginationMetadata:
     async def test_none_before_fetch(self, client):
-        page = AsyncPage(client=client, path="/releases", params={}, model_cls=Release, items_key="releases")
+        page = AsyncPage(
+            client=client,
+            path="/releases",
+            params={},
+            model_cls=Release,
+            items_key="releases",
+        )
         assert page.page is None
         assert page.total_pages is None
         assert page.total_items is None
@@ -172,11 +226,22 @@ class TestPaginationMetadata:
             return_value=respx.MockResponse(
                 200,
                 json=make_paginated_response(
-                    "releases", [make_release()], page=1, pages=3, per_page=25, total_items=75
+                    "releases",
+                    [make_release()],
+                    page=1,
+                    pages=3,
+                    per_page=25,
+                    total_items=75,
                 ),
             )
         )
-        page = AsyncPage(client=client, path="/releases", params={}, model_cls=Release, items_key="releases")
+        page = AsyncPage(
+            client=client,
+            path="/releases",
+            params={},
+            model_cls=Release,
+            items_key="releases",
+        )
         async for _ in page:
             break
         assert page.page == 1
@@ -202,9 +267,17 @@ class TestPaginationMetadata:
             per_page=1,
             total_items=2,
         )
-        responses = iter([respx.MockResponse(200, json=page1), respx.MockResponse(200, json=page2)])
+        responses = iter(
+            [respx.MockResponse(200, json=page1), respx.MockResponse(200, json=page2)]
+        )
         respx_mock.get("/releases").mock(side_effect=lambda req: next(responses))
-        page = AsyncPage(client=client, path="/releases", params={}, model_cls=Release, items_key="releases")
+        page = AsyncPage(
+            client=client,
+            path="/releases",
+            params={},
+            model_cls=Release,
+            items_key="releases",
+        )
         results = [item async for item in page]
         assert len(results) == 2
         assert page.page == 2
@@ -218,10 +291,19 @@ class TestPageParam:
         """When page is passed in params, it overrides the default page=1."""
         respx_mock.get("/releases").mock(
             return_value=respx.MockResponse(
-                200, json=make_paginated_response("releases", [make_release()], page=3, pages=5)
+                200,
+                json=make_paginated_response(
+                    "releases", [make_release()], page=3, pages=5
+                ),
             )
         )
-        page = AsyncPage(client=client, path="/releases", params={"page": 3}, model_cls=Release, items_key="releases")
+        page = AsyncPage(
+            client=client,
+            path="/releases",
+            params={"page": 3},
+            model_cls=Release,
+            items_key="releases",
+        )
         async for _ in page:
             break
         assert page.page == 3
@@ -232,11 +314,16 @@ class TestPageParam:
         """per_page param is sent to the API."""
         respx_mock.get("/releases").mock(
             return_value=respx.MockResponse(
-                200, json=make_paginated_response("releases", [make_release()], per_page=10)
+                200,
+                json=make_paginated_response("releases", [make_release()], per_page=10),
             )
         )
         page = AsyncPage(
-            client=client, path="/releases", params={"per_page": 10}, model_cls=Release, items_key="releases"
+            client=client,
+            path="/releases",
+            params={"per_page": 10},
+            model_cls=Release,
+            items_key="releases",
         )
         async for _ in page:
             break
@@ -249,23 +336,38 @@ class TestCustomItemsKey:
     async def test_custom_key(self, client, respx_mock):
         respx_mock.get("/wants").mock(
             return_value=respx.MockResponse(
-                200, json=make_paginated_response("wants", [{"id": 1, "basic_information": {"id": 1}}])
+                200,
+                json=make_paginated_response(
+                    "wants", [{"id": 1, "basic_information": {"id": 1}}]
+                ),
             )
         )
         from discogs_sdk.models.wantlist import Want
 
-        page = AsyncPage(client=client, path="/wants", params={}, model_cls=Want, items_key="wants")
+        page = AsyncPage(
+            client=client, path="/wants", params={}, model_cls=Want, items_key="wants"
+        )
         results = [item async for item in page]
         assert len(results) == 1
 
 
-def _submissions_page(page: int, pages: int, *, releases: list[dict], artists: list[dict] | None = None) -> dict:
+def _submissions_page(
+    page: int, pages: int, *, releases: list[dict], artists: list[dict] | None = None
+) -> dict:
     body: dict = {
-        "pagination": {"page": page, "pages": pages, "per_page": 50, "items": 2, "urls": {}},
+        "pagination": {
+            "page": page,
+            "pages": pages,
+            "per_page": 50,
+            "items": 2,
+            "urls": {},
+        },
         "submissions": {"releases": releases, "artists": artists or []},
     }
     if page < pages:
-        body["pagination"]["urls"]["next"] = f"{BASE_URL}/users/trent_reznor/submissions?page={page + 1}"
+        body["pagination"]["urls"]["next"] = (
+            f"{BASE_URL}/users/trent_reznor/submissions?page={page + 1}"
+        )
     return body
 
 
@@ -274,16 +376,25 @@ class TestEmptySelectedCategories:
 
     async def test_continues_past_an_empty_middle_page(self, client, respx_mock):
         pages = [
-            _submissions_page(1, 3, releases=[make_release(id=1, title="Pretty Hate Machine")]),
-            _submissions_page(2, 3, releases=[], artists=[{"id": 3857, "name": "Nine Inch Nails"}]),
-            _submissions_page(3, 3, releases=[make_release(id=2, title="The Downward Spiral")]),
+            _submissions_page(
+                1, 3, releases=[make_release(id=1, title="Pretty Hate Machine")]
+            ),
+            _submissions_page(
+                2, 3, releases=[], artists=[{"id": 3857, "name": "Nine Inch Nails"}]
+            ),
+            _submissions_page(
+                3, 3, releases=[make_release(id=2, title="The Downward Spiral")]
+            ),
         ]
         responses = iter(pages)
         route = respx_mock.get("/users/trent_reznor/submissions").mock(
             side_effect=lambda req: respx.MockResponse(200, json=next(responses))
         )
 
-        titles = [item.title async for item in client.users.get("trent_reznor").submissions.list()]
+        titles = [
+            item.title
+            async for item in client.users.get("trent_reznor").submissions.list()
+        ]
 
         assert titles == ["Pretty Hate Machine", "The Downward Spiral"]
         assert route.call_count == 3
@@ -300,12 +411,17 @@ class TestEmptySelectedCategories:
             side_effect=lambda req: respx.MockResponse(200, json=next(responses))
         )
 
-        titles = [item.title async for item in client.users.get("trent_reznor").submissions.list()]
+        titles = [
+            item.title
+            async for item in client.users.get("trent_reznor").submissions.list()
+        ]
 
         assert titles == ["The Fragile"]
         assert route.call_count == 4
 
-    async def test_empty_final_page_terminates_and_stays_exhausted(self, client, respx_mock):
+    async def test_empty_final_page_terminates_and_stays_exhausted(
+        self, client, respx_mock
+    ):
         pages = [
             _submissions_page(1, 2, releases=[make_release(id=1, title="Broken")]),
             _submissions_page(2, 2, releases=[]),
@@ -323,17 +439,26 @@ class TestEmptySelectedCategories:
             await page.__anext__()
         assert route.call_count == 2
 
-    async def test_failure_on_a_later_page_propagates(self, no_retry_client, respx_mock):
+    async def test_failure_on_a_later_page_propagates(
+        self, no_retry_client, respx_mock
+    ):
         responses = iter(
             [
                 respx.MockResponse(200, json=_submissions_page(1, 3, releases=[])),
                 respx.MockResponse(502, html="<html>Bad Gateway</html>"),
             ]
         )
-        respx_mock.get("/users/trent_reznor/submissions").mock(side_effect=lambda req: next(responses))
+        respx_mock.get("/users/trent_reznor/submissions").mock(
+            side_effect=lambda req: next(responses)
+        )
 
         with pytest.raises(DiscogsAPIError) as exc_info:
-            _ = [item async for item in no_retry_client.users.get("trent_reznor").submissions.list()]
+            _ = [
+                item
+                async for item in no_retry_client.users.get(
+                    "trent_reznor"
+                ).submissions.list()
+            ]
 
         # Truncation would have looked like success.
         assert exc_info.value.status_code == 502

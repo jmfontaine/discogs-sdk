@@ -15,7 +15,9 @@ class TestCollectionFolders:
     """Folder create/list/delete cycle."""
 
     def test_create_list_delete_folder(self, client, username):
-        folder = client.users.get(username).collection.folders.create(name="SDK Test Folder")
+        folder = client.users.get(username).collection.folders.create(
+            name="SDK Test Folder"
+        )
         assert isinstance(folder, CollectionFolder)
         assert folder.name == "SDK Test Folder"
 
@@ -48,7 +50,9 @@ class TestCollectionReleases:
             assert mine[0].basic_information is not None
             assert mine[0].basic_information.id == CRUD_RELEASE_ID
         finally:
-            user.collection.folders.get(1).releases.get(CRUD_RELEASE_ID).instances.delete(instance_id)
+            user.collection.folders.get(1).releases.get(
+                CRUD_RELEASE_ID
+            ).instances.delete(instance_id)
 
 
 class TestCollectionFields:

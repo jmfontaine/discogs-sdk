@@ -51,11 +51,18 @@ class TestRateLimitError:
         assert err.retry_after is None
 
     def test_retry_after_set(self):
-        err = RateLimitError("limited", status_code=429, response_body={}, retry_after="30")
+        err = RateLimitError(
+            "limited", status_code=429, response_body={}, retry_after="30"
+        )
         assert err.retry_after == "30"
 
     def test_inherits_api_error_fields(self):
-        err = RateLimitError("limited", status_code=429, response_body={"message": "slow down"}, retry_after="5")
+        err = RateLimitError(
+            "limited",
+            status_code=429,
+            response_body={"message": "slow down"},
+            retry_after="5",
+        )
         assert err.status_code == 429
         assert err.response_body == {"message": "slow down"}
         assert str(err) == "429: limited"
@@ -63,6 +70,8 @@ class TestRateLimitError:
 
 class TestValidationError:
     def test_inherits_api_error_fields(self):
-        err = ValidationError("invalid", status_code=422, response_body={"message": "invalid"})
+        err = ValidationError(
+            "invalid", status_code=422, response_body={"message": "invalid"}
+        )
         assert err.status_code == 422
         assert str(err) == "422: invalid"

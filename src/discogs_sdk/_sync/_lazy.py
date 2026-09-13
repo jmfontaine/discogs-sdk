@@ -32,7 +32,12 @@ class LazyResource(Generic[_M]):
     _params: dict[str, Any] | None
 
     def __init__(
-        self, client: Discogs, path: str, model_cls: type[_M], *, params: dict[str, Any] | None = None
+        self,
+        client: Discogs,
+        path: str,
+        model_cls: type[_M],
+        *,
+        params: dict[str, Any] | None = None,
     ) -> None:
         self._client = client
         self._path = path
@@ -68,7 +73,9 @@ class LazyResource(Generic[_M]):
             resolved = self._resolve()
             getter = getattr(resolved, "__getitem__", None)
             if getter is None:
-                raise TypeError(f"'{type(resolved).__name__}' object is not subscriptable")
+                raise TypeError(
+                    f"'{type(resolved).__name__}' object is not subscriptable"
+                )
             return getter(key)
 
     def __repr__(self) -> str:

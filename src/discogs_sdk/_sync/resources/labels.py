@@ -21,7 +21,9 @@ class LabelReleases(SyncAPIResource):
         super().__init__(client)
         self._label_id = label_id
 
-    def list(self, *, page: int | None = None, per_page: int | None = None) -> SyncPage[LabelRelease]:
+    def list(
+        self, *, page: int | None = None, per_page: int | None = None
+    ) -> SyncPage[LabelRelease]:
         params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return SyncPage(
             client=self._client,

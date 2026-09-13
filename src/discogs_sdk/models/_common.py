@@ -59,7 +59,11 @@ class SDKModel(BaseModel):
         for field_name, field_info in type(self).model_fields.items():
             validation_alias = field_info.validation_alias
             if isinstance(validation_alias, AliasChoices):
-                aliases = {choice for choice in validation_alias.choices if isinstance(choice, str)}
+                aliases = {
+                    choice
+                    for choice in validation_alias.choices
+                    if isinstance(choice, str)
+                }
             elif isinstance(validation_alias, str):
                 aliases = {validation_alias}
             else:
@@ -106,7 +110,9 @@ class ArtistCredit(SDKModel):
 class Track(SDKModel):
     artists: list[ArtistCredit] | None = None
     duration: str | None = None
-    extra_artists: list[ArtistCredit] | None = Field(default=None, validation_alias="extraartists")
+    extra_artists: list[ArtistCredit] | None = Field(
+        default=None, validation_alias="extraartists"
+    )
     position: str | None = None
     sub_tracks: list[Track] | None = None
     title: str | None = None

@@ -20,7 +20,10 @@ class TestWantlistCRUD:
         # A want already on the account carries the user's own notes and rating.
         # Adding it again would overwrite them, so leave it untouched.
         if any(want.id == CRUD_RELEASE_ID for want in wantlist.list()):
-            pytest.skip(f"Release {CRUD_RELEASE_ID} is already in the wantlist; refusing to modify it")
+            pytest.skip(
+                f"Release {CRUD_RELEASE_ID} is already in the wantlist; "
+                "refusing to modify it"
+            )
 
         want = wantlist.create(release_id=CRUD_RELEASE_ID)
 
@@ -28,8 +31,11 @@ class TestWantlistCRUD:
             assert isinstance(want, Want)
             assert want.id == CRUD_RELEASE_ID
             # The write has been observed to lag behind the next read.
-            assert eventually(lambda: CRUD_RELEASE_ID in [w.id for w in wantlist.list()]), (
-                f"Release {CRUD_RELEASE_ID} never showed up in the wantlist after being added"
+            assert eventually(
+                lambda: CRUD_RELEASE_ID in [w.id for w in wantlist.list()]
+            ), (
+                f"Release {CRUD_RELEASE_ID} never showed up in the wantlist "
+                "after being added"
             )
         finally:
             # Remove only the entry this test added.

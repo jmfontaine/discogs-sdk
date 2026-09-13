@@ -55,11 +55,17 @@ def check_wheel(path: Path) -> None:
     if missing:
         fail(f"{path.name} is missing {', '.join(missing)}")
 
-    dist_info = {name for name in names if name.endswith(("dist-info/METADATA", "dist-info/RECORD"))}
+    dist_info = {
+        name
+        for name in names
+        if name.endswith(("dist-info/METADATA", "dist-info/RECORD"))
+    }
     if len(dist_info) != 2:
         fail(f"{path.name} is missing dist-info METADATA or RECORD")
 
-    leaked = sorted({name for name in names if name.split("/", 1)[0] in WHEEL_FORBIDDEN_ROOTS})
+    leaked = sorted(
+        {name for name in names if name.split("/", 1)[0] in WHEEL_FORBIDDEN_ROOTS}
+    )
     if leaked:
         fail(f"{path.name} ships project-only paths: {', '.join(leaked)}")
 
@@ -87,7 +93,10 @@ def main() -> None:
     sdists = sorted(dist.glob("*.tar.gz"))
 
     if len(wheels) != 1 or len(sdists) != 1:
-        fail(f"expected exactly one wheel and one sdist in {dist}, found {len(wheels)} and {len(sdists)}")
+        fail(
+            f"expected exactly one wheel and one sdist in {dist}, "
+            f"found {len(wheels)} and {len(sdists)}"
+        )
 
     check_wheel(wheels[0])
     check_sdist(sdists[0])

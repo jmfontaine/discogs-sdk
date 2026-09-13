@@ -57,12 +57,16 @@ class TestValidationAliasAccess:
         assert company.catno == "XYZ-456"
 
     def test_artist_namevariations(self) -> None:
-        artist = Artist.model_validate({"id": 1, "name": "Test", "namevariations": ["A", "B"]})
+        artist = Artist.model_validate(
+            {"id": 1, "name": "Test", "namevariations": ["A", "B"]}
+        )
         assert artist.name_variations == ["A", "B"]
         assert artist.namevariations == ["A", "B"]
 
     def test_label_sublabels(self) -> None:
-        label = Label.model_validate({"id": 1, "name": "Test", "sublabels": [{"id": 2, "name": "Sub"}]})
+        label = Label.model_validate(
+            {"id": 1, "name": "Test", "sublabels": [{"id": 2, "name": "Sub"}]}
+        )
         assert label.sub_labels is not None
         assert label.sublabels is not None
 
@@ -72,12 +76,16 @@ class TestValidationAliasAccess:
         assert lr.catno == "CAT-1"
 
     def test_search_result_catno(self) -> None:
-        result = SearchResult.model_validate({"id": 1, "title": "Test", "catno": "SR-99"})
+        result = SearchResult.model_validate(
+            {"id": 1, "title": "Test", "catno": "SR-99"}
+        )
         assert result.catalog_number == "SR-99"
         assert result.catno == "SR-99"
 
     def test_release_extraartists(self) -> None:
-        release = Release.model_validate({"id": 1, "title": "Test", "extraartists": [{"name": "Someone"}]})
+        release = Release.model_validate(
+            {"id": 1, "title": "Test", "extraartists": [{"name": "Someone"}]}
+        )
         assert release.extra_artists is not None
         assert release.extraartists is not None
 
@@ -126,7 +134,9 @@ class TestExtraFieldsStillWork:
     """Extra fields (from extra='allow') should still be accessible."""
 
     def test_extra_field_access(self) -> None:
-        image = Image.model_validate({"uri150": "https://example.com/thumb.jpg", "unknown_field": "value"})
+        image = Image.model_validate(
+            {"uri150": "https://example.com/thumb.jpg", "unknown_field": "value"}
+        )
         assert image.unknown_field == "value"
 
 
@@ -164,7 +174,9 @@ class TestCanonicalNameValidation:
         assert "uri_150" not in (image.model_extra or {})
 
     def test_alias_wins_when_both_names_are_supplied(self) -> None:
-        image = Image.model_validate({"uri150": "from-alias", "uri_150": "from-canonical"})
+        image = Image.model_validate(
+            {"uri150": "from-alias", "uri_150": "from-canonical"}
+        )
         assert image.uri_150 == "from-alias"
 
     def test_canonical_name_is_validated_like_the_alias(self) -> None:
@@ -178,19 +190,34 @@ class TestRoundTrip:
     """model_dump() emits canonical names, so re-validating must preserve values."""
 
     def test_scalar_round_trip(self) -> None:
-        image = Image.model_validate({"uri150": "https://example.com/thumb.jpg", "width": 150})
-        assert Image.model_validate(image.model_dump()).uri_150 == "https://example.com/thumb.jpg"
+        image = Image.model_validate(
+            {"uri150": "https://example.com/thumb.jpg", "width": 150}
+        )
+        assert (
+            Image.model_validate(image.model_dump()).uri_150
+            == "https://example.com/thumb.jpg"
+        )
 
     def test_json_round_trip(self) -> None:
         image = Image.model_validate({"uri150": "https://example.com/thumb.jpg"})
-        assert Image.model_validate_json(image.model_dump_json()).uri_150 == "https://example.com/thumb.jpg"
+        assert (
+            Image.model_validate_json(image.model_dump_json()).uri_150
+            == "https://example.com/thumb.jpg"
+        )
 
     def test_nested_list_round_trip(self) -> None:
         release = Release.model_validate(
             {
                 "id": 352665,
                 "title": "The Downward Spiral",
-                "extraartists": [{"id": 3857, "name": "Nine Inch Nails", "anv": "NIN", "role": "Producer"}],
+                "extraartists": [
+                    {
+                        "id": 3857,
+                        "name": "Nine Inch Nails",
+                        "anv": "NIN",
+                        "role": "Producer",
+                    }
+                ],
             }
         )
         restored = Release.model_validate(release.model_dump())

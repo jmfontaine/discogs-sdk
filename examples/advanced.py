@@ -79,7 +79,9 @@ client = Discogs(
 cached_client = Discogs(token="YOUR_TOKEN_HERE", cache=True)
 
 # Custom TTL (5 minutes) and SQLite persistence:
-cached_client = Discogs(token="YOUR_TOKEN_HERE", cache=True, cache_ttl=300, cache_dir="/tmp/my-cache")
+cached_client = Discogs(
+    token="YOUR_TOKEN_HERE", cache=True, cache_ttl=300, cache_dir="/tmp/my-cache"
+)
 
 # Repeated calls for the same resource hit the cache:
 r1 = cached_client.releases.get(352665)
@@ -118,7 +120,9 @@ class DictCache(ResponseCache):
         with self._lock:
             return self._store.get(key)
 
-    def set(self, key: str, status_code: int, headers: dict[str, str], body: bytes) -> None:
+    def set(
+        self, key: str, status_code: int, headers: dict[str, str], body: bytes
+    ) -> None:
         with self._lock:
             self._store[key] = (status_code, headers, body)
 
@@ -137,7 +141,9 @@ client = Discogs(token="YOUR_TOKEN_HERE", cache=DictCache())
 # ━━ Custom User-Agent ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Discogs requires a descriptive User-Agent.  The SDK sends a sensible
 # default, but you can override it to identify your application.
-client = Discogs(token="YOUR_TOKEN_HERE", user_agent="MyApp/1.0 +https://myapp.example.com")
+client = Discogs(
+    token="YOUR_TOKEN_HERE", user_agent="MyApp/1.0 +https://myapp.example.com"
+)
 
 
 # ━━ Custom httpx2 client ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

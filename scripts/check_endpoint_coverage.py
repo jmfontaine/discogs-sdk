@@ -103,10 +103,14 @@ def _is_base_path_call(node: ast.AST) -> bool:
     )
 
 
-def _render(node: ast.AST, base: str | None) -> str | None:
-    """Render a string literal, f-string, or bare ``self._base_path()`` call."""
+def _render(
+    node: ast.AST, base: str | None, names: dict[str, str] | None = None
+) -> str | None:
+    """Render a string literal, f-string, local name, or ``_base_path()`` call."""
     if isinstance(node, ast.Constant):
         return node.value if isinstance(node.value, str) else None
+    if isinstance(node, ast.Name) and names is not None:
+        return names.get(node.id)
     if base is not None and _is_base_path_call(node):
         return base
     if not isinstance(node, ast.JoinedStr):
@@ -116,17 +120,28 @@ def _render(node: ast.AST, base: str | None) -> str | None:
         if isinstance(value, ast.Constant) and isinstance(value.value, str):
             parts.append(value.value)
         elif isinstance(value, ast.FormattedValue):
-            parts.append(base if base is not None and _is_base_path_call(value.value) else "{}")
+            rendered = _render(value.value, base, names)
+            parts.append(rendered if rendered is not None else "{}")
     return "".join(parts)
 
 
 def _base_path_of(class_node: ast.ClassDef) -> str | None:
     """The template this class's ``_base_path()`` returns, if it has one."""
     for item in class_node.body:
-        if isinstance(item, ast.FunctionDef) and item.name == "_base_path":
-            for statement in ast.walk(item):
-                if isinstance(statement, ast.Return) and statement.value is not None:
-                    return _render(statement.value, None)
+        if not isinstance(item, ast.FunctionDef) or item.name != "_base_path":
+            continue
+        names: dict[str, str] = {}
+        for statement in item.body:
+            if (
+                isinstance(statement, ast.Assign)
+                and len(statement.targets) == 1
+                and isinstance(statement.targets[0], ast.Name)
+            ):
+                rendered = _render(statement.value, None, names)
+                if rendered is not None:
+                    names[statement.targets[0].id] = rendered
+            elif isinstance(statement, ast.Return) and statement.value is not None:
+                return _render(statement.value, None, names)
     return None
 
 
@@ -152,7 +167,11 @@ def _sdk_routes() -> set[str]:
     found: set[str] = set()
     for source in sorted(ASYNC_SRC.rglob("*.py")):
         _collect(ast.parse(source.read_text()), None, found)
-    return {route for route in found if re.fullmatch(r"/[a-z][a-z_]*(/.+)?", route) and route.count("/") > 1}
+    return {
+        route
+        for route in found
+        if re.fullmatch(r"/[a-z][a-z_]*(/.+)?", route) and route.count("/") > 1
+    }
 
 
 def _check_sdk() -> bool:
@@ -195,7 +214,10 @@ def _check_upstream() -> bool:
         if clone.returncode != 0:
             # Requested explicitly, so a clone failure is a failure to verify,
             # not a reason to certify the claims unchecked.
-            print(f"\nERROR: could not clone {UPSTREAM_REPO}: {clone.stderr.strip() or 'clone failed'}")
+            print(
+                f"\nERROR: could not clone {UPSTREAM_REPO}: "
+                f"{clone.stderr.strip() or 'clone failed'}"
+            )
             return False
 
         revision = subprocess.run(
@@ -205,24 +227,40 @@ def _check_upstream() -> bool:
             text=True,
             check=False,
         ).stdout.strip()
-        api_source = "\n".join((Path(tmp) / name).read_text() for name in UPSTREAM_SOURCES)
-        whole_repo = "\n".join(path.read_text(errors="ignore") for path in Path(tmp).rglob("*.py"))
+        api_source = "\n".join(
+            (Path(tmp) / name).read_text() for name in UPSTREAM_SOURCES
+        )
+        whole_repo = "\n".join(
+            path.read_text(errors="ignore") for path in Path(tmp).rglob("*.py")
+        )
 
         print(f"\npython3-discogs-client @ {revision or 'unknown'}")
         stale: list[str] = []
         for marker, claim in UPSTREAM_ABSENT.items():
             if marker in api_source:
-                stale.append(f"README says it lacks {claim}, but {marker!r} is now present")
+                stale.append(
+                    f"README says it lacks {claim}, but {marker!r} is now present"
+                )
         for marker, claim in UPSTREAM_PRESENT.items():
             if marker not in api_source:
                 stale.append(f"README credits it with {claim}, but {marker!r} is gone")
         for marker, claim in UPSTREAM_MISSING_FEATURES.items():
             if marker in whole_repo:
-                stale.append(f"README claims it lacks {claim}, but {marker!r} is now present")
+                stale.append(
+                    f"README claims it lacks {claim}, but {marker!r} is now present"
+                )
         if _mentions_caching_in_request_path(Path(tmp)):
-            stale.append("README says it has no response cache, but its request path now mentions caching")
+            stale.append(
+                "README says it has no response cache, but its request path "
+                "now mentions caching"
+            )
 
-        probes = len(UPSTREAM_ABSENT) + len(UPSTREAM_PRESENT) + len(UPSTREAM_MISSING_FEATURES) + 1
+        probes = (
+            len(UPSTREAM_ABSENT)
+            + len(UPSTREAM_PRESENT)
+            + len(UPSTREAM_MISSING_FEATURES)
+            + 1
+        )
         print(f"Drift probes run: {probes}")
         for line in stale:
             print(f"  STALE  {line}")
@@ -232,16 +270,24 @@ def _check_upstream() -> bool:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument(
         "--compare-upstream",
         action="store_true",
-        help="also re-check the README comparison against python3-discogs-client (clones it)",
+        help=(
+            "also re-check the README comparison against "
+            "python3-discogs-client (clones it)"
+        ),
     )
     args = parser.parse_args()
 
     if not API_DOCS.is_dir():
-        print(f"ERROR: {API_DOCS.relative_to(ROOT)} is missing. It holds the local API reference copy.")
+        print(
+            f"ERROR: {API_DOCS.relative_to(ROOT)} is missing. "
+            "It holds the local API reference copy."
+        )
         sys.exit(1)
 
     ok = _check_sdk()

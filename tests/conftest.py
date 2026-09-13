@@ -49,11 +49,15 @@ def make_artist_release(
     return {"id": id, "title": title, "type": type}
 
 
-def make_collection_field(id: int = 1, name: str = "Media Condition", type: str = "dropdown") -> dict[str, Any]:
+def make_collection_field(
+    id: int = 1, name: str = "Media Condition", type: str = "dropdown"
+) -> dict[str, Any]:
     return {"id": id, "name": name, "type": type}
 
 
-def make_collection_folder(id: int = 0, name: str = "All", count: int = 10) -> dict[str, Any]:
+def make_collection_folder(
+    id: int = 0, name: str = "All", count: int = 10
+) -> dict[str, Any]:
     return {"id": id, "name": name, "count": count}
 
 
@@ -151,7 +155,9 @@ def make_list(id: int = 1, name: str = "Industrial Essentials") -> dict[str, Any
     }
 
 
-def make_list_summary(id: int = 1, name: str = "Industrial Essentials") -> dict[str, Any]:
+def make_list_summary(
+    id: int = 1, name: str = "Industrial Essentials"
+) -> dict[str, Any]:
     """An entry in GET /users/{username}/lists, which identifies the list as "id"."""
     return {"id": id, "name": name}
 
@@ -175,7 +181,9 @@ def make_master(id: int = 5765, title: str = "The Downward Spiral") -> dict[str,
     return {"id": id, "title": title}
 
 
-def make_master_version(id: int = 1, title: str = "The Downward Spiral (Definitive Edition)") -> dict[str, Any]:
+def make_master_version(
+    id: int = 1, title: str = "The Downward Spiral (Definitive Edition)"
+) -> dict[str, Any]:
     return {"id": id, "title": title}
 
 
@@ -246,7 +254,10 @@ def make_want(
     notes: str | None = None,
     rating: int | None = None,
 ) -> dict[str, Any]:
-    d: dict[str, Any] = {"id": id, "basic_information": {"id": id, "title": "The Downward Spiral"}}
+    d: dict[str, Any] = {
+        "id": id,
+        "basic_information": {"id": id, "title": "The Downward Spiral"},
+    }
     if notes is not None:
         d["notes"] = notes
     if rating is not None:

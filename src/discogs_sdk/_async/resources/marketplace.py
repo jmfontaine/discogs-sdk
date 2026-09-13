@@ -33,8 +33,14 @@ class OrderMessages(AsyncAPIResource):
             path=f"/marketplace/orders/{self._order_id}/messages",
         )
 
-    async def create(self, *, message: str | None = None, status: str | None = None) -> OrderMessage:
-        body = {k: v for k, v in {"message": message, "status": status}.items() if v is not None}
+    async def create(
+        self, *, message: str | None = None, status: str | None = None
+    ) -> OrderMessage:
+        body = {
+            k: v
+            for k, v in {"message": message, "status": status}.items()
+            if v is not None
+        }
         response = await self._post(
             f"/marketplace/orders/{self._order_id}/messages",
             json=body,
@@ -110,7 +116,9 @@ class ListingProxy(AsyncLazyResource[Listing]):
 
 
 class MarketplaceListings(AsyncAPIResource):
-    def get(self, listing_id: int, *, curr_abbr: CurrencyCode | None = None) -> ListingProxy:
+    def get(
+        self, listing_id: int, *, curr_abbr: CurrencyCode | None = None
+    ) -> ListingProxy:
         """The listing, priced in *curr_abbr* when given."""
         return ListingProxy(
             self._client,
@@ -120,9 +128,21 @@ class MarketplaceListings(AsyncAPIResource):
         )
 
     async def create(
-        self, *, release_id: int, condition: Condition, price: float, status: str = "For Sale", **kwargs: Any
+        self,
+        *,
+        release_id: int,
+        condition: Condition,
+        price: float,
+        status: str = "For Sale",
+        **kwargs: Any,
     ) -> Listing:
-        body = {"release_id": release_id, "condition": condition, "price": price, "status": status, **kwargs}
+        body = {
+            "release_id": release_id,
+            "condition": condition,
+            "price": price,
+            "status": status,
+            **kwargs,
+        }
         response = await self._post("/marketplace/listings", json=body)
         return self._parse_response(response, Listing)
 

@@ -27,7 +27,9 @@ class ResponseCache(ABC):
         """Return ``(status_code, headers, body)`` if fresh, ``None`` on miss/expired."""
 
     @abstractmethod
-    def set(self, key: str, status_code: int, headers: dict[str, str], body: bytes) -> None:
+    def set(
+        self, key: str, status_code: int, headers: dict[str, str], body: bytes
+    ) -> None:
         """Store a response."""
 
     @abstractmethod
@@ -58,9 +60,16 @@ class MemoryCache(ResponseCache):
                 return None
             return status, headers, body
 
-    def set(self, key: str, status_code: int, headers: dict[str, str], body: bytes) -> None:
+    def set(
+        self, key: str, status_code: int, headers: dict[str, str], body: bytes
+    ) -> None:
         with self._lock:
-            self._store[key] = (time.monotonic() + self._ttl, status_code, headers, body)
+            self._store[key] = (
+                time.monotonic() + self._ttl,
+                status_code,
+                headers,
+                body,
+            )
 
     def clear(self) -> None:
         with self._lock:
@@ -77,7 +86,9 @@ class SQLiteCache(ResponseCache):
         super().__init__(ttl)
         self._lock = threading.Lock()
         cache_dir.mkdir(parents=True, exist_ok=True)
-        self._db: sqlite3.Connection | None = sqlite3.connect(cache_dir / "cache.db", check_same_thread=False)
+        self._db: sqlite3.Connection | None = sqlite3.connect(
+            cache_dir / "cache.db", check_same_thread=False
+        )
         self._db.execute(
             "CREATE TABLE IF NOT EXISTS cache_entries ("
             "  key TEXT PRIMARY KEY,"
@@ -93,7 +104,8 @@ class SQLiteCache(ResponseCache):
         with self._lock:
             assert self._db is not None
             row = self._db.execute(
-                "SELECT expires_at, status, headers, body FROM cache_entries WHERE key = ?",
+                "SELECT expires_at, status, headers, body "
+                "FROM cache_entries WHERE key = ?",
                 (key,),
             ).fetchone()
             if row is None:
@@ -105,11 +117,14 @@ class SQLiteCache(ResponseCache):
                 return None
             return status, json.loads(headers_json), bytes(body)
 
-    def set(self, key: str, status_code: int, headers: dict[str, str], body: bytes) -> None:
+    def set(
+        self, key: str, status_code: int, headers: dict[str, str], body: bytes
+    ) -> None:
         with self._lock:
             assert self._db is not None
             self._db.execute(
-                "INSERT OR REPLACE INTO cache_entries (key, expires_at, status, headers, body) VALUES (?, ?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO cache_entries "
+                "(key, expires_at, status, headers, body) VALUES (?, ?, ?, ?, ?)",
                 (key, time.time() + self._ttl, status_code, json.dumps(headers), body),
             )
             self._db.commit()

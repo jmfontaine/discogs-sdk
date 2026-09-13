@@ -23,20 +23,26 @@ class TestCreation:
 
 class TestAutoResolve:
     def test_attribute_access_triggers_http(self, client, respx_mock):
-        respx_mock.get("/releases/400027").mock(return_value=respx.MockResponse(200, json=make_release()))
+        respx_mock.get("/releases/400027").mock(
+            return_value=respx.MockResponse(200, json=make_release())
+        )
         lazy = client.releases.get(400027)
         assert lazy.title == "The Downward Spiral"
         assert respx_mock.calls.call_count == 1
 
     def test_second_access_cached(self, client, respx_mock):
-        respx_mock.get("/releases/400027").mock(return_value=respx.MockResponse(200, json=make_release()))
+        respx_mock.get("/releases/400027").mock(
+            return_value=respx.MockResponse(200, json=make_release())
+        )
         lazy = client.releases.get(400027)
         _ = lazy.title
         _ = lazy.year
         assert respx_mock.calls.call_count == 1
 
     def test_error_raises(self, client, respx_mock):
-        respx_mock.get("/releases/999").mock(return_value=respx.MockResponse(404, json={"message": "Not Found"}))
+        respx_mock.get("/releases/999").mock(
+            return_value=respx.MockResponse(404, json={"message": "Not Found"})
+        )
         lazy = client.releases.get(999)
         with pytest.raises(NotFoundError):
             _ = lazy.title
@@ -44,7 +50,9 @@ class TestAutoResolve:
 
 class TestGetItem:
     def test_getitem_resolves_and_raises_not_subscriptable(self, client, respx_mock):
-        respx_mock.get("/releases/400027").mock(return_value=respx.MockResponse(200, json=make_release()))
+        respx_mock.get("/releases/400027").mock(
+            return_value=respx.MockResponse(200, json=make_release())
+        )
         lazy = client.releases.get(400027)
         # Pydantic models don't support subscript by default
         with pytest.raises(TypeError, match="not subscriptable"):
@@ -72,7 +80,9 @@ class TestRepr:
         assert "Release" in r
 
     def test_repr_after_resolve(self, client, respx_mock):
-        respx_mock.get("/releases/400027").mock(return_value=respx.MockResponse(200, json=make_release()))
+        respx_mock.get("/releases/400027").mock(
+            return_value=respx.MockResponse(200, json=make_release())
+        )
         lazy = client.releases.get(400027)
         _ = lazy.title  # triggers resolve
         r = repr(lazy)
@@ -81,7 +91,9 @@ class TestRepr:
 
 class TestTypedSurface:
     def test_attribute_access_resolves_the_model(self, client, respx_mock):
-        respx_mock.get("/releases/400027").mock(return_value=respx.MockResponse(200, json=make_release()))
+        respx_mock.get("/releases/400027").mock(
+            return_value=respx.MockResponse(200, json=make_release())
+        )
         resolved = client.releases.get(400027)
         assert resolved.title == "The Downward Spiral"
 
@@ -93,6 +105,11 @@ class TestTypedSurface:
         assert respx_mock.calls.call_count == 0
 
     def test_deep_navigation_makes_no_request(self, client, respx_mock):
-        instance = client.users.get("trent_reznor").collection.folders.get(1).releases.get(352665).instances.get(20)
+        instance = (
+            client.users.get("trent_reznor")
+            .collection.folders.get(1)
+            .releases.get(352665)
+            .instances.get(20)
+        )
         assert instance.fields is not None
         assert respx_mock.calls.call_count == 0

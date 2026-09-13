@@ -11,7 +11,9 @@ from discogs_sdk._cache import MemoryCache, SQLiteCache
 class TestMemoryCache:
     def test_set_get_roundtrip(self):
         cache = MemoryCache(ttl=60)
-        cache.set("GET:http://x/1", 200, {"content-type": "application/json"}, b'{"id":1}')
+        cache.set(
+            "GET:http://x/1", 200, {"content-type": "application/json"}, b'{"id":1}'
+        )
         result = cache.get("GET:http://x/1")
         assert result == (200, {"content-type": "application/json"}, b'{"id":1}')
 
@@ -42,7 +44,9 @@ class TestMemoryCache:
 class TestSQLiteCache:
     def test_set_get_roundtrip(self, tmp_path):
         cache = SQLiteCache(ttl=60, cache_dir=tmp_path)
-        cache.set("GET:http://x/1", 200, {"content-type": "application/json"}, b'{"id":1}')
+        cache.set(
+            "GET:http://x/1", 200, {"content-type": "application/json"}, b'{"id":1}'
+        )
         result = cache.get("GET:http://x/1")
         assert result is not None
         status, headers, body = result

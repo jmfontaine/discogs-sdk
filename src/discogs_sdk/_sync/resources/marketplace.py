@@ -22,7 +22,9 @@ class OrderMessages(SyncAPIResource):
         super().__init__(client)
         self._order_id = order_id
 
-    def list(self, *, page: int | None = None, per_page: int | None = None) -> SyncPage[OrderMessage]:
+    def list(
+        self, *, page: int | None = None, per_page: int | None = None
+    ) -> SyncPage[OrderMessage]:
         params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return SyncPage(
             client=self._client,
@@ -32,9 +34,17 @@ class OrderMessages(SyncAPIResource):
             path=f"/marketplace/orders/{self._order_id}/messages",
         )
 
-    def create(self, *, message: str | None = None, status: str | None = None) -> OrderMessage:
-        body = {k: v for k, v in {"message": message, "status": status}.items() if v is not None}
-        response = self._post(f"/marketplace/orders/{self._order_id}/messages", json=body)
+    def create(
+        self, *, message: str | None = None, status: str | None = None
+    ) -> OrderMessage:
+        body = {
+            k: v
+            for k, v in {"message": message, "status": status}.items()
+            if v is not None
+        }
+        response = self._post(
+            f"/marketplace/orders/{self._order_id}/messages", json=body
+        )
         return self._parse_response(response, OrderMessage)
 
 
@@ -89,7 +99,11 @@ class MarketplaceOrders(SyncAPIResource):
             if v is not None
         }
         return SyncPage(
-            client=self._client, items_key="orders", model_cls=Order, params=params, path="/marketplace/orders"
+            client=self._client,
+            items_key="orders",
+            model_cls=Order,
+            params=params,
+            path="/marketplace/orders",
         )
 
     def update(self, order_id: str, **kwargs: Any) -> Order:
@@ -102,7 +116,9 @@ class ListingProxy(LazyResource[Listing], ListingFields):
 
 
 class MarketplaceListings(SyncAPIResource):
-    def get(self, listing_id: int, *, curr_abbr: CurrencyCode | None = None) -> ListingProxy:
+    def get(
+        self, listing_id: int, *, curr_abbr: CurrencyCode | None = None
+    ) -> ListingProxy:
         """The listing, priced in *curr_abbr* when given."""
         return ListingProxy(
             self._client,
@@ -112,9 +128,21 @@ class MarketplaceListings(SyncAPIResource):
         )
 
     def create(
-        self, *, release_id: int, condition: Condition, price: float, status: str = "For Sale", **kwargs: Any
+        self,
+        *,
+        release_id: int,
+        condition: Condition,
+        price: float,
+        status: str = "For Sale",
+        **kwargs: Any,
     ) -> Listing:
-        body = {"release_id": release_id, "condition": condition, "price": price, "status": status, **kwargs}
+        body = {
+            "release_id": release_id,
+            "condition": condition,
+            "price": price,
+            "status": status,
+            **kwargs,
+        }
         response = self._post("/marketplace/listings", json=body)
         return self._parse_response(response, Listing)
 

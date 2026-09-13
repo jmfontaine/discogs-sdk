@@ -37,7 +37,9 @@ async def get_request_token(
         "User-Agent": USER_AGENT,
     }
     async with httpx2.AsyncClient() as client:
-        response = await client.get(f"{base_url.rstrip('/')}{_REQUEST_TOKEN_PATH}", headers=headers)
+        response = await client.get(
+            f"{base_url.rstrip('/')}{_REQUEST_TOKEN_PATH}", headers=headers
+        )
     response.raise_for_status()
 
     parsed = parse_qs(response.text)
@@ -77,7 +79,9 @@ async def get_access_token(
         "User-Agent": USER_AGENT,
     }
     async with httpx2.AsyncClient() as client:
-        response = await client.post(f"{base_url.rstrip('/')}{_ACCESS_TOKEN_PATH}", headers=headers)
+        response = await client.post(
+            f"{base_url.rstrip('/')}{_ACCESS_TOKEN_PATH}", headers=headers
+        )
     response.raise_for_status()
 
     parsed = parse_qs(response.text)

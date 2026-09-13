@@ -62,7 +62,9 @@ class UserSubmissionArtists(SyncAPIResource):
         super().__init__(client)
         self._username = username
 
-    def list(self, *, page: int | None = None, per_page: int | None = None) -> SyncPage[Artist]:
+    def list(
+        self, *, page: int | None = None, per_page: int | None = None
+    ) -> SyncPage[Artist]:
         params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return SyncPage(
             client=self._client,
@@ -79,7 +81,9 @@ class UserSubmissionLabels(SyncAPIResource):
         super().__init__(client)
         self._username = username
 
-    def list(self, *, page: int | None = None, per_page: int | None = None) -> SyncPage[Label]:
+    def list(
+        self, *, page: int | None = None, per_page: int | None = None
+    ) -> SyncPage[Label]:
         params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return SyncPage(
             client=self._client,
@@ -96,7 +100,9 @@ class UserSubmissions(SyncAPIResource):
         super().__init__(client)
         self._username = username
 
-    def list(self, *, page: int | None = None, per_page: int | None = None) -> SyncPage[Release]:
+    def list(
+        self, *, page: int | None = None, per_page: int | None = None
+    ) -> SyncPage[Release]:
         params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return SyncPage(
             client=self._client,
@@ -130,7 +136,14 @@ class UserContributions(SyncAPIResource):
         per_page: int | None = None,
     ) -> SyncPage[Release]:
         params = {
-            k: v for k, v in {"sort": sort, "sort_order": sort_order, "page": page, "per_page": per_page}.items() if v
+            k: v
+            for k, v in {
+                "sort": sort,
+                "sort_order": sort_order,
+                "page": page,
+                "per_page": per_page,
+            }.items()
+            if v
         }
         return SyncPage(
             client=self._client,

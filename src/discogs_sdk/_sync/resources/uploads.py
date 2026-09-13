@@ -24,10 +24,16 @@ class Uploads(SyncAPIResource):
     def delete(self, *, file: str) -> None:
         self._post_file("/inventory/upload/delete", file_path=file)
 
-    def list(self, *, page: int | None = None, per_page: int | None = None) -> SyncPage[Upload]:
+    def list(
+        self, *, page: int | None = None, per_page: int | None = None
+    ) -> SyncPage[Upload]:
         params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return SyncPage(
-            client=self._client, items_key="items", model_cls=Upload, params=params, path="/inventory/upload"
+            client=self._client,
+            items_key="items",
+            model_cls=Upload,
+            params=params,
+            path="/inventory/upload",
         )
 
     def get(self, upload_id: int) -> UploadProxy:

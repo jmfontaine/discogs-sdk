@@ -27,14 +27,22 @@ class Wantlist(AsyncAPIResource):
             items_key="wants",
         )
 
-    async def create(self, *, release_id: int, notes: str | None = None, rating: int | None = None) -> Want:
-        body = {k: v for k, v in {"notes": notes, "rating": rating}.items() if v is not None}
-        response = await self._put(f"/users/{self._username}/wants/{release_id}", json=body)
+    async def create(
+        self, *, release_id: int, notes: str | None = None, rating: int | None = None
+    ) -> Want:
+        body = {
+            k: v for k, v in {"notes": notes, "rating": rating}.items() if v is not None
+        }
+        response = await self._put(
+            f"/users/{self._username}/wants/{release_id}", json=body
+        )
         return self._parse_response(response, Want)
 
     async def delete(self, release_id: int) -> None:
         await self._delete(f"/users/{self._username}/wants/{release_id}")
 
     async def update(self, release_id: int, **kwargs: Any) -> Want:
-        response = await self._post(f"/users/{self._username}/wants/{release_id}", json=kwargs)
+        response = await self._post(
+            f"/users/{self._username}/wants/{release_id}", json=kwargs
+        )
         return self._parse_response(response, Want)

@@ -141,7 +141,14 @@ class UserContributions(AsyncAPIResource):
         per_page: int | None = None,
     ) -> AsyncPage[Release]:
         params = {
-            k: v for k, v in {"sort": sort, "sort_order": sort_order, "page": page, "per_page": per_page}.items() if v
+            k: v
+            for k, v in {
+                "sort": sort,
+                "sort_order": sort_order,
+                "page": page,
+                "per_page": per_page,
+            }.items()
+            if v
         }
         return AsyncPage(
             client=self._client,
@@ -193,7 +200,9 @@ class UserNamespace:
         self._client = client
 
     async def identity(self) -> Identity:
-        response = await self._client._send("GET", self._client._build_url("/oauth/identity"))
+        response = await self._client._send(
+            "GET", self._client._build_url("/oauth/identity")
+        )
         return Identity.model_validate(response.json())
 
 

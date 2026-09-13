@@ -13,7 +13,9 @@ from tests.conftest import make_paginated_response, make_want
 class TestWantlistList:
     async def test_list(self, client, respx_mock):
         respx_mock.get("/users/trent_reznor/wants").mock(
-            return_value=respx.MockResponse(200, json=make_paginated_response("wants", [make_want()]))
+            return_value=respx.MockResponse(
+                200, json=make_paginated_response("wants", [make_want()])
+            )
         )
         lazy = client.users.get("trent_reznor")
         results = [item async for item in lazy.wantlist.list()]
@@ -25,7 +27,9 @@ class TestWantlistList:
 class TestWantlistCreate:
     async def test_create_uses_put(self, client, respx_mock):
         """Wantlist create uses PUT, not POST — critical edge case."""
-        respx_mock.put("/users/trent_reznor/wants/400027").mock(return_value=respx.MockResponse(201, json=make_want()))
+        respx_mock.put("/users/trent_reznor/wants/400027").mock(
+            return_value=respx.MockResponse(201, json=make_want())
+        )
         lazy = client.users.get("trent_reznor")
         result = await lazy.wantlist.create(release_id=400027)
         assert isinstance(result, Want)
@@ -34,15 +38,21 @@ class TestWantlistCreate:
 
     async def test_create_with_notes_and_rating(self, client, respx_mock):
         respx_mock.put("/users/trent_reznor/wants/400027").mock(
-            return_value=respx.MockResponse(201, json=make_want(notes="Masterpiece", rating=5))
+            return_value=respx.MockResponse(
+                201, json=make_want(notes="Masterpiece", rating=5)
+            )
         )
         lazy = client.users.get("trent_reznor")
-        result = await lazy.wantlist.create(release_id=400027, notes="Masterpiece", rating=5)
+        result = await lazy.wantlist.create(
+            release_id=400027, notes="Masterpiece", rating=5
+        )
         assert result.notes == "Masterpiece"
         assert result.rating == 5
 
     async def test_create_without_optional_fields(self, client, respx_mock):
-        respx_mock.put("/users/trent_reznor/wants/400027").mock(return_value=respx.MockResponse(201, json=make_want()))
+        respx_mock.put("/users/trent_reznor/wants/400027").mock(
+            return_value=respx.MockResponse(201, json=make_want())
+        )
         lazy = client.users.get("trent_reznor")
         await lazy.wantlist.create(release_id=400027)
         body = respx_mock.calls[0].request.content
@@ -64,7 +74,9 @@ class TestWantlistUpdate:
 
 class TestWantlistDelete:
     async def test_delete(self, client, respx_mock):
-        respx_mock.delete("/users/trent_reznor/wants/400027").mock(return_value=respx.MockResponse(204))
+        respx_mock.delete("/users/trent_reznor/wants/400027").mock(
+            return_value=respx.MockResponse(204)
+        )
         lazy = client.users.get("trent_reznor")
         await lazy.wantlist.delete(400027)
 
@@ -80,7 +92,9 @@ class TestWantlistDelete:
 class TestWantModel:
     async def test_required_fields(self, client, respx_mock):
         respx_mock.get("/users/trent_reznor/wants").mock(
-            return_value=respx.MockResponse(200, json=make_paginated_response("wants", [{"id": 1}]))
+            return_value=respx.MockResponse(
+                200, json=make_paginated_response("wants", [{"id": 1}])
+            )
         )
         lazy = client.users.get("trent_reznor")
         results = [item async for item in lazy.wantlist.list()]
@@ -91,7 +105,9 @@ class TestWantModel:
         respx_mock.get("/users/trent_reznor/wants").mock(
             return_value=respx.MockResponse(
                 200,
-                json=make_paginated_response("wants", [{"id": 1, "_unknown_extra_field": "test"}]),
+                json=make_paginated_response(
+                    "wants", [{"id": 1, "_unknown_extra_field": "test"}]
+                ),
             )
         )
         lazy = client.users.get("trent_reznor")

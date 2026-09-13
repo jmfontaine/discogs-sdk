@@ -38,7 +38,10 @@ class TestAsyncProxyVersusModel:
     async def test_proxy_survives_resolution_and_still_lists_releases(self, respx_mock):
         respx_mock.get("/artists/3857").respond(200, json=make_artist(id=3857))
         respx_mock.get("/artists/3857/releases").respond(
-            200, json=make_paginated_response("releases", [make_artist_release(title="The Downward Spiral")])
+            200,
+            json=make_paginated_response(
+                "releases", [make_artist_release(title="The Downward Spiral")]
+            ),
         )
 
         async with AsyncDiscogs(token="t") as client:
@@ -46,7 +49,10 @@ class TestAsyncProxyVersusModel:
             artist = await artist_proxy
             assert artist.name == "Nine Inch Nails"
 
-            titles = [release.title async for release in artist_proxy.releases.list(sort="year")]
+            titles = [
+                release.title
+                async for release in artist_proxy.releases.list(sort="year")
+            ]
 
         assert titles == ["The Downward Spiral"]
 
@@ -83,7 +89,9 @@ class TestCollectionMutationOrder:
     def test_edits_the_returned_instance_before_deleting_it(self, respx_mock):
         folder_path = "/users/trent_reznor/collection/folders/1/releases"
         instance_path = f"{folder_path}/352665/instances/20"
-        respx_mock.post(f"{folder_path}/352665").respond(201, json=make_collection_instance_created(instance_id=20))
+        respx_mock.post(f"{folder_path}/352665").respond(
+            201, json=make_collection_instance_created(instance_id=20)
+        )
         respx_mock.post(instance_path).respond(204)
         respx_mock.post(f"{instance_path}/fields/1").respond(204)
         respx_mock.delete(instance_path).respond(204)
@@ -92,13 +100,19 @@ class TestCollectionMutationOrder:
             user = client.users.get("trent_reznor")
             created = user.collection.folders.get(1).releases.create(release_id=352665)
             instance_id = created.instance_id
-            user.collection.folders.get(1).releases.get(352665).instances.update(instance_id, rating=5)
-            user.collection.folders.get(1).releases.get(352665).instances.get(instance_id).fields.update(
-                field_id=1, value="Signed copy"
+            user.collection.folders.get(1).releases.get(352665).instances.update(
+                instance_id, rating=5
             )
-            user.collection.folders.get(1).releases.get(352665).instances.delete(instance_id)
+            user.collection.folders.get(1).releases.get(352665).instances.get(
+                instance_id
+            ).fields.update(field_id=1, value="Signed copy")
+            user.collection.folders.get(1).releases.get(352665).instances.delete(
+                instance_id
+            )
 
-        methods_and_paths = [(call.request.method, call.request.url.path) for call in respx_mock.calls]
+        methods_and_paths = [
+            (call.request.method, call.request.url.path) for call in respx_mock.calls
+        ]
         assert methods_and_paths == [
             ("POST", f"{folder_path}/352665"),
             ("POST", instance_path),
@@ -109,14 +123,20 @@ class TestCollectionMutationOrder:
     def test_a_failed_edit_still_removes_the_created_instance(self, respx_mock):
         folder_path = "/users/trent_reznor/collection/folders/1/releases"
         instance_path = f"{folder_path}/352665/instances/20"
-        respx_mock.post(f"{folder_path}/352665").respond(201, json=make_collection_instance_created(instance_id=20))
+        respx_mock.post(f"{folder_path}/352665").respond(
+            201, json=make_collection_instance_created(instance_id=20)
+        )
         respx_mock.post(instance_path).respond(422, json={"message": "Invalid rating"})
         deleted = respx_mock.delete(instance_path).respond(204)
 
         with Discogs(token="t") as client:
             user = client.users.get("trent_reznor")
             instances = user.collection.folders.get(1).releases.get(352665).instances
-            instance_id = user.collection.folders.get(1).releases.create(release_id=352665).instance_id
+            instance_id = (
+                user.collection.folders.get(1)
+                .releases.create(release_id=352665)
+                .instance_id
+            )
             try:
                 with pytest.raises(DiscogsAPIError):
                     instances.update(instance_id, rating=99)
