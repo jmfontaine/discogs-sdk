@@ -171,3 +171,39 @@ class TestListingCurrencySelection:
         route = respx_mock.get("/marketplace/listings/123").mock(return_value=httpx.Response(200, json=make_listing()))
         await client.marketplace.listings.get(123)
         assert "curr_abbr" not in route.calls[0].request.url.params
+
+
+class TestOrderFilters:
+    async def test_date_range_is_sent_as_supplied(self, client, respx_mock):
+        route = respx_mock.get("/marketplace/orders").mock(
+            return_value=httpx.Response(200, json=make_paginated_response("orders", [make_order()]))
+        )
+
+        page = client.marketplace.orders.list(
+            created_after="2019-06-24T20:58:58Z",
+            created_before="2020-06-24T20:58:58Z",
+        )
+        _ = [order async for order in page]
+
+        params = route.calls[0].request.url.params
+        assert params["created_after"] == "2019-06-24T20:58:58Z"
+        assert params["created_before"] == "2020-06-24T20:58:58Z"
+
+    @pytest.mark.parametrize(("archived", "expected"), [(True, "true"), (False, "false")])
+    async def test_both_archive_states_reach_the_api(self, client, respx_mock, archived, expected):
+        route = respx_mock.get("/marketplace/orders").mock(
+            return_value=httpx.Response(200, json=make_paginated_response("orders", [make_order()]))
+        )
+
+        _ = [order async for order in client.marketplace.orders.list(archived=archived)]
+
+        assert route.calls[0].request.url.params["archived"] == expected
+
+    async def test_omitting_archived_sends_no_parameter(self, client, respx_mock):
+        route = respx_mock.get("/marketplace/orders").mock(
+            return_value=httpx.Response(200, json=make_paginated_response("orders", [make_order()]))
+        )
+
+        _ = [order async for order in client.marketplace.orders.list()]
+
+        assert "archived" not in route.calls[0].request.url.params

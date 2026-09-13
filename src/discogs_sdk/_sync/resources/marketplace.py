@@ -60,21 +60,33 @@ class MarketplaceOrders(SyncAPIResource):
         self,
         *,
         status: str | None = None,
+        created_after: str | None = None,
+        created_before: str | None = None,
+        archived: bool | None = None,
         sort: str | None = None,
         sort_order: str | None = None,
         page: int | None = None,
         per_page: int | None = None,
     ) -> SyncPage[Order]:
+        """List the authenticated user's orders.
+
+        *created_after* and *created_before* are ISO 8601 timestamps, forwarded
+        as supplied. *archived* selects one archived state; omitting it returns
+        both, so ``archived=False`` is kept rather than filtered out as falsy.
+        """
         params = {
             k: v
             for k, v in {
                 "status": status,
+                "created_after": created_after,
+                "created_before": created_before,
+                "archived": archived,
                 "sort": sort,
                 "sort_order": sort_order,
                 "page": page,
                 "per_page": per_page,
             }.items()
-            if v
+            if v is not None
         }
         return SyncPage(
             client=self._client, items_key="orders", model_cls=Order, params=params, path="/marketplace/orders"
