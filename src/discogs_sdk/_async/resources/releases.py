@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from discogs_sdk._async._lazy import AsyncLazyResource
 from discogs_sdk._async._resource import AsyncAPIResource
+from discogs_sdk.models._common import CurrencyCode
 from discogs_sdk.models.release import (
     CommunityRating,
     MarketplaceReleaseStats,
@@ -94,11 +95,13 @@ class ReleaseMarketplaceStats(AsyncAPIResource):
         super().__init__(client)
         self._release_id = release_id
 
-    def get(self) -> MarketplaceReleaseStatsProxy:
+    def get(self, *, curr_abbr: CurrencyCode | None = None) -> MarketplaceReleaseStatsProxy:
+        """Marketplace stats for the release, priced in *curr_abbr* when given."""
         return MarketplaceReleaseStatsProxy(
             self._client,
             f"/marketplace/stats/{self._release_id}",
             MarketplaceReleaseStats,
+            params={"curr_abbr": curr_abbr} if curr_abbr else None,
         )
 
 
@@ -107,8 +110,13 @@ class ReleaseProxy(AsyncLazyResource[Release]):
 
     _release_id: int
 
-    def __init__(self, client: AsyncDiscogs, release_id: int) -> None:
-        super().__init__(client, f"/releases/{release_id}", Release)
+    def __init__(self, client: AsyncDiscogs, release_id: int, *, curr_abbr: CurrencyCode | None = None) -> None:
+        super().__init__(
+            client,
+            f"/releases/{release_id}",
+            Release,
+            params={"curr_abbr": curr_abbr} if curr_abbr else None,
+        )
         self._release_id = release_id
 
     @cached_property
@@ -129,5 +137,6 @@ class ReleaseProxy(AsyncLazyResource[Release]):
 
 
 class Releases(AsyncAPIResource):
-    def get(self, release_id: int) -> ReleaseProxy:
-        return ReleaseProxy(self._client, release_id)
+    def get(self, release_id: int, *, curr_abbr: CurrencyCode | None = None) -> ReleaseProxy:
+        """The release, with marketplace prices in *curr_abbr* when given."""
+        return ReleaseProxy(self._client, release_id, curr_abbr=curr_abbr)
