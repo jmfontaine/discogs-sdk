@@ -33,12 +33,14 @@ async def main() -> None:
         release = await client.releases.get(352665)
         print(release.title)
 
-        # ── Sub-resources still work without await ─────────────────
-        # Sub-resource accessors never trigger HTTP, so no await needed.
-        # Only the final .get() returns a lazy that needs awaiting.
-        rating = await client.releases.get(352665).rating.get()
-        assert not isinstance(rating.rating, int)
-        print(f"Average: {rating.rating.average}")
+        # ── Proxy vs resolved model ────────────────────────────────
+        # .get() returns a proxy. Awaiting it gives you the data model.
+        # Sub-resource accessors live on the proxy, not on the model, and
+        # never trigger HTTP — so keep the proxy when you need both.
+        community = await client.releases.get(352665).rating.get()
+        rating = community.rating
+        if not isinstance(rating, int):
+            print(f"Average: {rating.average}")
 
         # ── Pagination with async for ─────────────────────────────
         async for result in client.search(query="Nine Inch Nails", type="artist"):
@@ -46,9 +48,12 @@ async def main() -> None:
             break
 
         # ── Artist releases ────────────────────────────────────────
-        artist = await client.artists.get(3857)
+        artist_proxy = client.artists.get(3857)
+        artist = await artist_proxy  # the Artist model
         print(f"\nReleases by {artist.name}:")
-        async for rel in artist.releases.list(sort="year"):
+        # BAD — the resolved model has no sub-resources:
+        # async for rel in artist.releases.list(sort="year"):
+        async for rel in artist_proxy.releases.list(sort="year"):
             print(f"  {rel.title} ({rel.year})")
 
         # ── Collection (requires OAuth) ────────────────────────────
