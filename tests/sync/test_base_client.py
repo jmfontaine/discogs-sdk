@@ -324,35 +324,8 @@ class TestBuildOAuthHeaderForRequest:
             c._build_oauth_header_for_request()
 
 
-class TestAuthModeSelection:
-    def test_explicit_token_beats_environment_oauth(self, monkeypatch):
-        monkeypatch.setenv("DISCOGS_CONSUMER_KEY", "env-key")
-        monkeypatch.setenv("DISCOGS_CONSUMER_SECRET", "env-secret")
-        monkeypatch.setenv("DISCOGS_ACCESS_TOKEN", "env-at")
-        monkeypatch.setenv("DISCOGS_ACCESS_TOKEN_SECRET", "env-ats")
-        c = BaseClient(token="explicit")
-        assert c._uses_oauth is False
-        assert c._build_headers()["Authorization"] == "Discogs token=explicit"
-
-    def test_explicit_oauth_beats_environment_token(self, monkeypatch):
-        monkeypatch.setenv("DISCOGS_TOKEN", "env-token")
-        c = BaseClient(
-            consumer_key="ck",
-            consumer_secret="cs",
-            access_token="at",
-            access_token_secret="ats",
-        )
-        assert c._uses_oauth is True
-        assert c._token is None
-        assert "Authorization" not in c._build_headers()
-
-    def test_explicit_consumer_does_not_borrow_environment_oauth(self, monkeypatch):
-        monkeypatch.setenv("DISCOGS_ACCESS_TOKEN", "env-at")
-        monkeypatch.setenv("DISCOGS_ACCESS_TOKEN_SECRET", "env-ats")
-        c = BaseClient(consumer_key="ck", consumer_secret="cs")
-        assert c._uses_oauth is False
-        assert c._access_token is None
-        assert c._build_headers()["Authorization"] == "Discogs key=ck, secret=cs"
+class TestIncompleteCredentials:
+    """An explicitly selected mode must not silently degrade to another one."""
 
     def test_incomplete_explicit_oauth_raises(self):
         with pytest.raises(ValueError, match="consumer_key, consumer_secret"):

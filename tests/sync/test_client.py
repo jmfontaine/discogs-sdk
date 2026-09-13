@@ -340,3 +340,55 @@ class TestLifecycle:
     def test_context_manager(self):
         with Discogs(token="t") as client:
             assert isinstance(client, Discogs)
+
+
+class TestCredentialPrecedence:
+    """Precedence is proven by what reaches the wire and whose identity comes back."""
+
+    def test_explicit_token_beats_environment_oauth(self, monkeypatch):
+        monkeypatch.setenv("DISCOGS_CONSUMER_KEY", "env-key")
+        monkeypatch.setenv("DISCOGS_CONSUMER_SECRET", "env-secret")
+        monkeypatch.setenv("DISCOGS_ACCESS_TOKEN", "env-at")
+        monkeypatch.setenv("DISCOGS_ACCESS_TOKEN_SECRET", "env-ats")
+
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/oauth/identity").respond(200, json=make_identity(username="trent_reznor"))
+            client = Discogs(token="explicit-token")
+
+            assert client.user.identity().username == "trent_reznor"
+
+            assert route.calls[0].request.headers["Authorization"] == "Discogs token=explicit-token"
+            client.close()
+
+    def test_explicit_oauth_beats_environment_token(self, monkeypatch):
+        monkeypatch.setenv("DISCOGS_TOKEN", "env-token")
+
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/oauth/identity").respond(200, json=make_identity(username="atticus_ross"))
+            client = Discogs(
+                consumer_key="ck",
+                consumer_secret="cs",
+                access_token="at",
+                access_token_secret="ats",
+            )
+
+            assert client.user.identity().username == "atticus_ross"
+
+            authorization = route.calls[0].request.headers["Authorization"]
+            assert authorization.startswith("OAuth ")
+            assert 'oauth_token="at"' in authorization
+            assert "env-token" not in authorization
+            client.close()
+
+    def test_explicit_consumer_does_not_borrow_environment_oauth(self, monkeypatch):
+        monkeypatch.setenv("DISCOGS_ACCESS_TOKEN", "env-at")
+        monkeypatch.setenv("DISCOGS_ACCESS_TOKEN_SECRET", "env-ats")
+
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            client = Discogs(consumer_key="ck", consumer_secret="cs")
+
+            _ = client.releases.get(352665).title
+
+            assert route.calls[0].request.headers["Authorization"] == "Discogs key=ck, secret=cs"
+            client.close()
