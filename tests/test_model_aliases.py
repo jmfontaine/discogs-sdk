@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 from pydantic import Field
+from pydantic import ValidationError as PydanticValidationError
 
 from discogs_sdk.models._common import (
     ArtistCredit,
@@ -139,3 +140,47 @@ class TestSubclassInheritsGetattr:
         obj = MyModel.model_validate({"uglyName": "hello"})
         assert obj.clean_name == "hello"
         assert obj.uglyName == "hello"
+
+
+class TestCanonicalNameValidation:
+    """Canonical field names must populate the declared field, not land in extras."""
+
+    def test_constructor_uses_canonical_name(self) -> None:
+        image = Image(uri_150="https://example.com/thumb.jpg")
+        assert image.uri_150 == "https://example.com/thumb.jpg"
+        assert "uri_150" not in (image.model_extra or {})
+
+    def test_alias_wins_when_both_names_are_supplied(self) -> None:
+        image = Image.model_validate({"uri150": "from-alias", "uri_150": "from-canonical"})
+        assert image.uri_150 == "from-alias"
+
+    def test_canonical_name_is_validated_like_the_alias(self) -> None:
+        with pytest.raises(PydanticValidationError):
+            Image.model_validate({"uri_150": 42})
+        with pytest.raises(PydanticValidationError):
+            Image.model_validate({"uri150": 42})
+
+
+class TestRoundTrip:
+    """model_dump() emits canonical names, so re-validating must preserve values."""
+
+    def test_scalar_round_trip(self) -> None:
+        image = Image.model_validate({"uri150": "https://example.com/thumb.jpg", "width": 150})
+        assert Image.model_validate(image.model_dump()).uri_150 == "https://example.com/thumb.jpg"
+
+    def test_json_round_trip(self) -> None:
+        image = Image.model_validate({"uri150": "https://example.com/thumb.jpg"})
+        assert Image.model_validate_json(image.model_dump_json()).uri_150 == "https://example.com/thumb.jpg"
+
+    def test_nested_list_round_trip(self) -> None:
+        release = Release.model_validate(
+            {
+                "id": 352665,
+                "title": "The Downward Spiral",
+                "extraartists": [{"id": 3857, "name": "Nine Inch Nails", "anv": "NIN", "role": "Producer"}],
+            }
+        )
+        restored = Release.model_validate(release.model_dump())
+        assert restored.extra_artists is not None
+        assert restored.extra_artists[0].name_variation == "NIN"
+        assert restored.extra_artists[0].anv == "NIN"

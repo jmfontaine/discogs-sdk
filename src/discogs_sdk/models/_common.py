@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, ClassVar, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 Condition = Literal[
     "Mint (M)",
@@ -46,12 +46,25 @@ CurrencyCode = Literal[
 
 
 class SDKModel(BaseModel):
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="allow")
+    # Accept both the canonical Python field name and the API alias, so a model
+    # survives ``model_validate(model_dump())`` and can be built from keyword
+    # arguments. Aliases keep priority when an input supplies both spellings.
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        extra="allow",
+        validate_by_alias=True,
+        validate_by_name=True,
+    )
 
     def __getattr__(self, name: str) -> Any:
         for field_name, field_info in type(self).model_fields.items():
-            alias = field_info.validation_alias or field_info.alias
-            if alias == name:
+            validation_alias = field_info.validation_alias
+            if isinstance(validation_alias, AliasChoices):
+                aliases = {choice for choice in validation_alias.choices if isinstance(choice, str)}
+            elif isinstance(validation_alias, str):
+                aliases = {validation_alias}
+            else:
+                aliases = {field_info.alias} if field_info.alias else set()
+            if name in aliases:
                 return self.__dict__.get(field_name)
         # Pydantic's BaseModel.__getattr__ exists at runtime but is hidden from type
         # checkers, so both checkers need silencing here.
