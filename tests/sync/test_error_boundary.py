@@ -6,7 +6,13 @@ import pytest
 import respx
 
 from discogs_sdk import Discogs
-from discogs_sdk._exceptions import AuthenticationError, DiscogsAPIError, NotFoundError, RateLimitError
+from discogs_sdk._exceptions import (
+    AuthenticationError,
+    DiscogsAPIError,
+    ForbiddenError,
+    NotFoundError,
+    RateLimitError,
+)
 from tests.conftest import BASE_URL, make_paginated_response, make_release
 
 GATEWAY_HTML = "<html><head><title>502 Bad Gateway</title></head><body>nginx</body></html>"
@@ -64,6 +70,16 @@ class TestNonJsonFailures:
         with pytest.raises(AuthenticationError) as exc_info:
             client.user.identity()
 
+        assert exc_info.value.response_body == ""
+
+    def test_empty_403_body_keeps_specialized_error(self, client, respx_mock):
+        respx_mock.get("/users/atticus_ross/collection/folders/1/releases").respond(403, content=b"")
+
+        with pytest.raises(ForbiddenError) as exc_info:
+            for _ in client.users.get("atticus_ross").collection.folders.get(1).releases.list():
+                pass
+
+        assert exc_info.value.status_code == 403
         assert exc_info.value.response_body == ""
 
     def test_plain_text_429_keeps_retry_after(self, client, respx_mock):
