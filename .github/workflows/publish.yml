@@ -24,10 +24,7 @@ jobs:
       - name: Check sync codegen
         run: uv run python scripts/generate_sync.py --check
       - name: Check dead code
-        run: |
-          output=$(uv run deadcode src tests examples 2>&1)
-          echo "$output"
-          echo "$output" | grep -q "DC0" && exit 1 || exit 0
+        run: scripts/check_dead_code.sh
       - name: Check pyproject.toml
         run: uv run pyproject-fmt --check pyproject.toml
       - name: Check formatting

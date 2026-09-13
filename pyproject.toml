@@ -31,7 +31,10 @@ urls.Repository = "https://github.com/jmfontaine/discogs-sdk"
 [dependency-groups]
 dev = [
   "ast-comments>=1.2",
-  "deadcode>=2.4.1",
+  # KLUDGE: deadcode is deliberately absent here — scripts/check_dead_code.sh
+  # pins it to deadcode==2.4.1 under Python 3.13, since 2.4.1 (its latest
+  # release) uses the `ast.Str` alias removed in Python 3.14. Restore it as a
+  # normal dev dependency once the tool runs on current Python.
   "deptry>=0.24",
   "pre-commit>=4.4",
   "pyproject-fmt>=2.16.1",
