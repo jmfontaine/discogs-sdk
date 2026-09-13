@@ -25,6 +25,8 @@ class MasterVersions(SyncAPIResource):
         self,
         *,
         format: str | None = None,
+        label: str | None = None,
+        released: str | None = None,
         country: str | None = None,
         sort: str | None = None,
         sort_order: str | None = None,
@@ -35,6 +37,8 @@ class MasterVersions(SyncAPIResource):
             k: v
             for k, v in {
                 "format": format,
+                "label": label,
+                "released": released,
                 "country": country,
                 "sort": sort,
                 "sort_order": sort_order,

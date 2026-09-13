@@ -42,3 +42,31 @@ class TestMasterVersions:
         lazy = client.masters.get(5765)
         results = list(lazy.versions.list(format="Vinyl", country="US"))
         assert len(results) == 1
+
+
+class TestMasterVersionFilters:
+    def test_label_and_released_are_sent(self, client, respx_mock):
+        route = respx_mock.get("/masters/3719/versions").mock(
+            return_value=httpx.Response(200, json=make_paginated_response("versions", [make_master_version()]))
+        )
+
+        versions = list(client.masters.get(3719).versions.list(label="Nothing Records", released="1994"))
+
+        params = route.calls[0].request.url.params
+        assert params["label"] == "Nothing Records"
+        assert params["released"] == "1994"
+        assert [v.title for v in versions] == ["The Downward Spiral (Definitive Edition)"]
+
+    def test_existing_filters_still_sent(self, client, respx_mock):
+        route = respx_mock.get("/masters/3719/versions").mock(
+            return_value=httpx.Response(200, json=make_paginated_response("versions", [make_master_version()]))
+        )
+
+        page = client.masters.get(3719).versions.list(format="Vinyl", country="US", sort="released", sort_order="asc")
+        _ = list(page)
+
+        params = route.calls[0].request.url.params
+        assert params["format"] == "Vinyl"
+        assert params["country"] == "US"
+        assert params["sort"] == "released"
+        assert params["sort_order"] == "asc"
