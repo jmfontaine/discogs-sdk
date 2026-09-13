@@ -34,11 +34,23 @@ class UserUpdate(SyncAPIResource):
         name: str | None = None,
         home_page: str | None = None,
         location: str | None = None,
+        profile: str | None = None,
         curr_abbr: str | None = None,
     ) -> User:
+        """Edit the user's profile.
+
+        Only the fields you pass are sent, so omitting one leaves it untouched.
+        Passing an empty string clears that field.
+        """
         body = {
             k: v
-            for k, v in {"name": name, "home_page": home_page, "location": location, "curr_abbr": curr_abbr}.items()
+            for k, v in {
+                "name": name,
+                "home_page": home_page,
+                "location": location,
+                "profile": profile,
+                "curr_abbr": curr_abbr,
+            }.items()
             if v is not None
         }
         response = self._post(f"/users/{self._username}", json=body)
