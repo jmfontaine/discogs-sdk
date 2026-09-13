@@ -8,8 +8,10 @@ import pytest
 from discogs_sdk._exceptions import NotFoundError
 from discogs_sdk.models.marketplace import Fee, Listing, Order, OrderMessage
 from tests.conftest import (
+    BASE_URL,
     make_fee,
     make_listing,
+    make_listing_created,
     make_order,
     make_order_message,
     make_paginated_response,
@@ -27,10 +29,18 @@ class TestMarketplaceListings:
         assert isinstance(result, Listing)
         assert result.id == 123
 
-    async def test_create(self, client, respx_mock):
-        respx_mock.post("/marketplace/listings").mock(return_value=httpx.Response(201, json=make_listing()))
+    async def test_create_returns_the_acknowledged_identifier(self, client, respx_mock):
+        route = respx_mock.post("/marketplace/listings").mock(
+            return_value=httpx.Response(201, json=make_listing_created())
+        )
         result = await client.marketplace.listings.create(release_id=400027, condition="Mint (M)", price=9.99)
+
         assert isinstance(result, Listing)
+        assert result.id == 41578241
+        assert result.resource_url == f"{BASE_URL}/marketplace/listings/41578241"
+        assert route.call_count == 1
+        # No hidden follow-up fetch to flesh out the listing.
+        assert [call.request.method for call in respx_mock.calls] == ["POST"]
 
     async def test_update(self, client, respx_mock):
         respx_mock.post("/marketplace/listings/123").mock(return_value=httpx.Response(204))

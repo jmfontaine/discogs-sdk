@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 
 from discogs_sdk.models._common import Condition, CurrencyCode, Price, SDKModel, SleeveCondition, UserSummary
 
@@ -30,7 +30,8 @@ class ShippingInfo(SDKModel):
 
 
 class Listing(SDKModel):
-    id: int
+    # Listing detail returns "id"; the creation acknowledgement returns "listing_id".
+    id: int = Field(validation_alias=AliasChoices("id", "listing_id"))
     allow_offers: bool | None = None
     audio: bool | None = None
     comments: str | None = None
