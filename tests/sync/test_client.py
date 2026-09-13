@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import httpx
+import pytest
 import respx
 
 from discogs_sdk import Discogs
 from discogs_sdk._cache import MemoryCache, SQLiteCache
-from tests.conftest import BASE_URL, make_release
+from discogs_sdk._exceptions import AuthenticationError
+from tests.conftest import BASE_URL, make_identity, make_release
 
 
 class TestCustomHttpClient:
@@ -51,6 +53,101 @@ class TestCustomHttpClient:
             assert client.releases.get(352665).title
             assert route.calls[0].request.headers["Authorization"].startswith("Basic ")
             custom.close()
+
+
+class TestCacheIsolation:
+    """Cached entries must never cross account or representation boundaries."""
+
+    def test_two_tokens_sharing_a_cache_get_their_own_identity(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/oauth/identity").mock(
+                side_effect=[
+                    httpx.Response(200, json=make_identity(id=1, username="trent_reznor")),
+                    httpx.Response(200, json=make_identity(id=2, username="atticus_ross")),
+                ]
+            )
+            cache = MemoryCache(ttl=600)
+            client_a = Discogs(token="token-a", cache=cache)
+            client_b = Discogs(token="token-b", cache=cache)
+            assert client_a.user.identity().username == "trent_reznor"
+            assert client_b.user.identity().username == "atticus_ross"
+            assert route.call_count == 2
+            client_a.close()
+            client_b.close()
+
+    def test_unauthenticated_client_cannot_read_an_authenticated_entry(self, tmp_path):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/oauth/identity").mock(
+                side_effect=[
+                    httpx.Response(200, json=make_identity()),
+                    httpx.Response(401, json={"message": "You must authenticate to access this resource."}),
+                ]
+            )
+            authenticated = Discogs(token="token-a", cache=True, cache_dir=tmp_path)
+            assert authenticated.user.identity().username == "trent_reznor"
+            authenticated.close()
+
+            anonymous = Discogs(cache=True, cache_dir=tmp_path)
+            with pytest.raises(AuthenticationError):
+                anonymous.user.identity()
+            assert route.call_count == 2
+            anonymous.close()
+
+    def test_same_credentials_reuse_entry_after_reopening_sqlite(self, tmp_path):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/oauth/identity").respond(200, json=make_identity())
+            first = Discogs(token="token-a", cache=True, cache_dir=tmp_path)
+            first.user.identity()
+            first.close()
+
+            second = Discogs(token="token-a", cache=True, cache_dir=tmp_path)
+            assert second.user.identity().username == "trent_reznor"
+            assert route.call_count == 1
+            second.close()
+
+    def test_media_type_representations_do_not_collide(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/352665").mock(
+                side_effect=[
+                    httpx.Response(200, json=make_release(title="Discogs markup")),
+                    httpx.Response(200, json=make_release(title="<b>HTML</b>")),
+                ]
+            )
+            cache = MemoryCache(ttl=600)
+            discogs_markup = Discogs(token="t", cache=cache)
+            html = Discogs(token="t", cache=cache, media_type="html")
+            assert discogs_markup.releases.get(352665).title == "Discogs markup"
+            assert html.releases.get(352665).title == "<b>HTML</b>"
+            assert route.call_count == 2
+            discogs_markup.close()
+            html.close()
+
+    def test_oauth_requests_hit_cache_despite_fresh_signing_values(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/oauth/identity").respond(200, json=make_identity())
+            client = Discogs(
+                consumer_key="ck",
+                consumer_secret="cs",
+                access_token="at",
+                access_token_secret="ats",
+                cache=True,
+            )
+            client.user.identity()
+            client.user.identity()
+            assert route.call_count == 1
+            # Signing material is fresh per request, yet the key stayed stable.
+            assert client._build_oauth_header_for_request() != client._build_oauth_header_for_request()
+            client.close()
+
+    def test_cache_keys_never_contain_credentials(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            router.get("/oauth/identity").respond(200, json=make_identity())
+            cache = MemoryCache(ttl=600)
+            client = Discogs(token="super-secret-token", cache=cache)
+            client.user.identity()
+            assert cache._store
+            assert all("super-secret-token" not in key for key in cache._store)
+            client.close()
 
 
 class TestCacheBranch:

@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import httpx
+import pytest
 import respx
 
 from discogs_sdk import AsyncDiscogs
 from discogs_sdk._cache import MemoryCache, SQLiteCache
-from tests.conftest import BASE_URL, make_release
+from discogs_sdk._exceptions import AuthenticationError
+from tests.conftest import BASE_URL, make_identity, make_release
 
 
 class TestCustomHttpClient:
@@ -53,6 +55,101 @@ class TestCustomHttpClient:
             await client.releases.get(352665)
             assert route.calls[0].request.headers["Authorization"].startswith("Basic ")
             await custom.aclose()
+
+
+class TestCacheIsolation:
+    """Cached entries must never cross account or representation boundaries."""
+
+    async def test_two_tokens_sharing_a_cache_get_their_own_identity(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/oauth/identity").mock(
+                side_effect=[
+                    httpx.Response(200, json=make_identity(id=1, username="trent_reznor")),
+                    httpx.Response(200, json=make_identity(id=2, username="atticus_ross")),
+                ]
+            )
+            cache = MemoryCache(ttl=600)
+            client_a = AsyncDiscogs(token="token-a", cache=cache)
+            client_b = AsyncDiscogs(token="token-b", cache=cache)
+            assert (await client_a.user.identity()).username == "trent_reznor"
+            assert (await client_b.user.identity()).username == "atticus_ross"
+            assert route.call_count == 2
+            await client_a.close()
+            await client_b.close()
+
+    async def test_unauthenticated_client_cannot_read_an_authenticated_entry(self, tmp_path):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/oauth/identity").mock(
+                side_effect=[
+                    httpx.Response(200, json=make_identity()),
+                    httpx.Response(401, json={"message": "You must authenticate to access this resource."}),
+                ]
+            )
+            authenticated = AsyncDiscogs(token="token-a", cache=True, cache_dir=tmp_path)
+            assert (await authenticated.user.identity()).username == "trent_reznor"
+            await authenticated.close()
+
+            anonymous = AsyncDiscogs(cache=True, cache_dir=tmp_path)
+            with pytest.raises(AuthenticationError):
+                await anonymous.user.identity()
+            assert route.call_count == 2
+            await anonymous.close()
+
+    async def test_same_credentials_reuse_entry_after_reopening_sqlite(self, tmp_path):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/oauth/identity").respond(200, json=make_identity())
+            first = AsyncDiscogs(token="token-a", cache=True, cache_dir=tmp_path)
+            await first.user.identity()
+            await first.close()
+
+            second = AsyncDiscogs(token="token-a", cache=True, cache_dir=tmp_path)
+            assert (await second.user.identity()).username == "trent_reznor"
+            assert route.call_count == 1
+            await second.close()
+
+    async def test_media_type_representations_do_not_collide(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/352665").mock(
+                side_effect=[
+                    httpx.Response(200, json=make_release(title="Discogs markup")),
+                    httpx.Response(200, json=make_release(title="<b>HTML</b>")),
+                ]
+            )
+            cache = MemoryCache(ttl=600)
+            discogs_markup = AsyncDiscogs(token="t", cache=cache)
+            html = AsyncDiscogs(token="t", cache=cache, media_type="html")
+            assert (await discogs_markup.releases.get(352665)).title == "Discogs markup"
+            assert (await html.releases.get(352665)).title == "<b>HTML</b>"
+            assert route.call_count == 2
+            await discogs_markup.close()
+            await html.close()
+
+    async def test_oauth_requests_hit_cache_despite_fresh_signing_values(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/oauth/identity").respond(200, json=make_identity())
+            client = AsyncDiscogs(
+                consumer_key="ck",
+                consumer_secret="cs",
+                access_token="at",
+                access_token_secret="ats",
+                cache=True,
+            )
+            await client.user.identity()
+            await client.user.identity()
+            assert route.call_count == 1
+            # Signing material is fresh per request, yet the key stayed stable.
+            assert client._build_oauth_header_for_request() != client._build_oauth_header_for_request()
+            await client.close()
+
+    async def test_cache_keys_never_contain_credentials(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            router.get("/oauth/identity").respond(200, json=make_identity())
+            cache = MemoryCache(ttl=600)
+            client = AsyncDiscogs(token="super-secret-token", cache=cache)
+            await client.user.identity()
+            assert cache._store
+            assert all("super-secret-token" not in key for key in cache._store)
+            await client.close()
 
 
 class TestCacheBranch:
