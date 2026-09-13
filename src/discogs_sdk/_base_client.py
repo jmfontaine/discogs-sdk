@@ -78,11 +78,6 @@ def _digest(*parts: str | None) -> str:
     return hashlib.sha256(joined.encode()).hexdigest()[:32]
 
 
-# httpx.Auth's default flow yields the request unchanged. Passing it per request
-# disables a custom client's own auth so it cannot overwrite SDK credentials.
-SDK_AUTH_GUARD = httpx.Auth()
-
-
 def _raise_incomplete_credentials(mode: str, **credentials: str | None) -> NoReturn:
     missing = sorted(name for name, value in credentials.items() if not value)
     raise ValueError(
