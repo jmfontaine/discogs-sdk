@@ -2,29 +2,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from urllib.parse import parse_qs
 
 import httpx
 
 from discogs_sdk._base_client import DEFAULT_BASE_URL, USER_AGENT, build_oauth_header
+from discogs_sdk._oauth_types import AccessToken, RequestToken
 
 _ACCESS_TOKEN_PATH = "/oauth/access_token"
 _AUTHORIZE_URL = "https://www.discogs.com/oauth/authorize"
 _REQUEST_TOKEN_PATH = "/oauth/request_token"
-
-
-@dataclass
-class RequestToken:
-    authorize_url: str
-    oauth_token_secret: str
-    oauth_token: str
-
-
-@dataclass
-class AccessToken:
-    oauth_token: str
-    oauth_token_secret: str
 
 
 async def get_request_token(
