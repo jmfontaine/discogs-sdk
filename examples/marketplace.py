@@ -21,7 +21,8 @@ client = Discogs()
 
 # Get an existing listing.
 listing = client.marketplace.listings.get(123456789)
-print(f"{listing.release.description} — ${listing.price.value} {listing.price.currency}")
+if listing.release and listing.price:
+    print(f"{listing.release.description} — ${listing.price.value} {listing.price.currency}")
 
 # Create a new listing.
 new_listing = client.marketplace.listings.create(
@@ -101,7 +102,8 @@ print(f"Fee: {fee.value} {fee.currency}")
 # This is a sub-resource of users, not marketplace.
 user = client.users.get("seller_username")
 for listing in user.inventory.list(sort="price", sort_order="asc"):
-    print(f"  {listing.id}: ${listing.price.value}")
+    if listing.price:
+        print(f"  {listing.id}: ${listing.price.value}")
 
 # Filter by status.
 for listing in user.inventory.list(status="For Sale"):

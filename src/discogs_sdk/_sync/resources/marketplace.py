@@ -10,6 +10,7 @@ from discogs_sdk._sync._lazy import LazyResource
 from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk._sync._resource import SyncAPIResource
 from discogs_sdk.models._common import Condition, CurrencyCode
+from discogs_sdk.models._lazy_fields import FeeFields, ListingFields, OrderFields
 from discogs_sdk.models.marketplace import Fee, Listing, Order, OrderMessage
 
 if TYPE_CHECKING:
@@ -37,14 +38,23 @@ class OrderMessages(SyncAPIResource):
         return self._parse_response(response, OrderMessage)
 
 
+class OrderProxy(LazyResource[Order], OrderFields):
+    """Lazy ``Order`` with its typed sub-resources."""
+
+    _order_id: str
+
+    def __init__(self, client: Discogs, order_id: str) -> None:
+        super().__init__(client, f"/marketplace/orders/{order_id}", Order)
+        self._order_id = order_id
+
+    @cached_property
+    def messages(self) -> OrderMessages:
+        return OrderMessages(self._client, self._order_id)
+
+
 class MarketplaceOrders(SyncAPIResource):
-    def get(self, order_id: str) -> LazyResource:
-        return LazyResource(
-            client=self._client,
-            model_cls=Order,
-            path=f"/marketplace/orders/{order_id}",
-            sub_resources={"messages": lambda: OrderMessages(self._client, order_id)},
-        )
+    def get(self, order_id: str) -> OrderProxy:
+        return OrderProxy(self._client, order_id)
 
     def list(
         self,
@@ -75,9 +85,13 @@ class MarketplaceOrders(SyncAPIResource):
         return self._parse_response(response, Order)
 
 
+class ListingProxy(LazyResource[Listing], ListingFields):
+    """Lazy marketplace listing."""
+
+
 class MarketplaceListings(SyncAPIResource):
-    def get(self, listing_id: int) -> LazyResource:
-        return LazyResource(client=self._client, model_cls=Listing, path=f"/marketplace/listings/{listing_id}")
+    def get(self, listing_id: int) -> ListingProxy:
+        return ListingProxy(self._client, f"/marketplace/listings/{listing_id}", Listing)
 
     def create(
         self, *, release_id: int, condition: Condition, price: float, status: str = "For Sale", **kwargs: Any
@@ -93,13 +107,17 @@ class MarketplaceListings(SyncAPIResource):
         self._delete(f"/marketplace/listings/{listing_id}")
 
 
+class FeeProxy(LazyResource[Fee], FeeFields):
+    """Lazy marketplace fee quote."""
+
+
 class MarketplaceFee(SyncAPIResource):
-    def get(self, *, price: float, currency: CurrencyCode | None = None) -> LazyResource:
+    def get(self, *, price: float, currency: CurrencyCode | None = None) -> FeeProxy:
         if currency:
             path = f"/marketplace/fee/{price}/{currency}"
         else:
             path = f"/marketplace/fee/{price}"
-        return LazyResource(client=self._client, model_cls=Fee, path=path)
+        return FeeProxy(self._client, path, Fee)
 
 
 class Marketplace:

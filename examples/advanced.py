@@ -193,7 +193,7 @@ print(f"Status: {upload.status}")
 # Get a public list by ID.
 disc_list = client.lists.get(12345)
 print(f"List: {disc_list.name}")
-for item in disc_list.items:
+for item in disc_list.items or []:
     print(f"  {item.display_title} ({item.type})")
 
 # List a user's lists (paginated).

@@ -3,38 +3,44 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from pydantic import BaseModel
 
 if TYPE_CHECKING:
     from discogs_sdk._sync._client import Discogs
+_M = TypeVar("_M", bound=BaseModel)
 
 
-class LazyResource:
+class LazyResource(Generic[_M]):
     """Proxy that defers the HTTP call until explicitly awaited (async)
     or until a data attribute is accessed (sync, via generated code).
 
-    Sub-resource accessors (defined in ``sub_resources``) are returned
-    immediately without triggering any HTTP call in both variants.
+    Sub-resource accessors are declared by concrete subclasses as properties, so
+    they are typed and never trigger an HTTP call in either variant.
+
+    The dynamic ``__getattr__`` fallback is hidden from type checkers: the data
+    fields a consumer may read are declared on the generated field mixins, so a
+    misspelled field is a static error instead of an ``Any``.
     """
 
-    def __init__(
-        self,
-        client: Discogs,
-        path: str,
-        model_cls: type[BaseModel],
-        sub_resources: dict[str, Callable[[], Any]] | None = None,
-    ) -> None:
-        # Use object.__setattr__ to bypass __getattr__, which would trigger _resolve() and defeat lazy loading
-        object.__setattr__(self, "_client", client)
-        object.__setattr__(self, "_path", path)
-        object.__setattr__(self, "_model_cls", model_cls)
-        object.__setattr__(self, "_sub_resources", sub_resources or {})
+    # Declared so subclasses can read them without falling through __getattr__,
+    # which is deliberately invisible to type checkers.
+    _client: Discogs
+    _path: str
+    _model_cls: type[_M]
+
+    def __init__(self, client: Discogs, path: str, model_cls: type[_M]) -> None:
+        self._client = client
+        self._path = path
+        self._model_cls = model_cls
+        # Written through object.__setattr__ and read through
+        # object.__getattribute__: a plain read would recurse through __getattr__.
         object.__setattr__(self, "_resolved", None)
 
-    def _resolve(self) -> BaseModel:
+    def _resolve(self) -> _M:
+        # Read through object.__getattribute__: a plain attribute read on a subclass
+        # that has not finished __init__ would fall through to __getattr__ and fetch.
         resolved = object.__getattribute__(self, "_resolved")
         if resolved is not None:
             return resolved
@@ -46,23 +52,19 @@ class LazyResource:
         object.__setattr__(self, "_resolved", resolved)
         return resolved
 
-    def __getattr__(self, name: str) -> Any:
-        # Check sub-resources first (no HTTP call)
-        sub_resources = object.__getattribute__(self, "_sub_resources")
-        if name in sub_resources:
-            resource = sub_resources[name]()
-            object.__setattr__(self, name, resource)
-            return resource
-        # Otherwise, resolve the model via HTTP and delegate
-        model = self._resolve()
-        return getattr(model, name)
+    if not TYPE_CHECKING:
 
-    def __getitem__(self, key: str) -> Any:
-        resolved = self._resolve()
-        getter = getattr(resolved, "__getitem__", None)
-        if getter is None:
-            raise TypeError(f"'{type(resolved).__name__}' object is not subscriptable")
-        return getter(key)  # pragma: no cover — no current model supports subscript
+        def __getattr__(self, name: str) -> Any:
+            # Otherwise, resolve the model via HTTP and delegate
+            model = self._resolve()
+            return getattr(model, name)
+
+        def __getitem__(self, key: str) -> Any:
+            resolved = self._resolve()
+            getter = getattr(resolved, "__getitem__", None)
+            if getter is None:
+                raise TypeError(f"'{type(resolved).__name__}' object is not subscriptable")
+            return getter(key)
 
     def __repr__(self) -> str:
         path = object.__getattribute__(self, "_path")

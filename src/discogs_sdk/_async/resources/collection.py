@@ -133,6 +133,26 @@ class FolderReleases(AsyncAPIResource):
 # --- Collection Folders ---
 
 
+class CollectionFolderProxy(AsyncLazyResource[CollectionFolder]):
+    """Lazy ``CollectionFolder`` with its typed sub-resources."""
+
+    _username: str
+    _folder_id: int
+
+    def __init__(self, client: AsyncDiscogs, username: str, folder_id: int) -> None:
+        super().__init__(client, f"/users/{username}/collection/folders/{folder_id}", CollectionFolder)
+        self._username = username
+        self._folder_id = folder_id
+
+    @cached_property
+    def releases(self) -> FolderReleases:
+        return FolderReleases(self._client, self._username, self._folder_id)
+
+
+class CollectionValueProxy(AsyncLazyResource[CollectionValue_]):
+    """Lazy collection valuation."""
+
+
 class CollectionFolders(AsyncAPIResource):
     def __init__(self, client, username: str) -> None:
         super().__init__(client)
@@ -141,15 +161,8 @@ class CollectionFolders(AsyncAPIResource):
     def _base_path(self) -> str:
         return f"/users/{self._username}/collection/folders"
 
-    def get(self, folder_id: int) -> AsyncLazyResource:
-        return AsyncLazyResource(
-            client=self._client,
-            path=f"{self._base_path()}/{folder_id}",
-            model_cls=CollectionFolder,
-            sub_resources={
-                "releases": lambda: FolderReleases(self._client, self._username, folder_id),
-            },
-        )
+    def get(self, folder_id: int) -> CollectionFolderProxy:
+        return CollectionFolderProxy(self._client, self._username, folder_id)
 
     async def list(self) -> builtins.list[CollectionFolder]:
         response = await self._get(self._base_path())
@@ -224,11 +237,11 @@ class CollectionValueResource(AsyncAPIResource):
         super().__init__(client)
         self._username = username
 
-    def get(self) -> AsyncLazyResource:
-        return AsyncLazyResource(
-            client=self._client,
-            model_cls=CollectionValue_,
-            path=f"/users/{self._username}/collection/value",
+    def get(self) -> CollectionValueProxy:
+        return CollectionValueProxy(
+            self._client,
+            f"/users/{self._username}/collection/value",
+            CollectionValue_,
         )
 
 

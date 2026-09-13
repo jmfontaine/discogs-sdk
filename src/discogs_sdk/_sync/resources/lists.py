@@ -6,6 +6,7 @@ from __future__ import annotations
 from discogs_sdk._sync._lazy import LazyResource
 from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk._sync._resource import SyncAPIResource
+from discogs_sdk.models._lazy_fields import List_Fields
 from discogs_sdk.models.list_ import List_, ListSummary
 
 
@@ -27,8 +28,12 @@ class UserLists(SyncAPIResource):
         )
 
 
+class ListProxy(LazyResource[List_], List_Fields):
+    """Lazy user list."""
+
+
 class Lists(SyncAPIResource):
     """Top-level list access: GET /lists/{id}."""
 
-    def get(self, list_id: int) -> LazyResource:
-        return LazyResource(client=self._client, model_cls=List_, path=f"/lists/{list_id}")
+    def get(self, list_id: int) -> ListProxy:
+        return ListProxy(self._client, f"/lists/{list_id}", List_)

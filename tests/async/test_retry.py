@@ -9,7 +9,6 @@ import pytest
 import respx
 
 from discogs_sdk import AsyncDiscogs
-from discogs_sdk._async._lazy import AsyncLazyResource
 from discogs_sdk._async._paginator import AsyncPage
 from discogs_sdk._exceptions import DiscogsAPIError, DiscogsConnectionError, RateLimitError
 from discogs_sdk.models.release import Release
@@ -181,12 +180,7 @@ class TestRetryCoversLazy:
         respx_mock.get("/releases/1").mock(side_effect=lambda req: next(responses))
 
         with patch("asyncio.sleep", new_callable=AsyncMock):
-            lazy = AsyncLazyResource(
-                client=client,
-                path="/releases/1",
-                model_cls=Release,
-            )
-            result = await lazy
+            result = await client.releases.get(1)
             assert isinstance(result, Release)
 
 

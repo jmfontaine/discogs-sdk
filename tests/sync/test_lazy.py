@@ -7,6 +7,8 @@ import pytest
 
 from discogs_sdk._exceptions import NotFoundError
 from discogs_sdk._sync._lazy import LazyResource
+from discogs_sdk._sync.resources.artists import ArtistReleases
+from discogs_sdk._sync.resources.releases import ReleaseRating, ReleaseStatsResource
 from tests.conftest import make_release
 
 
@@ -75,3 +77,22 @@ class TestRepr:
         _ = lazy.title  # triggers resolve
         r = repr(lazy)
         assert "LazyResource" not in r
+
+
+class TestTypedSurface:
+    def test_attribute_access_resolves_the_model(self, client, respx_mock):
+        respx_mock.get("/releases/400027").mock(return_value=httpx.Response(200, json=make_release()))
+        resolved = client.releases.get(400027)
+        assert resolved.title == "The Downward Spiral"
+
+    def test_sub_resources_are_concrete_resources(self, client, respx_mock):
+        lazy = client.releases.get(400027)
+        assert isinstance(lazy.rating, ReleaseRating)
+        assert isinstance(lazy.stats, ReleaseStatsResource)
+        assert isinstance(client.artists.get(3857).releases, ArtistReleases)
+        assert respx_mock.calls.call_count == 0
+
+    def test_deep_navigation_makes_no_request(self, client, respx_mock):
+        instance = client.users.get("trent_reznor").collection.folders.get(1).releases.get(352665).instances.get(20)
+        assert instance.fields is not None
+        assert respx_mock.calls.call_count == 0

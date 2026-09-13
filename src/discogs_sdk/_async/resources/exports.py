@@ -6,13 +6,13 @@ from discogs_sdk._async._resource import AsyncAPIResource
 from discogs_sdk.models.export import Export
 
 
+class ExportProxy(AsyncLazyResource[Export]):
+    """Lazy inventory export."""
+
+
 class Exports(AsyncAPIResource):
-    def get(self, export_id: int) -> AsyncLazyResource:
-        return AsyncLazyResource(
-            client=self._client,
-            model_cls=Export,
-            path=f"/inventory/export/{export_id}",
-        )
+    def get(self, export_id: int) -> ExportProxy:
+        return ExportProxy(self._client, f"/inventory/export/{export_id}", Export)
 
     def list(
         self,

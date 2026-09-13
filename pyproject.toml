@@ -75,6 +75,8 @@ report.skip_empty = true
 report.show_missing = true
 
 [tool.deadcode]
+# The generated member declarations exist purely for type checkers.
+exclude = [ "src/discogs_sdk/models/_lazy_fields.py" ]
 ignore_bodies_if_inherits_from = [ "SDKModel" ]
 ignore_names = [
   "_clean_discogs_env",

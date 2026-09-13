@@ -6,12 +6,17 @@ from __future__ import annotations
 from discogs_sdk._sync._lazy import LazyResource
 from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk._sync._resource import SyncAPIResource
+from discogs_sdk.models._lazy_fields import ExportFields
 from discogs_sdk.models.export import Export
 
 
+class ExportProxy(LazyResource[Export], ExportFields):
+    """Lazy inventory export."""
+
+
 class Exports(SyncAPIResource):
-    def get(self, export_id: int) -> LazyResource:
-        return LazyResource(client=self._client, model_cls=Export, path=f"/inventory/export/{export_id}")
+    def get(self, export_id: int) -> ExportProxy:
+        return ExportProxy(self._client, f"/inventory/export/{export_id}", Export)
 
     def list(self, *, page: int | None = None, per_page: int | None = None) -> SyncPage[Export]:
         params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}

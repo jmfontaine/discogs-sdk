@@ -10,7 +10,6 @@ import respx
 
 from discogs_sdk import Discogs
 from discogs_sdk._exceptions import DiscogsAPIError, DiscogsConnectionError, RateLimitError
-from discogs_sdk._sync._lazy import LazyResource
 from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk.models.release import Release
 from tests.conftest import BASE_URL, make_listing, make_paginated_response, make_release
@@ -179,12 +178,7 @@ class TestRetryCoversLazy:
         respx_mock.get("/releases/1").mock(side_effect=lambda req: next(responses))
 
         with patch("time.sleep"):
-            lazy = LazyResource(
-                client=client,
-                path="/releases/1",
-                model_cls=Release,
-            )
-            assert lazy.title == "The Downward Spiral"
+            assert client.releases.get(1).title == "The Downward Spiral"
 
 
 class TestRetryCoversPaginator:

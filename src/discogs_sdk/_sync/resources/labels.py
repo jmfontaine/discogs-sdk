@@ -3,10 +3,17 @@
 
 from __future__ import annotations
 
+from functools import cached_property
+from typing import TYPE_CHECKING
+
 from discogs_sdk._sync._lazy import LazyResource
 from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk._sync._resource import SyncAPIResource
+from discogs_sdk.models._lazy_fields import LabelFields
 from discogs_sdk.models.label import Label, LabelRelease
+
+if TYPE_CHECKING:
+    from discogs_sdk._sync._client import Discogs
 
 
 class LabelReleases(SyncAPIResource):
@@ -25,11 +32,20 @@ class LabelReleases(SyncAPIResource):
         )
 
 
+class LabelProxy(LazyResource[Label], LabelFields):
+    """Lazy ``Label`` with its typed sub-resources."""
+
+    _label_id: int
+
+    def __init__(self, client: Discogs, label_id: int) -> None:
+        super().__init__(client, f"/labels/{label_id}", Label)
+        self._label_id = label_id
+
+    @cached_property
+    def releases(self) -> LabelReleases:
+        return LabelReleases(self._client, self._label_id)
+
+
 class Labels(SyncAPIResource):
-    def get(self, label_id: int) -> LazyResource:
-        return LazyResource(
-            client=self._client,
-            model_cls=Label,
-            path=f"/labels/{label_id}",
-            sub_resources={"releases": lambda: LabelReleases(self._client, label_id)},
-        )
+    def get(self, label_id: int) -> LabelProxy:
+        return LabelProxy(self._client, label_id)

@@ -5,6 +5,8 @@ from __future__ import annotations
 import httpx
 import pytest
 
+from discogs_sdk._async.resources.artists import ArtistReleases
+from discogs_sdk._async.resources.releases import ReleaseRating, ReleaseStatsResource
 from discogs_sdk._exceptions import NotFoundError
 from discogs_sdk.models.release import Release
 from tests.conftest import make_release
@@ -100,4 +102,23 @@ class TestSubResources:
         _ = lazy.stats
         _ = lazy.price_suggestions
         _ = lazy.marketplace_stats
+        assert respx_mock.calls.call_count == 0
+
+
+class TestTypedSurface:
+    async def test_await_returns_the_concrete_model(self, client, respx_mock):
+        respx_mock.get("/releases/400027").mock(return_value=httpx.Response(200, json=make_release()))
+        resolved = await client.releases.get(400027)
+        assert isinstance(resolved, Release)
+
+    def test_sub_resources_are_concrete_resources(self, client, respx_mock):
+        lazy = client.releases.get(400027)
+        assert isinstance(lazy.rating, ReleaseRating)
+        assert isinstance(lazy.stats, ReleaseStatsResource)
+        assert isinstance(client.artists.get(3857).releases, ArtistReleases)
+        assert respx_mock.calls.call_count == 0
+
+    def test_deep_navigation_makes_no_request(self, client, respx_mock):
+        instance = client.users.get("trent_reznor").collection.folders.get(1).releases.get(352665).instances.get(20)
+        assert instance.fields is not None
         assert respx_mock.calls.call_count == 0
