@@ -8,6 +8,8 @@ import time
 import urllib.parse
 from typing import Any, Literal, NoReturn
 
+import httpx
+
 from discogs_sdk._exceptions import (
     AuthenticationError,
     DiscogsAPIError,
@@ -39,6 +41,11 @@ _AUTH_MODE_LABELS: dict[str, str] = {
     "oauth": "OAuth 1.0a",
     "consumer": "consumer key/secret",
 }
+
+
+# httpx.Auth's default flow yields the request unchanged. Passing it per request
+# disables a custom client's own auth so it cannot overwrite SDK credentials.
+SDK_AUTH_GUARD = httpx.Auth()
 
 
 def _raise_incomplete_credentials(mode: str, **credentials: str | None) -> NoReturn:

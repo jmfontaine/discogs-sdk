@@ -7,7 +7,7 @@ import respx
 
 from discogs_sdk import Discogs
 from discogs_sdk._cache import MemoryCache, SQLiteCache
-from tests.conftest import BASE_URL
+from tests.conftest import BASE_URL, make_release
 
 
 class TestCustomHttpClient:
@@ -17,6 +17,40 @@ class TestCustomHttpClient:
         assert client._http_client is custom
         assert client._owns_client is False
         custom.close()
+
+    def test_injected_client_transmits_sdk_headers(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            custom = httpx.Client(headers={"X-Trace": "keep-me"})
+            client = Discogs(token="secret-token", http_client=custom, media_type="html")
+            assert client.releases.get(352665).title
+            request = route.calls[0].request
+            assert request.headers["Authorization"] == "Discogs token=secret-token"
+            assert request.headers["Accept"] == "application/vnd.discogs.v2.html+json"
+            assert request.headers["User-Agent"].startswith("discogs-sdk/")
+            assert request.headers["X-Trace"] == "keep-me"
+            client.close()
+            assert custom.is_closed is False
+            assert custom.headers["X-Trace"] == "keep-me"
+            custom.close()
+
+    def test_custom_client_auth_cannot_replace_sdk_credentials(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            custom = httpx.Client(auth=httpx.BasicAuth("user", "pass"), headers={"Authorization": "Custom default"})
+            client = Discogs(token="secret-token", http_client=custom)
+            assert client.releases.get(352665).title
+            assert route.calls[0].request.headers["Authorization"] == "Discogs token=secret-token"
+            custom.close()
+
+    def test_unauthenticated_client_keeps_custom_auth(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            custom = httpx.Client(auth=httpx.BasicAuth("user", "pass"))
+            client = Discogs(http_client=custom)
+            assert client.releases.get(352665).title
+            assert route.calls[0].request.headers["Authorization"].startswith("Basic ")
+            custom.close()
 
 
 class TestCacheBranch:
