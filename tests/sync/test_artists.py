@@ -14,7 +14,9 @@ class TestArtistsGet:
         assert respx_mock.calls.call_count == 0
 
     def test_get_resolves_to_artist(self, client, respx_mock):
-        respx_mock.get("/artists/40").mock(return_value=respx.MockResponse(200, json=make_artist()))
+        respx_mock.get("/artists/40").mock(
+            return_value=respx.MockResponse(200, json=make_artist())
+        )
         lazy = client.artists.get(40)
         assert lazy.name == "Nine Inch Nails"
 
@@ -28,7 +30,9 @@ class TestArtistReleases:
     def test_releases_list(self, client, respx_mock):
         items = [make_artist_release(id=i, title=f"R{i}") for i in range(2)]
         respx_mock.get("/artists/40/releases").mock(
-            return_value=respx.MockResponse(200, json=make_paginated_response("releases", items))
+            return_value=respx.MockResponse(
+                200, json=make_paginated_response("releases", items)
+            )
         )
         lazy = client.artists.get(40)
         results = list(lazy.releases.list())
@@ -38,7 +42,10 @@ class TestArtistReleases:
     def test_releases_list_with_page_and_per_page(self, client, respx_mock):
         respx_mock.get("/artists/40/releases").mock(
             return_value=respx.MockResponse(
-                200, json=make_paginated_response("releases", [make_artist_release()], page=2, per_page=25)
+                200,
+                json=make_paginated_response(
+                    "releases", [make_artist_release()], page=2, per_page=25
+                ),
             )
         )
         lazy = client.artists.get(40)
@@ -53,7 +60,9 @@ class TestArtistReleases:
 
     def test_releases_list_with_sort(self, client, respx_mock):
         respx_mock.get("/artists/40/releases").mock(
-            return_value=respx.MockResponse(200, json=make_paginated_response("releases", [make_artist_release()]))
+            return_value=respx.MockResponse(
+                200, json=make_paginated_response("releases", [make_artist_release()])
+            )
         )
         lazy = client.artists.get(40)
         results = list(lazy.releases.list(sort="year", sort_order="desc"))

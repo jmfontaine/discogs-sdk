@@ -175,7 +175,7 @@ session-scoped client, so it stays well within the limit. Avoid running the suit
 
 ## Code style
 
-- Python 3.10+, ruff targets py310 to match `requires-python`, line length 120
+- Python 3.10+, ruff targets py310 to match `requires-python`, line length 88
 - Formatting and linting handled by ruff (`just format`, `just lint-fix`)
 - Type checking with ty (`just type-check`)
 - Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/): `<type>: <description>`

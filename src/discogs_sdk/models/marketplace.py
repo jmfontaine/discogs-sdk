@@ -4,7 +4,14 @@ from typing import Any
 
 from pydantic import AliasChoices, Field
 
-from discogs_sdk.models._common import Condition, CurrencyCode, Price, SDKModel, SleeveCondition, UserSummary
+from discogs_sdk.models._common import (
+    Condition,
+    CurrencyCode,
+    Price,
+    SDKModel,
+    SleeveCondition,
+    UserSummary,
+)
 
 
 class ListingRelease(SDKModel):
@@ -17,7 +24,9 @@ class ListingRelease(SDKModel):
 
 
 class OriginalPrice(SDKModel):
-    currency_code: CurrencyCode | str | None = Field(default=None, validation_alias="curr_abbr")
+    currency_code: CurrencyCode | str | None = Field(
+        default=None, validation_alias="curr_abbr"
+    )
     currency_id: int | None = Field(default=None, validation_alias="curr_id")
     formatted: str | None = None
     value: float | None = None

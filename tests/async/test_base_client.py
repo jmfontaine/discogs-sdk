@@ -320,7 +320,9 @@ class TestBuildOAuthHeaderForRequest:
 
     def test_raises_when_oauth_is_not_the_selected_mode(self):
         c = BaseClient(token="t")
-        with pytest.raises(ValueError, match="OAuth is not the selected authentication mode"):
+        with pytest.raises(
+            ValueError, match="OAuth is not the selected authentication mode"
+        ):
             c._build_oauth_header_for_request()
 
 

@@ -41,13 +41,15 @@ def main() -> None:
         low, high = PYDANTIC_RANGE_315
         if not low <= installed < high:
             raise SystemExit(
-                f"pydantic {pydantic.VERSION} is outside the {'.'.join(map(str, low))}–"
-                f"{'.'.join(map(str, high))} range required on Python {sys.version.split()[0]}"
+                f"pydantic {pydantic.VERSION} is outside the "
+                f"{'.'.join(map(str, low))}–{'.'.join(map(str, high))} range "
+                f"required on Python {sys.version.split()[0]}"
             )
     elif installed < MINIMUM_PYDANTIC:
         raise SystemExit(
-            f"pydantic {pydantic.VERSION} is below the {'.'.join(map(str, MINIMUM_PYDANTIC))} floor required on "
-            f"Python {sys.version.split()[0]}"
+            f"pydantic {pydantic.VERSION} is below the "
+            f"{'.'.join(map(str, MINIMUM_PYDANTIC))} floor "
+            f"required on Python {sys.version.split()[0]}"
         )
 
     release = Release.model_validate(

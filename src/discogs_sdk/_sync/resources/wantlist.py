@@ -15,14 +15,24 @@ class Wantlist(SyncAPIResource):
         super().__init__(client)
         self._username = username
 
-    def list(self, *, page: int | None = None, per_page: int | None = None) -> SyncPage[Want]:
+    def list(
+        self, *, page: int | None = None, per_page: int | None = None
+    ) -> SyncPage[Want]:
         params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return SyncPage(
-            client=self._client, path=f"/users/{self._username}/wants", params=params, model_cls=Want, items_key="wants"
+            client=self._client,
+            path=f"/users/{self._username}/wants",
+            params=params,
+            model_cls=Want,
+            items_key="wants",
         )
 
-    def create(self, *, release_id: int, notes: str | None = None, rating: int | None = None) -> Want:
-        body = {k: v for k, v in {"notes": notes, "rating": rating}.items() if v is not None}
+    def create(
+        self, *, release_id: int, notes: str | None = None, rating: int | None = None
+    ) -> Want:
+        body = {
+            k: v for k, v in {"notes": notes, "rating": rating}.items() if v is not None
+        }
         response = self._put(f"/users/{self._username}/wants/{release_id}", json=body)
         return self._parse_response(response, Want)
 
@@ -30,5 +40,7 @@ class Wantlist(SyncAPIResource):
         self._delete(f"/users/{self._username}/wants/{release_id}")
 
     def update(self, release_id: int, **kwargs: Any) -> Want:
-        response = self._post(f"/users/{self._username}/wants/{release_id}", json=kwargs)
+        response = self._post(
+            f"/users/{self._username}/wants/{release_id}", json=kwargs
+        )
         return self._parse_response(response, Want)

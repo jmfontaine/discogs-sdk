@@ -27,7 +27,9 @@ class TestCreation:
 
 class TestResolve:
     async def test_await_triggers_http(self, client, respx_mock):
-        respx_mock.get("/releases/400027").mock(return_value=respx.MockResponse(200, json=make_release()))
+        respx_mock.get("/releases/400027").mock(
+            return_value=respx.MockResponse(200, json=make_release())
+        )
         lazy = client.releases.get(400027)
         result = await lazy
         assert isinstance(result, Release)
@@ -36,21 +38,27 @@ class TestResolve:
         assert respx_mock.calls.call_count == 1
 
     async def test_second_await_cached(self, client, respx_mock):
-        respx_mock.get("/releases/400027").mock(return_value=respx.MockResponse(200, json=make_release()))
+        respx_mock.get("/releases/400027").mock(
+            return_value=respx.MockResponse(200, json=make_release())
+        )
         lazy = client.releases.get(400027)
         await lazy
         await lazy
         assert respx_mock.calls.call_count == 1
 
     async def test_repr_after_resolve(self, client, respx_mock):
-        respx_mock.get("/releases/400027").mock(return_value=respx.MockResponse(200, json=make_release()))
+        respx_mock.get("/releases/400027").mock(
+            return_value=respx.MockResponse(200, json=make_release())
+        )
         lazy = client.releases.get(400027)
         await lazy
         r = repr(lazy)
         assert "AsyncLazyResource" not in r
 
     async def test_error_raises(self, client, respx_mock):
-        respx_mock.get("/releases/999").mock(return_value=respx.MockResponse(404, json={"message": "Not Found"}))
+        respx_mock.get("/releases/999").mock(
+            return_value=respx.MockResponse(404, json={"message": "Not Found"})
+        )
         lazy = client.releases.get(999)
         with pytest.raises(NotFoundError):
             await lazy
@@ -63,7 +71,9 @@ class TestAttributeAccess:
             _ = lazy.title
 
     async def test_data_attr_after_await(self, client, respx_mock):
-        respx_mock.get("/releases/400027").mock(return_value=respx.MockResponse(200, json=make_release()))
+        respx_mock.get("/releases/400027").mock(
+            return_value=respx.MockResponse(200, json=make_release())
+        )
         lazy = client.releases.get(400027)
         await lazy
         assert lazy.title == "The Downward Spiral"
@@ -76,7 +86,9 @@ class TestGetItem:
             lazy["title"]
 
     async def test_getitem_after_await(self, client, respx_mock):
-        respx_mock.get("/releases/400027").mock(return_value=respx.MockResponse(200, json=make_release()))
+        respx_mock.get("/releases/400027").mock(
+            return_value=respx.MockResponse(200, json=make_release())
+        )
         lazy = client.releases.get(400027)
         await lazy
         # Pydantic models don't support subscript by default, so this should raise
@@ -107,7 +119,9 @@ class TestSubResources:
 
 class TestTypedSurface:
     async def test_await_returns_the_concrete_model(self, client, respx_mock):
-        respx_mock.get("/releases/400027").mock(return_value=respx.MockResponse(200, json=make_release()))
+        respx_mock.get("/releases/400027").mock(
+            return_value=respx.MockResponse(200, json=make_release())
+        )
         resolved = await client.releases.get(400027)
         assert isinstance(resolved, Release)
 
@@ -119,6 +133,11 @@ class TestTypedSurface:
         assert respx_mock.calls.call_count == 0
 
     def test_deep_navigation_makes_no_request(self, client, respx_mock):
-        instance = client.users.get("trent_reznor").collection.folders.get(1).releases.get(352665).instances.get(20)
+        instance = (
+            client.users.get("trent_reznor")
+            .collection.folders.get(1)
+            .releases.get(352665)
+            .instances.get(20)
+        )
         assert instance.fields is not None
         assert respx_mock.calls.call_count == 0

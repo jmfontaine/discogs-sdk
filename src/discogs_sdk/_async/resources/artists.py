@@ -26,7 +26,14 @@ class ArtistReleases(AsyncAPIResource):
         per_page: int | None = None,
     ) -> AsyncPage[ArtistRelease]:
         params = {
-            k: v for k, v in {"sort": sort, "sort_order": sort_order, "page": page, "per_page": per_page}.items() if v
+            k: v
+            for k, v in {
+                "sort": sort,
+                "sort_order": sort_order,
+                "page": page,
+                "per_page": per_page,
+            }.items()
+            if v
         }
         return AsyncPage(
             client=self._client,

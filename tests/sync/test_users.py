@@ -28,7 +28,9 @@ class TestUsersGet:
         assert respx_mock.calls.call_count == 0
 
     def test_get_resolves_to_user(self, client, respx_mock):
-        respx_mock.get("/users/trent_reznor").mock(return_value=respx.MockResponse(200, json=make_user()))
+        respx_mock.get("/users/trent_reznor").mock(
+            return_value=respx.MockResponse(200, json=make_user())
+        )
         lazy = client.users.get("trent_reznor")
         assert lazy.username == "trent_reznor"
 
@@ -48,19 +50,25 @@ class TestUserSubResources:
 
 class TestUserUpdate:
     def test_update_with_fields(self, client, respx_mock):
-        respx_mock.post("/users/trent_reznor").mock(return_value=respx.MockResponse(200, json=make_user()))
+        respx_mock.post("/users/trent_reznor").mock(
+            return_value=respx.MockResponse(200, json=make_user())
+        )
         lazy = client.users.get("trent_reznor")
         result = lazy.update(name="New Name", location="NYC")
         assert isinstance(result, User)
 
     def test_omitted_fields_are_not_sent(self, client, respx_mock):
-        respx_mock.post("/users/trent_reznor").mock(return_value=respx.MockResponse(200, json=make_user()))
+        respx_mock.post("/users/trent_reznor").mock(
+            return_value=respx.MockResponse(200, json=make_user())
+        )
         client.users.get("trent_reznor").update(name="X")
         payload = json.loads(respx_mock.calls[0].request.content)
         assert payload == {"name": "X"}
 
     def test_every_documented_field_is_sent(self, client, respx_mock):
-        respx_mock.post("/users/trent_reznor").mock(return_value=respx.MockResponse(200, json=make_user()))
+        respx_mock.post("/users/trent_reznor").mock(
+            return_value=respx.MockResponse(200, json=make_user())
+        )
         client.users.get("trent_reznor").update(
             name="Trent Reznor",
             home_page="https://www.nin.com",
@@ -78,7 +86,9 @@ class TestUserUpdate:
         }
 
     def test_empty_profile_clears_the_biography(self, client, respx_mock):
-        respx_mock.post("/users/trent_reznor").mock(return_value=respx.MockResponse(200, json=make_user()))
+        respx_mock.post("/users/trent_reznor").mock(
+            return_value=respx.MockResponse(200, json=make_user())
+        )
         client.users.get("trent_reznor").update(profile="")
         payload = json.loads(respx_mock.calls[0].request.content)
         assert payload == {"profile": ""}
@@ -90,7 +100,9 @@ class TestUserSubmissions:
             "pagination": {"page": 1, "pages": 1, "urls": {}},
             "submissions": {"releases": [make_release(id=1), make_release(id=2)]},
         }
-        respx_mock.get("/users/trent_reznor/submissions").mock(return_value=respx.MockResponse(200, json=body))
+        respx_mock.get("/users/trent_reznor/submissions").mock(
+            return_value=respx.MockResponse(200, json=body)
+        )
         lazy = client.users.get("trent_reznor")
         results = list(lazy.submissions.list())
         assert len(results) == 2
@@ -102,7 +114,9 @@ class TestUserSubmissions:
             "pagination": {"page": 1, "pages": 1, "urls": {}},
             "submissions": {"artists": [make_artist(id=1), make_artist(id=2)]},
         }
-        respx_mock.get("/users/trent_reznor/submissions").mock(return_value=respx.MockResponse(200, json=body))
+        respx_mock.get("/users/trent_reznor/submissions").mock(
+            return_value=respx.MockResponse(200, json=body)
+        )
         lazy = client.users.get("trent_reznor")
         results = list(lazy.submissions.artists.list())
         assert len(results) == 2
@@ -113,7 +127,9 @@ class TestUserSubmissions:
             "pagination": {"page": 1, "pages": 1, "urls": {}},
             "submissions": {"labels": [make_label(id=1), make_label(id=2)]},
         }
-        respx_mock.get("/users/trent_reznor/submissions").mock(return_value=respx.MockResponse(200, json=body))
+        respx_mock.get("/users/trent_reznor/submissions").mock(
+            return_value=respx.MockResponse(200, json=body)
+        )
         lazy = client.users.get("trent_reznor")
         results = list(lazy.submissions.labels.list())
         assert len(results) == 2
@@ -123,7 +139,9 @@ class TestUserSubmissions:
 class TestUserContributions:
     def test_contributions_list(self, client, respx_mock):
         respx_mock.get("/users/trent_reznor/contributions").mock(
-            return_value=respx.MockResponse(200, json=make_paginated_response("contributions", [make_release()]))
+            return_value=respx.MockResponse(
+                200, json=make_paginated_response("contributions", [make_release()])
+            )
         )
         lazy = client.users.get("trent_reznor")
         results = list(lazy.contributions.list(sort="label", sort_order="asc"))
@@ -135,7 +153,9 @@ class TestUserContributions:
 class TestUserInventory:
     def test_inventory_list(self, client, respx_mock):
         respx_mock.get("/users/trent_reznor/inventory").mock(
-            return_value=respx.MockResponse(200, json=make_paginated_response("listings", [make_listing()]))
+            return_value=respx.MockResponse(
+                200, json=make_paginated_response("listings", [make_listing()])
+            )
         )
         lazy = client.users.get("trent_reznor")
         results = list(lazy.inventory.list(sort="price"))
@@ -145,7 +165,9 @@ class TestUserInventory:
 
 class TestUserNamespace:
     def test_identity(self, client, respx_mock):
-        respx_mock.get("/oauth/identity").mock(return_value=respx.MockResponse(200, json=make_identity()))
+        respx_mock.get("/oauth/identity").mock(
+            return_value=respx.MockResponse(200, json=make_identity())
+        )
         result = client.user.identity()
         assert isinstance(result, Identity)
         assert result.username == "trent_reznor"
@@ -153,13 +175,17 @@ class TestUserNamespace:
 
 class TestUserModel:
     def test_required_fields(self, client, respx_mock):
-        respx_mock.get("/users/x").mock(return_value=respx.MockResponse(200, json={"id": 1, "username": "x"}))
+        respx_mock.get("/users/x").mock(
+            return_value=respx.MockResponse(200, json={"id": 1, "username": "x"})
+        )
         lazy = client.users.get("x")
         assert lazy.name is None
 
     def test_extra_allow(self, client, respx_mock):
         respx_mock.get("/users/x").mock(
-            return_value=respx.MockResponse(200, json={"id": 1, "username": "x", "_unknown_extra_field": "test"})
+            return_value=respx.MockResponse(
+                200, json={"id": 1, "username": "x", "_unknown_extra_field": "test"}
+            )
         )
         lazy = client.users.get("x")
         assert lazy.model_extra["_unknown_extra_field"] == "test"

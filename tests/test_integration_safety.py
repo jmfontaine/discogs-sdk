@@ -49,43 +49,69 @@ class TestCollectionLifecycle:
     def test_deletes_only_the_instance_it_created(self, client):
         with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             router.post(f"{FOLDER_PATH}/{CRUD_RELEASE_ID}").respond(
-                201, json=make_collection_instance_created(instance_id=20, release_id=CRUD_RELEASE_ID)
+                201,
+                json=make_collection_instance_created(
+                    instance_id=20, release_id=CRUD_RELEASE_ID
+                ),
             )
             router.get(FOLDER_PATH).respond(
                 200,
-                json=make_paginated_response("releases", [EXISTING_INSTANCE, CREATED_INSTANCE]),
+                json=make_paginated_response(
+                    "releases", [EXISTING_INSTANCE, CREATED_INSTANCE]
+                ),
             )
-            deleted = router.delete(f"{FOLDER_PATH}/{CRUD_RELEASE_ID}/instances/20").respond(204)
+            deleted = router.delete(
+                f"{FOLDER_PATH}/{CRUD_RELEASE_ID}/instances/20"
+            ).respond(204)
 
-            collection_workflow.TestCollectionReleases().test_add_and_remove_release(client, USERNAME)
+            collection_workflow.TestCollectionReleases().test_add_and_remove_release(
+                client, USERNAME
+            )
 
             assert deleted.call_count == 1
             # The pre-existing copy, with its notes and rating, was never touched.
-            deleted_paths = [call.request.url.path for call in router.calls if call.request.method == "DELETE"]
+            deleted_paths = [
+                call.request.url.path
+                for call in router.calls
+                if call.request.method == "DELETE"
+            ]
             assert deleted_paths == [f"{FOLDER_PATH}/{CRUD_RELEASE_ID}/instances/20"]
 
     def test_verification_failure_still_removes_only_the_created_instance(self, client):
         with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             router.post(f"{FOLDER_PATH}/{CRUD_RELEASE_ID}").respond(
-                201, json=make_collection_instance_created(instance_id=20, release_id=CRUD_RELEASE_ID)
+                201,
+                json=make_collection_instance_created(
+                    instance_id=20, release_id=CRUD_RELEASE_ID
+                ),
             )
             # The new instance is missing from the listing, so verification fails.
-            router.get(FOLDER_PATH).respond(200, json=make_paginated_response("releases", [EXISTING_INSTANCE]))
-            deleted = router.delete(f"{FOLDER_PATH}/{CRUD_RELEASE_ID}/instances/20").respond(204)
+            router.get(FOLDER_PATH).respond(
+                200, json=make_paginated_response("releases", [EXISTING_INSTANCE])
+            )
+            deleted = router.delete(
+                f"{FOLDER_PATH}/{CRUD_RELEASE_ID}/instances/20"
+            ).respond(204)
 
             with pytest.raises(AssertionError):
-                collection_workflow.TestCollectionReleases().test_add_and_remove_release(client, USERNAME)
+                collection_workflow.TestCollectionReleases().test_add_and_remove_release(
+                    client, USERNAME
+                )
 
             assert deleted.call_count == 1
 
     def test_failed_creation_deletes_nothing(self, client):
         with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             router.post(f"{FOLDER_PATH}/{CRUD_RELEASE_ID}").mock(
-                return_value=respx.MockResponse(422, json={"message": "Cannot add to this folder"})
+                return_value=respx.MockResponse(
+                    422, json={"message": "Cannot add to this folder"}
+                )
             )
 
             with pytest.raises(Exception, match="Cannot add to this folder"):
-                collection_workflow.TestCollectionReleases().test_add_and_remove_release(client, USERNAME)
+                collection_workflow.TestCollectionReleases().test_add_and_remove_release(
+                    client, USERNAME
+                )
 
             assert [call.request.method for call in router.calls] == ["POST"]
 
@@ -103,10 +129,14 @@ EXISTING_WANT = {
 class TestWantlistLifecycle:
     def test_pre_existing_want_survives_unchanged(self, client):
         with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
-            router.get(WANTLIST_PATH).respond(200, json=make_paginated_response("wants", [EXISTING_WANT]))
+            router.get(WANTLIST_PATH).respond(
+                200, json=make_paginated_response("wants", [EXISTING_WANT])
+            )
 
             with pytest.raises(Skipped):
-                wantlist_workflow.TestWantlistCRUD().test_add_list_delete(client, USERNAME)
+                wantlist_workflow.TestWantlistCRUD().test_add_list_delete(
+                    client, USERNAME
+                )
 
             # No mutation was attempted against the user's existing want.
             assert {call.request.method for call in router.calls} == {"GET"}
@@ -119,9 +149,15 @@ class TestWantlistLifecycle:
                     make_paginated_response("wants", [{"id": CRUD_RELEASE_ID}]),
                 ]
             )
-            router.get(WANTLIST_PATH).mock(side_effect=lambda req: respx.MockResponse(200, json=next(listings)))
+            router.get(WANTLIST_PATH).mock(
+                side_effect=lambda req: respx.MockResponse(200, json=next(listings))
+            )
             created = router.put(f"{WANTLIST_PATH}/{CRUD_RELEASE_ID}").respond(
-                201, json={"id": CRUD_RELEASE_ID, "basic_information": {"id": CRUD_RELEASE_ID, "title": "PHM"}}
+                201,
+                json={
+                    "id": CRUD_RELEASE_ID,
+                    "basic_information": {"id": CRUD_RELEASE_ID, "title": "PHM"},
+                },
             )
             deleted = router.delete(f"{WANTLIST_PATH}/{CRUD_RELEASE_ID}").respond(204)
 

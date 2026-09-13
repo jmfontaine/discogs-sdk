@@ -17,5 +17,9 @@ class SearchResource(SyncAPIResource):
             if v is not None:
                 api_params["q" if k == "query" else k] = v
         return SyncPage(
-            client=self._client, items_key="results", model_cls=SearchResult, params=api_params, path="/database/search"
+            client=self._client,
+            items_key="results",
+            model_cls=SearchResult,
+            params=api_params,
+            path="/database/search",
         )

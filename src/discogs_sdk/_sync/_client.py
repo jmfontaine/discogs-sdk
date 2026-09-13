@@ -43,7 +43,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger("discogs_sdk")
 # Clients whose cache is bypassed in the current execution context. Held as a
 # ContextVar so concurrent tasks and threads cannot clobber each other's state.
-_CACHE_BYPASS: ContextVar[frozenset[int]] = ContextVar("discogs_sdk_cache_bypass", default=frozenset())
+_CACHE_BYPASS: ContextVar[frozenset[int]] = ContextVar(
+    "discogs_sdk_cache_bypass", default=frozenset()
+)
 _CACHEABLE_METHODS = frozenset({"GET", "HEAD"})
 
 
@@ -112,7 +114,8 @@ class Discogs(BaseClient):
                 authentication is preserved and its responses are not cached,
                 because the SDK cannot tell whose account they belong to.
             user_agent: Custom User-Agent string. Replaces the default entirely.
-                Should follow RFC 1945 product token format for best compatibility with Discogs.
+                Should follow RFC 1945 product token format for best
+                compatibility with Discogs.
             media_type: Response text format. ``"discogs"`` returns Discogs markup,
                 ``"html"`` returns HTML, ``"plaintext"`` returns plain text.
         """
@@ -141,7 +144,9 @@ class Discogs(BaseClient):
             self._cache = cache
         elif cache:
             self._cache = (
-                SQLiteCache(ttl=cache_ttl, cache_dir=Path(cache_dir)) if cache_dir else MemoryCache(ttl=cache_ttl)
+                SQLiteCache(ttl=cache_ttl, cache_dir=Path(cache_dir))
+                if cache_dir
+                else MemoryCache(ttl=cache_ttl)
             )
 
     def _send(
@@ -191,7 +196,9 @@ class Discogs(BaseClient):
             if cached is not None:
                 status, cached_headers, body = cached
                 logger.debug("Cache hit: %s %s", method, url)
-                return httpx2.Response(status_code=status, headers=cached_headers, content=body)
+                return httpx2.Response(
+                    status_code=status, headers=cached_headers, content=body
+                )
         for attempt in range(self.max_retries + 1):
             logger.debug("HTTP request: %s %s", method, url)
             t0 = time.monotonic()  # Unaffected by system clock adjustments (NTP, DST)
@@ -199,8 +206,12 @@ class Discogs(BaseClient):
                 response = self._http_client.request(method, url, **kwargs)
             except (httpx2.NetworkError, httpx2.TimeoutException) as exc:
                 elapsed_ms = (time.monotonic() - t0) * 1000
-                if attempt == self.max_retries or not may_retry_transport_error(method, exc):
-                    logger.debug("HTTP connection error after %.0fms: %s", elapsed_ms, exc)
+                if attempt == self.max_retries or not may_retry_transport_error(
+                    method, exc
+                ):
+                    logger.debug(
+                        "HTTP connection error after %.0fms: %s", elapsed_ms, exc
+                    )
                     raise DiscogsConnectionError(str(exc)) from exc
                 delay = self._retry_delay(attempt)
                 logger.info(
@@ -215,8 +226,17 @@ class Discogs(BaseClient):
                 time.sleep(delay)
                 continue
             elapsed_ms = (time.monotonic() - t0) * 1000
-            logger.debug("HTTP response: %s %s -> %d (%.0fms)", method, url, response.status_code, elapsed_ms)
-            if not may_retry_status(method, response.status_code) or attempt == self.max_retries:
+            logger.debug(
+                "HTTP response: %s %s -> %d (%.0fms)",
+                method,
+                url,
+                response.status_code,
+                elapsed_ms,
+            )
+            if (
+                not may_retry_status(method, response.status_code)
+                or attempt == self.max_retries
+            ):
                 if use_cache and 200 <= response.status_code < 300:
                     assert self._cache is not None  # narrowed by use_cache
                     # response.content is already decompressed by httpx2, so strip
@@ -224,14 +244,23 @@ class Discogs(BaseClient):
                     cache_headers = {
                         k: v
                         for k, v in response.headers.items()
-                        if k.lower() not in ("content-encoding", "content-length", "transfer-encoding")
+                        if k.lower()
+                        not in (
+                            "content-encoding",
+                            "content-length",
+                            "transfer-encoding",
+                        )
                     }
-                    self._cache.set(cache_key, response.status_code, cache_headers, response.content)
+                    self._cache.set(
+                        cache_key, response.status_code, cache_headers, response.content
+                    )
                 # The retry policy is done deciding: this is the final response,
                 # so map failures here, before any endpoint parses the body.
                 self._raise_for_response(response)
                 return response
-            delay = self._retry_delay(attempt, retry_after=response.headers.get("Retry-After"))
+            delay = self._retry_delay(
+                attempt, retry_after=response.headers.get("Retry-After")
+            )
             logger.info(
                 "Retrying %s %s (attempt %d/%d) after status %d, waiting %.1fs",
                 method,

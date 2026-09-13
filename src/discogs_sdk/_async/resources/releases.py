@@ -44,7 +44,9 @@ class ReleaseRating(AsyncAPIResource):
         super().__init__(client)
         self._release_id = release_id
 
-    def get(self, username: str | None = None) -> CommunityRatingProxy | UserReleaseRatingProxy:
+    def get(
+        self, username: str | None = None
+    ) -> CommunityRatingProxy | UserReleaseRatingProxy:
         if username:
             return UserReleaseRatingProxy(
                 self._client,
@@ -74,7 +76,9 @@ class ReleaseStatsResource(AsyncAPIResource):
         self._release_id = release_id
 
     def get(self) -> ReleaseStatsProxy:
-        return ReleaseStatsProxy(self._client, f"/releases/{self._release_id}/stats", ReleaseStats)
+        return ReleaseStatsProxy(
+            self._client, f"/releases/{self._release_id}/stats", ReleaseStats
+        )
 
 
 class ReleasePriceSuggestions(AsyncAPIResource):
@@ -95,7 +99,9 @@ class ReleaseMarketplaceStats(AsyncAPIResource):
         super().__init__(client)
         self._release_id = release_id
 
-    def get(self, *, curr_abbr: CurrencyCode | None = None) -> MarketplaceReleaseStatsProxy:
+    def get(
+        self, *, curr_abbr: CurrencyCode | None = None
+    ) -> MarketplaceReleaseStatsProxy:
         """Marketplace stats for the release, priced in *curr_abbr* when given."""
         return MarketplaceReleaseStatsProxy(
             self._client,
@@ -110,7 +116,13 @@ class ReleaseProxy(AsyncLazyResource[Release]):
 
     _release_id: int
 
-    def __init__(self, client: AsyncDiscogs, release_id: int, *, curr_abbr: CurrencyCode | None = None) -> None:
+    def __init__(
+        self,
+        client: AsyncDiscogs,
+        release_id: int,
+        *,
+        curr_abbr: CurrencyCode | None = None,
+    ) -> None:
         super().__init__(
             client,
             f"/releases/{release_id}",
@@ -137,6 +149,8 @@ class ReleaseProxy(AsyncLazyResource[Release]):
 
 
 class Releases(AsyncAPIResource):
-    def get(self, release_id: int, *, curr_abbr: CurrencyCode | None = None) -> ReleaseProxy:
+    def get(
+        self, release_id: int, *, curr_abbr: CurrencyCode | None = None
+    ) -> ReleaseProxy:
         """The release, with marketplace prices in *curr_abbr* when given."""
         return ReleaseProxy(self._client, release_id, curr_abbr=curr_abbr)

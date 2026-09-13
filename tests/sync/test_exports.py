@@ -17,7 +17,9 @@ class TestExportsRequest:
         client.exports.request()
 
     def test_request_error(self, client, respx_mock):
-        respx_mock.post("/inventory/export").mock(return_value=respx.MockResponse(403, json={"message": "Forbidden"}))
+        respx_mock.post("/inventory/export").mock(
+            return_value=respx.MockResponse(403, json={"message": "Forbidden"})
+        )
         with pytest.raises(DiscogsAPIError):
             client.exports.request()
 
@@ -25,7 +27,9 @@ class TestExportsRequest:
 class TestExportsList:
     def test_list(self, client, respx_mock):
         respx_mock.get("/inventory/export").mock(
-            return_value=respx.MockResponse(200, json=make_paginated_response("items", [make_export()]))
+            return_value=respx.MockResponse(
+                200, json=make_paginated_response("items", [make_export()])
+            )
         )
         results = list(client.exports.list())
         assert len(results) == 1
@@ -38,7 +42,9 @@ class TestExportsGet:
         assert respx_mock.calls.call_count == 0
 
     def test_get_resolves(self, client, respx_mock):
-        respx_mock.get("/inventory/export/1").mock(return_value=respx.MockResponse(200, json=make_export()))
+        respx_mock.get("/inventory/export/1").mock(
+            return_value=respx.MockResponse(200, json=make_export())
+        )
         lazy = client.exports.get(1)
         assert lazy.id == 1
 
@@ -52,11 +58,15 @@ class TestExportsDownload:
         assert result == b"csv,data,here"
 
     def test_download_error(self, client, respx_mock):
-        respx_mock.get("/inventory/export/999/download").mock(return_value=respx.MockResponse(404, text="Not Found"))
+        respx_mock.get("/inventory/export/999/download").mock(
+            return_value=respx.MockResponse(404, text="Not Found")
+        )
         with pytest.raises(DiscogsAPIError):
             client.exports.download(999)
 
     def test_download_connect_error(self, no_retry_client, respx_mock):
-        respx_mock.get("/inventory/export/1/download").mock(side_effect=httpx2.ConnectError("Connection refused"))
+        respx_mock.get("/inventory/export/1/download").mock(
+            side_effect=httpx2.ConnectError("Connection refused")
+        )
         with pytest.raises(DiscogsConnectionError):
             no_retry_client.exports.download(1)

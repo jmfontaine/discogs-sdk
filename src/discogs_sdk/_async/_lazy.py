@@ -71,7 +71,8 @@ class AsyncLazyResource(Generic[_M]):
                 if resolved is not None:
                     return getattr(resolved, name)
                 raise AttributeError(
-                    f"Cannot access '{name}' on unresolved AsyncLazyResource. Use: resolved = await resource"
+                    f"Cannot access '{name}' on unresolved AsyncLazyResource. "
+                    "Use: resolved = await resource"
                 )
             else:
                 # Otherwise, resolve the model via HTTP and delegate
@@ -82,12 +83,17 @@ class AsyncLazyResource(Generic[_M]):
             if True:  # ASYNC
                 resolved = object.__getattribute__(self, "_resolved")
                 if resolved is None:
-                    raise TypeError("Cannot subscript unresolved AsyncLazyResource. Use: resolved = await resource")
+                    raise TypeError(
+                        "Cannot subscript unresolved AsyncLazyResource. "
+                        "Use: resolved = await resource"
+                    )
             else:
                 resolved = self._resolve()
             getter = getattr(resolved, "__getitem__", None)
             if getter is None:
-                raise TypeError(f"'{type(resolved).__name__}' object is not subscriptable")
+                raise TypeError(
+                    f"'{type(resolved).__name__}' object is not subscriptable"
+                )
             return getter(key)
 
     if True:  # ASYNC

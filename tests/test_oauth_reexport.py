@@ -14,7 +14,9 @@ from discogs_sdk.oauth import (
 )
 from tests.conftest import BASE_URL
 
-REQUEST_TOKEN_BODY = "oauth_token=req-token&oauth_token_secret=req-secret&oauth_callback_confirmed=true"
+REQUEST_TOKEN_BODY = (
+    "oauth_token=req-token&oauth_token_secret=req-secret&oauth_callback_confirmed=true"
+)
 ACCESS_TOKEN_BODY = "oauth_token=acc-token&oauth_token_secret=acc-secret"
 
 
@@ -32,7 +34,9 @@ class TestSharedResultClasses:
             router.post("/oauth/access_token").respond(200, text=ACCESS_TOKEN_BODY)
 
             request_token = get_request_token("ck", "cs")
-            access_token = get_access_token("ck", "cs", "req-token", "req-secret", "123456")
+            access_token = get_access_token(
+                "ck", "cs", "req-token", "req-secret", "123456"
+            )
 
         assert isinstance(request_token, RequestToken)
         assert isinstance(access_token, AccessToken)
@@ -45,7 +49,9 @@ class TestSharedResultClasses:
             router.post("/oauth/access_token").respond(200, text=ACCESS_TOKEN_BODY)
 
             request_token = await async_get_request_token("ck", "cs")
-            access_token = await async_get_access_token("ck", "cs", "req-token", "req-secret", "123456")
+            access_token = await async_get_access_token(
+                "ck", "cs", "req-token", "req-secret", "123456"
+            )
 
         assert isinstance(request_token, RequestToken)
         assert isinstance(access_token, AccessToken)

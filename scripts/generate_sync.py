@@ -31,7 +31,10 @@ ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "src" / "discogs_sdk" / "_async"
 DST = ROOT / "src" / "discogs_sdk" / "_sync"
 
-HEADER = "# This file is auto-generated from the async version.\n# Do not edit directly — edit the corresponding file in _async/ instead.\n"
+HEADER = (
+    "# This file is auto-generated from the async version.\n"
+    "# Do not edit directly — edit the corresponding file in _async/ instead.\n"
+)
 
 NAME_MAP: dict[str, str] = {
     "__aenter__": "__enter__",
@@ -138,7 +141,9 @@ def _model_declarations() -> tuple[dict[str, list[str]], dict[str, str]]:
             symbols[node.name] = module
             rendered: list[str] = []
             for stmt in node.body:
-                if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+                if isinstance(stmt, ast.AnnAssign) and isinstance(
+                    stmt.target, ast.Name
+                ):
                     rendered.append(f"{stmt.target.id}: {ast.unparse(stmt.annotation)}")
                 elif isinstance(stmt, ast.FunctionDef):
                     stub = copy.deepcopy(stmt)
@@ -155,18 +160,34 @@ def _render_field_mixins() -> str:
     needed: set[str] = set()
     for model in _proxied_models():
         if model not in members:
-            print(f"ERROR: no model named {model} in {MODELS.relative_to(ROOT)}", file=sys.stderr)
+            print(
+                f"ERROR: no model named {model} in {MODELS.relative_to(ROOT)}",
+                file=sys.stderr,
+            )
             sys.exit(1)
         declarations = members[model]
-        body = "\n".join(f"        {line}" for decl in declarations for line in decl.splitlines()) or "        pass"
+        body = (
+            "\n".join(
+                f"        {line}" for decl in declarations for line in decl.splitlines()
+            )
+            or "        pass"
+        )
         for decl in declarations:
-            needed.update(name.id for name in ast.walk(ast.parse(decl)) if isinstance(name, ast.Name))
+            needed.update(
+                name.id
+                for name in ast.walk(ast.parse(decl))
+                if isinstance(name, ast.Name)
+            )
         blocks.append(
-            f'class {model}Fields:\n    """Members of :class:`{model}`."""\n\n    if TYPE_CHECKING:\n{body}\n'
+            f"class {model}Fields:\n"
+            f'    """Members of :class:`{model}`."""\n\n'
+            f"    if TYPE_CHECKING:\n{body}\n"
         )
 
     imports = sorted({(symbols[name], name) for name in needed if name in symbols})
-    import_block = "\n".join(f"    from {module} import {name}" for module, name in imports)
+    import_block = "\n".join(
+        f"    from {module} import {name}" for module, name in imports
+    )
     header = FIELDS_HEADER
     if import_block:
         header += f"\nif TYPE_CHECKING:\n{import_block}\n"
@@ -306,15 +327,24 @@ def _check() -> None:
         _ruff_format(tmp_fields)
 
         if not DST.exists():
-            print(f"ERROR: {DST.relative_to(ROOT)} does not exist. Run: python scripts/generate_sync.py")
+            print(
+                f"ERROR: {DST.relative_to(ROOT)} does not exist. "
+                "Run: python scripts/generate_sync.py"
+            )
             sys.exit(1)
 
         stale = _find_differences(filecmp.dircmp(str(tmp_dst), str(DST)))
-        if not FIELDS_MODULE.exists() or FIELDS_MODULE.read_text() != tmp_fields.read_text():
+        if (
+            not FIELDS_MODULE.exists()
+            or FIELDS_MODULE.read_text() != tmp_fields.read_text()
+        ):
             stale.append(str(FIELDS_MODULE.relative_to(ROOT)))
 
         if stale:
-            print("ERROR: generated code is out of date. Run: python scripts/generate_sync.py")
+            print(
+                "ERROR: generated code is out of date. "
+                "Run: python scripts/generate_sync.py"
+            )
             for path in sorted(stale):
                 print(f"  {path}")
             sys.exit(1)
@@ -382,11 +412,17 @@ def _import_insertion_point(body: list[ast.stmt]) -> int:
     a module docstring ahead of those, so skip past both.
     """
     index = 0
-    if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant):
+    if (
+        body
+        and isinstance(body[0], ast.Expr)
+        and isinstance(body[0].value, ast.Constant)
+    ):
         index = 1
     while index < len(body):
         statement = body[index]
-        if not (isinstance(statement, ast.ImportFrom) and statement.module == "__future__"):
+        if not (
+            isinstance(statement, ast.ImportFrom) and statement.module == "__future__"
+        ):
             break
         index += 1
     return index
@@ -398,7 +434,9 @@ def transform(source: str) -> str:
     transformer = AsyncToSyncTransformer()
     tree = transformer.visit(tree)
     if transformer.field_mixins:
-        names = [ast.alias(name=mixin) for mixin in sorted(set(transformer.field_mixins))]
+        names = [
+            ast.alias(name=mixin) for mixin in sorted(set(transformer.field_mixins))
+        ]
         import_node = ast.ImportFrom(module=FIELDS_IMPORT, names=names, level=0)
         tree.body.insert(_import_insertion_point(tree.body), import_node)
     ast.fix_missing_locations(tree)
@@ -407,8 +445,14 @@ def transform(source: str) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate sync client from async source.")
-    parser.add_argument("--check", action="store_true", help="Check that generated code is up to date (no writes)")
+    parser = argparse.ArgumentParser(
+        description="Generate sync client from async source."
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Check that generated code is up to date (no writes)",
+    )
     args = parser.parse_args()
 
     if args.check:

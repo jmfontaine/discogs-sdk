@@ -10,7 +10,10 @@ from typing import TYPE_CHECKING, Any
 from discogs_sdk._sync._lazy import LazyResource
 from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk._sync._resource import SyncAPIResource
-from discogs_sdk.models._lazy_fields import CollectionFolderFields, CollectionValue_Fields
+from discogs_sdk.models._lazy_fields import (
+    CollectionFolderFields,
+    CollectionValue_Fields,
+)
 from discogs_sdk.models.collection import (
     CollectionField,
     CollectionFolder,
@@ -27,7 +30,9 @@ if TYPE_CHECKING:
 class InstanceFields(SyncAPIResource):
     """Edit a custom field value on a specific instance."""
 
-    def __init__(self, client, username: str, folder_id: int, release_id: int, instance_id: int) -> None:
+    def __init__(
+        self, client, username: str, folder_id: int, release_id: int, instance_id: int
+    ) -> None:
         super().__init__(client)
         self._username = username
         self._folder_id = folder_id
@@ -44,7 +49,14 @@ class InstanceFields(SyncAPIResource):
 class InstanceRef:
     """Lightweight ref that captures instance_id for field editing."""
 
-    def __init__(self, client: Discogs, username: str, folder_id: int, release_id: int, instance_id: int) -> None:
+    def __init__(
+        self,
+        client: Discogs,
+        username: str,
+        folder_id: int,
+        release_id: int,
+        instance_id: int,
+    ) -> None:
         self._client = client
         self._username = username
         self._folder_id = folder_id
@@ -53,7 +65,13 @@ class InstanceRef:
 
     @cached_property
     def fields(self) -> InstanceFields:
-        return InstanceFields(self._client, self._username, self._folder_id, self._release_id, self._instance_id)
+        return InstanceFields(
+            self._client,
+            self._username,
+            self._folder_id,
+            self._release_id,
+            self._instance_id,
+        )
 
 
 class CollectionInstances(SyncAPIResource):
@@ -66,10 +84,13 @@ class CollectionInstances(SyncAPIResource):
         self._release_id = release_id
 
     def _base_path(self) -> str:
-        return f"/users/{self._username}/collection/folders/{self._folder_id}/releases/{self._release_id}/instances"
+        folder = f"/users/{self._username}/collection/folders/{self._folder_id}"
+        return f"{folder}/releases/{self._release_id}/instances"
 
     def get(self, instance_id: int) -> InstanceRef:
-        return InstanceRef(self._client, self._username, self._folder_id, self._release_id, instance_id)
+        return InstanceRef(
+            self._client, self._username, self._folder_id, self._release_id, instance_id
+        )
 
     def delete(self, instance_id: int) -> None:
         self._delete(f"{self._base_path()}/{instance_id}")
@@ -81,7 +102,9 @@ class CollectionInstances(SyncAPIResource):
 class FolderReleaseRef:
     """Lightweight ref for a release within a folder — provides .instances accessor."""
 
-    def __init__(self, client: Discogs, username: str, folder_id: int, release_id: int) -> None:
+    def __init__(
+        self, client: Discogs, username: str, folder_id: int, release_id: int
+    ) -> None:
         self._client = client
         self._username = username
         self._folder_id = folder_id
@@ -89,7 +112,9 @@ class FolderReleaseRef:
 
     @cached_property
     def instances(self) -> CollectionInstances:
-        return CollectionInstances(self._client, self._username, self._folder_id, self._release_id)
+        return CollectionInstances(
+            self._client, self._username, self._folder_id, self._release_id
+        )
 
 
 class FolderReleases(SyncAPIResource):
@@ -104,7 +129,9 @@ class FolderReleases(SyncAPIResource):
         return f"/users/{self._username}/collection/folders/{self._folder_id}/releases"
 
     def get(self, release_id: int) -> FolderReleaseRef:
-        return FolderReleaseRef(self._client, self._username, self._folder_id, release_id)
+        return FolderReleaseRef(
+            self._client, self._username, self._folder_id, release_id
+        )
 
     def list(
         self,
@@ -115,10 +142,21 @@ class FolderReleases(SyncAPIResource):
         per_page: int | None = None,
     ) -> SyncPage[CollectionItem]:
         params = {
-            k: v for k, v in {"sort": sort, "sort_order": sort_order, "page": page, "per_page": per_page}.items() if v
+            k: v
+            for k, v in {
+                "sort": sort,
+                "sort_order": sort_order,
+                "page": page,
+                "per_page": per_page,
+            }.items()
+            if v
         }
         return SyncPage(
-            client=self._client, items_key="releases", model_cls=CollectionItem, params=params, path=self._base_path()
+            client=self._client,
+            items_key="releases",
+            model_cls=CollectionItem,
+            params=params,
+            path=self._base_path(),
         )
 
     def create(self, *, release_id: int) -> CollectionInstanceCreated:
@@ -137,7 +175,11 @@ class CollectionFolderProxy(LazyResource[CollectionFolder], CollectionFolderFiel
     _folder_id: int
 
     def __init__(self, client: Discogs, username: str, folder_id: int) -> None:
-        super().__init__(client, f"/users/{username}/collection/folders/{folder_id}", CollectionFolder)
+        super().__init__(
+            client,
+            f"/users/{username}/collection/folders/{folder_id}",
+            CollectionFolder,
+        )
         self._username = username
         self._folder_id = folder_id
 
@@ -188,7 +230,9 @@ class CollectionReleaseRef:
         self._username = username
         self._release_id = release_id
 
-    def list(self, *, page: int | None = None, per_page: int | None = None) -> SyncPage[CollectionItem]:
+    def list(
+        self, *, page: int | None = None, per_page: int | None = None
+    ) -> SyncPage[CollectionItem]:
         params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return SyncPage(
             client=self._client,
@@ -230,7 +274,9 @@ class CollectionValueResource(SyncAPIResource):
         self._username = username
 
     def get(self) -> CollectionValueProxy:
-        return CollectionValueProxy(self._client, f"/users/{self._username}/collection/value", CollectionValue_)
+        return CollectionValueProxy(
+            self._client, f"/users/{self._username}/collection/value", CollectionValue_
+        )
 
 
 # --- Collection namespace ---

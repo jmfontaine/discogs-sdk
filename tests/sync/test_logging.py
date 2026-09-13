@@ -26,14 +26,20 @@ def client(respx_mock):
 
 class TestRequestResponseLogging:
     def test_logs_request_and_response(self, client, respx_mock, caplog):
-        respx_mock.get("/releases/1").mock(return_value=respx.MockResponse(200, json=make_release()))
+        respx_mock.get("/releases/1").mock(
+            return_value=respx.MockResponse(200, json=make_release())
+        )
 
         with caplog.at_level(logging.DEBUG, logger="discogs_sdk"):
             lazy = client.releases.get(1)
             lazy.title  # noqa: B018 — triggers resolve
 
-        request_logs = [r for r in caplog.records if r.message.startswith("HTTP request:")]
-        response_logs = [r for r in caplog.records if r.message.startswith("HTTP response:")]
+        request_logs = [
+            r for r in caplog.records if r.message.startswith("HTTP request:")
+        ]
+        response_logs = [
+            r for r in caplog.records if r.message.startswith("HTTP response:")
+        ]
 
         assert len(request_logs) == 1
         assert "GET" in request_logs[0].message
@@ -111,7 +117,9 @@ class TestRetryLogging:
         responses = iter(
             [
                 respx.MockResponse(429, json={"message": "Rate limited"}),
-                respx.MockResponse(429, json={"message": "Rate limited"}, headers={"Retry-After": "10"}),
+                respx.MockResponse(
+                    429, json={"message": "Rate limited"}, headers={"Retry-After": "10"}
+                ),
             ]
         )
         respx_mock.get("/releases/1").mock(side_effect=lambda req: next(responses))
@@ -128,7 +136,9 @@ class TestRetryLogging:
 
 
 class TestConnectionErrorLogging:
-    def test_logs_retry_on_connection_error(self, client, respx_mock, caplog, monkeypatch):
+    def test_logs_retry_on_connection_error(
+        self, client, respx_mock, caplog, monkeypatch
+    ):
         call_count = 0
 
         def side_effect(req):
@@ -152,7 +162,9 @@ class TestConnectionErrorLogging:
 
     def test_logs_final_connection_error(self, respx_mock, caplog, monkeypatch):
         client = Discogs(token="test-token", max_retries=1)
-        respx_mock.get("/releases/1").mock(side_effect=httpx2.ConnectError("Connection refused"))
+        respx_mock.get("/releases/1").mock(
+            side_effect=httpx2.ConnectError("Connection refused")
+        )
         monkeypatch.setattr("time.sleep", lambda _: None)
 
         with caplog.at_level(logging.DEBUG, logger="discogs_sdk"):
@@ -160,14 +172,18 @@ class TestConnectionErrorLogging:
             with pytest.raises(DiscogsConnectionError):
                 lazy.title  # noqa: B018
 
-        error_logs = [r for r in caplog.records if "connection error after" in r.message.lower()]
+        error_logs = [
+            r for r in caplog.records if "connection error after" in r.message.lower()
+        ]
         assert len(error_logs) == 1
         assert error_logs[0].levelno == logging.DEBUG
 
 
 class TestNoSensitiveDataLogged:
     def test_auth_token_not_in_logs(self, client, respx_mock, caplog):
-        respx_mock.get("/releases/1").mock(return_value=respx.MockResponse(200, json=make_release()))
+        respx_mock.get("/releases/1").mock(
+            return_value=respx.MockResponse(200, json=make_release())
+        )
 
         with caplog.at_level(logging.DEBUG, logger="discogs_sdk"):
             lazy = client.releases.get(1)

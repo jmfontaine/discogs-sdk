@@ -25,7 +25,9 @@ if TYPE_CHECKING:
 class InstanceFields(AsyncAPIResource):
     """Edit a custom field value on a specific instance."""
 
-    def __init__(self, client, username: str, folder_id: int, release_id: int, instance_id: int) -> None:
+    def __init__(
+        self, client, username: str, folder_id: int, release_id: int, instance_id: int
+    ) -> None:
         super().__init__(client)
         self._username = username
         self._folder_id = folder_id
@@ -43,7 +45,14 @@ class InstanceFields(AsyncAPIResource):
 class InstanceRef:
     """Lightweight ref that captures instance_id for field editing."""
 
-    def __init__(self, client: AsyncDiscogs, username: str, folder_id: int, release_id: int, instance_id: int) -> None:
+    def __init__(
+        self,
+        client: AsyncDiscogs,
+        username: str,
+        folder_id: int,
+        release_id: int,
+        instance_id: int,
+    ) -> None:
         self._client = client
         self._username = username
         self._folder_id = folder_id
@@ -52,7 +61,13 @@ class InstanceRef:
 
     @cached_property
     def fields(self) -> InstanceFields:
-        return InstanceFields(self._client, self._username, self._folder_id, self._release_id, self._instance_id)
+        return InstanceFields(
+            self._client,
+            self._username,
+            self._folder_id,
+            self._release_id,
+            self._instance_id,
+        )
 
 
 class CollectionInstances(AsyncAPIResource):
@@ -65,10 +80,13 @@ class CollectionInstances(AsyncAPIResource):
         self._release_id = release_id
 
     def _base_path(self) -> str:
-        return f"/users/{self._username}/collection/folders/{self._folder_id}/releases/{self._release_id}/instances"
+        folder = f"/users/{self._username}/collection/folders/{self._folder_id}"
+        return f"{folder}/releases/{self._release_id}/instances"
 
     def get(self, instance_id: int) -> InstanceRef:
-        return InstanceRef(self._client, self._username, self._folder_id, self._release_id, instance_id)
+        return InstanceRef(
+            self._client, self._username, self._folder_id, self._release_id, instance_id
+        )
 
     async def delete(self, instance_id: int) -> None:
         await self._delete(f"{self._base_path()}/{instance_id}")
@@ -80,7 +98,9 @@ class CollectionInstances(AsyncAPIResource):
 class FolderReleaseRef:
     """Lightweight ref for a release within a folder — provides .instances accessor."""
 
-    def __init__(self, client: AsyncDiscogs, username: str, folder_id: int, release_id: int) -> None:
+    def __init__(
+        self, client: AsyncDiscogs, username: str, folder_id: int, release_id: int
+    ) -> None:
         self._client = client
         self._username = username
         self._folder_id = folder_id
@@ -88,7 +108,9 @@ class FolderReleaseRef:
 
     @cached_property
     def instances(self) -> CollectionInstances:
-        return CollectionInstances(self._client, self._username, self._folder_id, self._release_id)
+        return CollectionInstances(
+            self._client, self._username, self._folder_id, self._release_id
+        )
 
 
 class FolderReleases(AsyncAPIResource):
@@ -103,7 +125,9 @@ class FolderReleases(AsyncAPIResource):
         return f"/users/{self._username}/collection/folders/{self._folder_id}/releases"
 
     def get(self, release_id: int) -> FolderReleaseRef:
-        return FolderReleaseRef(self._client, self._username, self._folder_id, release_id)
+        return FolderReleaseRef(
+            self._client, self._username, self._folder_id, release_id
+        )
 
     def list(
         self,
@@ -114,7 +138,14 @@ class FolderReleases(AsyncAPIResource):
         per_page: int | None = None,
     ) -> AsyncPage[CollectionItem]:
         params = {
-            k: v for k, v in {"sort": sort, "sort_order": sort_order, "page": page, "per_page": per_page}.items() if v
+            k: v
+            for k, v in {
+                "sort": sort,
+                "sort_order": sort_order,
+                "page": page,
+                "per_page": per_page,
+            }.items()
+            if v
         }
         return AsyncPage(
             client=self._client,
@@ -140,7 +171,11 @@ class CollectionFolderProxy(AsyncLazyResource[CollectionFolder]):
     _folder_id: int
 
     def __init__(self, client: AsyncDiscogs, username: str, folder_id: int) -> None:
-        super().__init__(client, f"/users/{username}/collection/folders/{folder_id}", CollectionFolder)
+        super().__init__(
+            client,
+            f"/users/{username}/collection/folders/{folder_id}",
+            CollectionFolder,
+        )
         self._username = username
         self._folder_id = folder_id
 
@@ -176,7 +211,9 @@ class CollectionFolders(AsyncAPIResource):
         await self._delete(f"{self._base_path()}/{folder_id}")
 
     async def update(self, folder_id: int, *, name: str) -> CollectionFolder:
-        response = await self._post(f"{self._base_path()}/{folder_id}", json={"name": name})
+        response = await self._post(
+            f"{self._base_path()}/{folder_id}", json={"name": name}
+        )
         return self._parse_response(response, CollectionFolder)
 
 

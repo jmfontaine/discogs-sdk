@@ -24,7 +24,9 @@ class TestMarketplaceListings:
         assert respx_mock.calls.call_count == 0
 
     def test_get_resolves(self, client, respx_mock):
-        respx_mock.get("/marketplace/listings/123").mock(return_value=respx.MockResponse(200, json=make_listing()))
+        respx_mock.get("/marketplace/listings/123").mock(
+            return_value=respx.MockResponse(200, json=make_listing())
+        )
         lazy = client.marketplace.listings.get(123)
         assert lazy.id == 123
 
@@ -32,7 +34,9 @@ class TestMarketplaceListings:
         route = respx_mock.post("/marketplace/listings").mock(
             return_value=respx.MockResponse(201, json=make_listing_created())
         )
-        result = client.marketplace.listings.create(release_id=400027, condition="Mint (M)", price=9.99)
+        result = client.marketplace.listings.create(
+            release_id=400027, condition="Mint (M)", price=9.99
+        )
 
         assert isinstance(result, Listing)
         assert result.id == 41578241
@@ -42,7 +46,9 @@ class TestMarketplaceListings:
         assert [call.request.method for call in respx_mock.calls] == ["POST"]
 
     def test_update(self, client, respx_mock):
-        respx_mock.post("/marketplace/listings/123").mock(return_value=respx.MockResponse(204))
+        respx_mock.post("/marketplace/listings/123").mock(
+            return_value=respx.MockResponse(204)
+        )
         client.marketplace.listings.update(123, price=12.99)
 
     def test_update_error(self, client, respx_mock):
@@ -53,7 +59,9 @@ class TestMarketplaceListings:
             client.marketplace.listings.update(123, price=12.99)
 
     def test_delete(self, client, respx_mock):
-        respx_mock.delete("/marketplace/listings/123").mock(return_value=respx.MockResponse(204))
+        respx_mock.delete("/marketplace/listings/123").mock(
+            return_value=respx.MockResponse(204)
+        )
         client.marketplace.listings.delete(123)
 
     def test_delete_error(self, client, respx_mock):
@@ -70,13 +78,17 @@ class TestMarketplaceOrders:
         assert respx_mock.calls.call_count == 0
 
     def test_get_resolves(self, client, respx_mock):
-        respx_mock.get("/marketplace/orders/1-1").mock(return_value=respx.MockResponse(200, json=make_order()))
+        respx_mock.get("/marketplace/orders/1-1").mock(
+            return_value=respx.MockResponse(200, json=make_order())
+        )
         lazy = client.marketplace.orders.get("1-1")
         assert lazy.id == "1-1"
 
     def test_list_orders(self, client, respx_mock):
         respx_mock.get("/marketplace/orders").mock(
-            return_value=respx.MockResponse(200, json=make_paginated_response("orders", [make_order()]))
+            return_value=respx.MockResponse(
+                200, json=make_paginated_response("orders", [make_order()])
+            )
         )
         results = list(client.marketplace.orders.list())
         assert len(results) == 1
@@ -98,7 +110,9 @@ class TestOrderMessages:
 
     def test_list_messages(self, client, respx_mock):
         respx_mock.get("/marketplace/orders/1-1/messages").mock(
-            return_value=respx.MockResponse(200, json=make_paginated_response("messages", [make_order_message()]))
+            return_value=respx.MockResponse(
+                200, json=make_paginated_response("messages", [make_order_message()])
+            )
         )
         lazy = client.marketplace.orders.get("1-1")
         results = list(lazy.messages.list())
@@ -107,7 +121,9 @@ class TestOrderMessages:
 
     def test_create_message(self, client, respx_mock):
         respx_mock.post("/marketplace/orders/1-1/messages").mock(
-            return_value=respx.MockResponse(200, json=make_order_message(message="Shipped!"))
+            return_value=respx.MockResponse(
+                200, json=make_order_message(message="Shipped!")
+            )
         )
         lazy = client.marketplace.orders.get("1-1")
         result = lazy.messages.create(message="Shipped!")
@@ -115,7 +131,9 @@ class TestOrderMessages:
 
     def test_create_message_with_status(self, client, respx_mock):
         respx_mock.post("/marketplace/orders/1-1/messages").mock(
-            return_value=respx.MockResponse(200, json=make_order_message(message="Shipped!"))
+            return_value=respx.MockResponse(
+                200, json=make_order_message(message="Shipped!")
+            )
         )
         lazy = client.marketplace.orders.get("1-1")
         result = lazy.messages.create(message="Shipped!", status="Shipped")
@@ -124,7 +142,9 @@ class TestOrderMessages:
 
 class TestMarketplaceFee:
     def test_fee_without_currency(self, client, respx_mock):
-        respx_mock.get("/marketplace/fee/10.0").mock(return_value=respx.MockResponse(200, json=make_fee()))
+        respx_mock.get("/marketplace/fee/10.0").mock(
+            return_value=respx.MockResponse(200, json=make_fee())
+        )
         lazy = client.marketplace.fee.get(price=10.0)
         assert lazy.value == 0.99
 
@@ -159,7 +179,9 @@ class TestListingCurrencySelection:
 class TestOrderFilters:
     def test_date_range_is_sent_as_supplied(self, client, respx_mock):
         route = respx_mock.get("/marketplace/orders").mock(
-            return_value=respx.MockResponse(200, json=make_paginated_response("orders", [make_order()]))
+            return_value=respx.MockResponse(
+                200, json=make_paginated_response("orders", [make_order()])
+            )
         )
 
         page = client.marketplace.orders.list(
@@ -172,10 +194,16 @@ class TestOrderFilters:
         assert params["created_after"] == "2019-06-24T20:58:58Z"
         assert params["created_before"] == "2020-06-24T20:58:58Z"
 
-    @pytest.mark.parametrize(("archived", "expected"), [(True, "true"), (False, "false")])
-    def test_both_archive_states_reach_the_api(self, client, respx_mock, archived, expected):
+    @pytest.mark.parametrize(
+        ("archived", "expected"), [(True, "true"), (False, "false")]
+    )
+    def test_both_archive_states_reach_the_api(
+        self, client, respx_mock, archived, expected
+    ):
         route = respx_mock.get("/marketplace/orders").mock(
-            return_value=respx.MockResponse(200, json=make_paginated_response("orders", [make_order()]))
+            return_value=respx.MockResponse(
+                200, json=make_paginated_response("orders", [make_order()])
+            )
         )
 
         _ = list(client.marketplace.orders.list(archived=archived))
@@ -184,7 +212,9 @@ class TestOrderFilters:
 
     def test_omitting_archived_sends_no_parameter(self, client, respx_mock):
         route = respx_mock.get("/marketplace/orders").mock(
-            return_value=respx.MockResponse(200, json=make_paginated_response("orders", [make_order()]))
+            return_value=respx.MockResponse(
+                200, json=make_paginated_response("orders", [make_order()])
+            )
         )
 
         _ = list(client.marketplace.orders.list())

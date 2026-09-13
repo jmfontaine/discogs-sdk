@@ -14,7 +14,9 @@ class Label(SDKModel):
     profile: str | None = None
     releases_url: str | None = None
     resource_url: str | None = None
-    sub_labels: list[SubLabel] | None = Field(default=None, validation_alias="sublabels")
+    sub_labels: list[SubLabel] | None = Field(
+        default=None, validation_alias="sublabels"
+    )
     uri: str | None = None
     urls: list[str] | None = None
 

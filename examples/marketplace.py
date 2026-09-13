@@ -22,7 +22,10 @@ client = Discogs()
 # Get an existing listing.
 listing = client.marketplace.listings.get(123456789)
 if listing.release and listing.price:
-    print(f"{listing.release.description} — ${listing.price.value} {listing.price.currency}")
+    print(
+        f"{listing.release.description} — "
+        f"${listing.price.value} {listing.price.currency}"
+    )
 
 # Create a new listing.
 new_listing = client.marketplace.listings.create(

@@ -14,7 +14,9 @@ class TestLabelsGet:
         assert respx_mock.calls.call_count == 0
 
     def test_get_resolves_to_label(self, client, respx_mock):
-        respx_mock.get("/labels/26011").mock(return_value=respx.MockResponse(200, json=make_label()))
+        respx_mock.get("/labels/26011").mock(
+            return_value=respx.MockResponse(200, json=make_label())
+        )
         lazy = client.labels.get(26011)
         assert lazy.name == "Nothing Records"
 
@@ -23,7 +25,9 @@ class TestLabelReleases:
     def test_releases_list(self, client, respx_mock):
         items = [make_label_release(id=i) for i in range(2)]
         respx_mock.get("/labels/26011/releases").mock(
-            return_value=respx.MockResponse(200, json=make_paginated_response("releases", items))
+            return_value=respx.MockResponse(
+                200, json=make_paginated_response("releases", items)
+            )
         )
         lazy = client.labels.get(26011)
         results = list(lazy.releases.list())

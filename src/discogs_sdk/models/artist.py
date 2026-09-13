@@ -10,7 +10,9 @@ class Artist(SDKModel):
     data_quality: str | None = None
     images: list[Image] | None = None
     members: list[Member] | None = None
-    name_variations: list[str] | None = Field(default=None, validation_alias="namevariations")
+    name_variations: list[str] | None = Field(
+        default=None, validation_alias="namevariations"
+    )
     name: str
     profile: str | None = None
     releases_url: str | None = None

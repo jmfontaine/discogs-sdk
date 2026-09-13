@@ -60,7 +60,9 @@ class SyncPage(Generic[T]):
         if self._next_url:
             response = self._client._send("GET", self._next_url)
         else:
-            response = self._client._send("GET", self._client._build_url(self._path), params=self._params)
+            response = self._client._send(
+                "GET", self._client._build_url(self._path), params=self._params
+            )
         body = response.json()
         pagination = body.get("pagination", {})
         self._page_number = pagination.get("page")

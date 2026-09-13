@@ -51,12 +51,16 @@ def may_retry_transport_error(method: str, exc: Exception) -> bool:
     """
     if method.upper() in _SAFE_METHODS:
         return True
-    return isinstance(exc, (httpx2.ConnectError, httpx2.ConnectTimeout, httpx2.PoolTimeout))
+    return isinstance(
+        exc, (httpx2.ConnectError, httpx2.ConnectTimeout, httpx2.PoolTimeout)
+    )
 
 
 try:
     _SDK_VERSION = importlib.metadata.version("discogs-sdk")
-except importlib.metadata.PackageNotFoundError:  # pragma: no cover — package is always installed when tests run
+except (
+    importlib.metadata.PackageNotFoundError
+):  # pragma: no cover — package is always installed when tests run
     _SDK_VERSION = "0.0.0"
 
 USER_AGENT = f"discogs-sdk/{_SDK_VERSION} +https://github.com/jmfontaine/discogs-sdk"
@@ -88,8 +92,9 @@ def _raise_incomplete_credentials(mode: str, **credentials: str | None) -> NoRet
     missing = sorted(name for name, value in credentials.items() if not value)
     raise ValueError(
         f"{mode} authentication was selected but {', '.join(missing)} "
-        f"{'is' if len(missing) == 1 else 'are'} missing. Pass the missing value(s) to the "
-        "constructor or set the matching DISCOGS_* environment variable(s)."
+        f"{'is' if len(missing) == 1 else 'are'} missing. Pass the missing "
+        "value(s) to the constructor or set the matching DISCOGS_* "
+        "environment variable(s)."
     )
 
 
@@ -120,7 +125,9 @@ def build_oauth_header(
         params["oauth_verifier"] = verifier
     if callback:
         params["oauth_callback"] = callback
-    header_parts = ", ".join(f'{k}="{urllib.parse.quote(v, safe="")}"' for k, v in params.items())
+    header_parts = ", ".join(
+        f'{k}="{urllib.parse.quote(v, safe="")}"' for k, v in params.items()
+    )
     return f"OAuth {header_parts}"
 
 
@@ -178,7 +185,9 @@ class BaseClient:
         never produce the same key. Bumping the version retires older entries
         instead of letting them serve as fallback hits.
         """
-        return _KEY_SEPARATOR.join((_CACHE_KEY_VERSION, method.upper(), url, accept, self._auth_namespace))
+        return _KEY_SEPARATOR.join(
+            (_CACHE_KEY_VERSION, method.upper(), url, accept, self._auth_namespace)
+        )
 
     def _select_auth_mode(
         self,
@@ -234,7 +243,9 @@ class BaseClient:
             key = consumer_key or env("DISCOGS_CONSUMER_KEY")
             secret = consumer_secret or env("DISCOGS_CONSUMER_SECRET")
             if not (key and secret):
-                _raise_incomplete_credentials("Consumer key/secret", consumer_key=key, consumer_secret=secret)
+                _raise_incomplete_credentials(
+                    "Consumer key/secret", consumer_key=key, consumer_secret=secret
+                )
             self._consumer_key, self._consumer_secret = key, secret
             return "consumer"
 
@@ -245,7 +256,10 @@ class BaseClient:
             return "token"
 
         key, secret = env("DISCOGS_CONSUMER_KEY"), env("DISCOGS_CONSUMER_SECRET")
-        oauth_token, oauth_secret = env("DISCOGS_ACCESS_TOKEN"), env("DISCOGS_ACCESS_TOKEN_SECRET")
+        oauth_token, oauth_secret = (
+            env("DISCOGS_ACCESS_TOKEN"),
+            env("DISCOGS_ACCESS_TOKEN_SECRET"),
+        )
         if key and secret and oauth_token and oauth_secret:
             self._consumer_key, self._consumer_secret = key, secret
             self._access_token, self._access_token_secret = oauth_token, oauth_secret
@@ -270,7 +284,9 @@ class BaseClient:
         if self._auth_mode == "token":
             headers["Authorization"] = f"Discogs token={self._token}"
         elif self._auth_mode == "consumer":
-            headers["Authorization"] = f"Discogs key={self._consumer_key}, secret={self._consumer_secret}"
+            headers["Authorization"] = (
+                f"Discogs key={self._consumer_key}, secret={self._consumer_secret}"
+            )
         # OAuth headers are per-request (need fresh nonce/timestamp),
         # so they are added in _build_oauth_header_for_request() instead.
         return headers
@@ -296,7 +312,8 @@ class BaseClient:
                 return float(retry_after)
             except ValueError:
                 pass
-        # Exponential backoff (2^attempt) capped at 60s, plus random jitter to avoid thundering herd
+        # Exponential backoff (2^attempt) capped at 60s, plus random jitter to
+        # avoid thundering herd
         return min(2**attempt, 60) + random.random()
 
     def _raise_for_response(self, response: httpx2.Response) -> None:
@@ -317,7 +334,9 @@ class BaseClient:
         else:
             body = decoded if isinstance(decoded, dict) else response.text
 
-        self._maybe_raise(response.status_code, body, retry_after=response.headers.get("Retry-After"))
+        self._maybe_raise(
+            response.status_code, body, retry_after=response.headers.get("Retry-After")
+        )
 
     def _maybe_raise(
         self,
