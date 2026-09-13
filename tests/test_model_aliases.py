@@ -17,7 +17,7 @@ from discogs_sdk.models._common import (
 )
 from discogs_sdk.models.artist import Artist
 from discogs_sdk.models.label import Label, LabelRelease
-from discogs_sdk.models.marketplace import OrderMessage, OriginalPrice
+from discogs_sdk.models.marketplace import Listing, OrderMessage, OriginalPrice
 from discogs_sdk.models.release import Release
 from discogs_sdk.models.search import SearchResult
 from discogs_sdk.models.user import User
@@ -140,6 +140,19 @@ class TestSubclassInheritsGetattr:
         obj = MyModel.model_validate({"uglyName": "hello"})
         assert obj.clean_name == "hello"
         assert obj.uglyName == "hello"
+
+
+class TestAliasChoicesAccess:
+    """A field accepting several API spellings exposes each as an attribute."""
+
+    def test_creation_alias_is_readable(self) -> None:
+        listing = Listing.model_validate({"listing_id": 41578241})
+        assert listing.id == 41578241
+        assert listing.listing_id == 41578241
+
+    def test_detail_alias_is_readable(self) -> None:
+        listing = Listing.model_validate({"id": 123})
+        assert listing.listing_id == 123
 
 
 class TestCanonicalNameValidation:
