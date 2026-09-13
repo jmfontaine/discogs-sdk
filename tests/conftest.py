@@ -124,6 +124,14 @@ def make_listing(
     return {"id": id, "status": status, "price": {"value": 9.99, "currency": "USD"}}
 
 
+def make_listing_created(listing_id: int = 41578241) -> dict[str, Any]:
+    """HTTP 201 body from POST /marketplace/listings (identifier only)."""
+    return {
+        "listing_id": listing_id,
+        "resource_url": f"{BASE_URL}/marketplace/listings/{listing_id}",
+    }
+
+
 def make_master(id: int = 5765, title: str = "The Downward Spiral") -> dict[str, Any]:
     return {"id": id, "title": title}
 
