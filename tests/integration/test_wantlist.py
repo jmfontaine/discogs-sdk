@@ -12,21 +12,22 @@ pytestmark = pytest.mark.integration
 
 
 class TestWantlistCRUD:
-    """Full create/list/delete cycle for the wantlist."""
+    """Create/list/delete cycle for a want this test owns."""
 
     def test_add_list_delete(self, client, username):
         wantlist = client.users.get(username).wantlist
 
-        # Add to wantlist
+        # A want already on the account carries the user's own notes and rating.
+        # Adding it again would overwrite them, so leave it untouched.
+        if any(want.id == CRUD_RELEASE_ID for want in wantlist.list()):
+            pytest.skip(f"Release {CRUD_RELEASE_ID} is already in the wantlist; refusing to modify it")
+
         want = wantlist.create(release_id=CRUD_RELEASE_ID)
-        assert isinstance(want, Want)
-        assert want.id == CRUD_RELEASE_ID
 
         try:
-            # Verify it appears in the list
-            page = wantlist.list()
-            ids = [w.id for w in page]
-            assert CRUD_RELEASE_ID in ids
+            assert isinstance(want, Want)
+            assert want.id == CRUD_RELEASE_ID
+            assert CRUD_RELEASE_ID in [w.id for w in wantlist.list()]
         finally:
-            # Always clean up
+            # Remove only the entry this test added.
             wantlist.delete(CRUD_RELEASE_ID)

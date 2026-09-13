@@ -85,6 +85,11 @@ Integration tests run against the real Discogs API. They are excluded from `just
 just test-integration
 ```
 
+**Use a disposable test account.** Some of these tests mutate account data: they add and remove collection
+instances, wantlist entries and folders. They only touch what they create and skip a wantlist entry that already
+exists, but a crash between creation and cleanup can still leave a stray entry behind. Never point them at an
+account whose collection, wantlist or inventory you care about.
+
 #### Personal token setup
 
 1. Create a Discogs account (or use an existing one) at https://www.discogs.com
