@@ -33,5 +33,4 @@ class Exports(AsyncAPIResource):
         return await self._get_binary(f"/inventory/export/{export_id}/download")
 
     async def request(self) -> None:
-        response = await self._post("/inventory/export")
-        self._raise_for_error(response)
+        await self._post("/inventory/export")

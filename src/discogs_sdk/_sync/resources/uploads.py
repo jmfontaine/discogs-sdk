@@ -11,16 +11,13 @@ from discogs_sdk.models.upload import Upload
 
 class Uploads(SyncAPIResource):
     def create(self, *, file: str) -> None:
-        response = self._post_file("/inventory/upload/add", file_path=file)
-        self._raise_for_error(response)
+        self._post_file("/inventory/upload/add", file_path=file)
 
     def change(self, *, file: str) -> None:
-        response = self._post_file("/inventory/upload/change", file_path=file)
-        self._raise_for_error(response)
+        self._post_file("/inventory/upload/change", file_path=file)
 
     def delete(self, *, file: str) -> None:
-        response = self._post_file("/inventory/upload/delete", file_path=file)
-        self._raise_for_error(response)
+        self._post_file("/inventory/upload/delete", file_path=file)
 
     def list(self, *, page: int | None = None, per_page: int | None = None) -> SyncPage[Upload]:
         params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}

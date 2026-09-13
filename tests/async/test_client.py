@@ -8,7 +8,7 @@ import respx
 
 from discogs_sdk import AsyncDiscogs
 from discogs_sdk._cache import MemoryCache, SQLiteCache
-from discogs_sdk._exceptions import AuthenticationError
+from discogs_sdk._exceptions import AuthenticationError, NotFoundError
 from tests.conftest import BASE_URL, make_identity, make_release
 
 
@@ -230,8 +230,9 @@ class TestCacheBranch:
         with respx.mock(base_url=BASE_URL) as router:
             route = router.get("/releases/404").mock(return_value=httpx.Response(404, json={"message": "not found"}))
             client = AsyncDiscogs(token="t", cache=True, max_retries=0)
-            await client._send("GET", f"{BASE_URL}/releases/404")
-            await client._send("GET", f"{BASE_URL}/releases/404")
+            for _ in range(2):
+                with pytest.raises(NotFoundError):
+                    await client._send("GET", f"{BASE_URL}/releases/404")
             assert route.call_count == 2
             await client.close()
 

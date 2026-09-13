@@ -38,8 +38,7 @@ class ReleaseRating(AsyncAPIResource):
         return self._parse_response(response, UserReleaseRating)
 
     async def delete(self, username: str) -> None:
-        response = await self._delete(f"/releases/{self._release_id}/rating/{username}")
-        self._raise_for_error(response)
+        await self._delete(f"/releases/{self._release_id}/rating/{username}")
 
 
 class ReleaseStatsResource(AsyncAPIResource):

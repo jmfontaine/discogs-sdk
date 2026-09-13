@@ -87,12 +87,10 @@ class MarketplaceListings(SyncAPIResource):
         return self._parse_response(response, Listing)
 
     def update(self, listing_id: int, **kwargs: Any) -> None:
-        response = self._post(f"/marketplace/listings/{listing_id}", json=kwargs)
-        self._raise_for_error(response)
+        self._post(f"/marketplace/listings/{listing_id}", json=kwargs)
 
     def delete(self, listing_id: int) -> None:
-        response = self._delete(f"/marketplace/listings/{listing_id}")
-        self._raise_for_error(response)
+        self._delete(f"/marketplace/listings/{listing_id}")
 
 
 class MarketplaceFee(SyncAPIResource):

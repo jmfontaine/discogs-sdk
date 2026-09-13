@@ -42,9 +42,7 @@ class LazyResource:
         path = object.__getattribute__(self, "_path")
         model_cls = object.__getattribute__(self, "_model_cls")
         response = client._send("GET", client._build_url(path))
-        body = response.json()
-        client._maybe_raise(response.status_code, body, retry_after=response.headers.get("Retry-After"))
-        resolved = model_cls.model_validate(body)
+        resolved = model_cls.model_validate(response.json())
         object.__setattr__(self, "_resolved", resolved)
         return resolved
 

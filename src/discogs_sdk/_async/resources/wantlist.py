@@ -33,8 +33,7 @@ class Wantlist(AsyncAPIResource):
         return self._parse_response(response, Want)
 
     async def delete(self, release_id: int) -> None:
-        response = await self._delete(f"/users/{self._username}/wants/{release_id}")
-        self._raise_for_error(response)
+        await self._delete(f"/users/{self._username}/wants/{release_id}")
 
     async def update(self, release_id: int, **kwargs: Any) -> Want:
         response = await self._post(f"/users/{self._username}/wants/{release_id}", json=kwargs)

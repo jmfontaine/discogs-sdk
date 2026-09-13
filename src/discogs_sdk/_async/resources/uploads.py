@@ -8,16 +8,13 @@ from discogs_sdk.models.upload import Upload
 
 class Uploads(AsyncAPIResource):
     async def create(self, *, file: str) -> None:
-        response = await self._post_file("/inventory/upload/add", file_path=file)
-        self._raise_for_error(response)
+        await self._post_file("/inventory/upload/add", file_path=file)
 
     async def change(self, *, file: str) -> None:
-        response = await self._post_file("/inventory/upload/change", file_path=file)
-        self._raise_for_error(response)
+        await self._post_file("/inventory/upload/change", file_path=file)
 
     async def delete(self, *, file: str) -> None:
-        response = await self._post_file("/inventory/upload/delete", file_path=file)
-        self._raise_for_error(response)
+        await self._post_file("/inventory/upload/delete", file_path=file)
 
     def list(
         self,

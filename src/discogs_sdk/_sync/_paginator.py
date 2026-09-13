@@ -62,7 +62,6 @@ class SyncPage(Generic[T]):
         else:
             response = self._client._send("GET", self._client._build_url(self._path), params=self._params)
         body = response.json()
-        self._client._maybe_raise(response.status_code, body, retry_after=response.headers.get("Retry-After"))
         pagination = body.get("pagination", {})
         self._page_number = pagination.get("page")
         self._per_page = pagination.get("per_page")

@@ -32,8 +32,7 @@ class ReleaseRating(SyncAPIResource):
         return self._parse_response(response, UserReleaseRating)
 
     def delete(self, username: str) -> None:
-        response = self._delete(f"/releases/{self._release_id}/rating/{username}")
-        self._raise_for_error(response)
+        self._delete(f"/releases/{self._release_id}/rating/{username}")
 
 
 class ReleaseStatsResource(SyncAPIResource):

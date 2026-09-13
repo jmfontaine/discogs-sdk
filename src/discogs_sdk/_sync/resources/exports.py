@@ -23,5 +23,4 @@ class Exports(SyncAPIResource):
         return self._get_binary(f"/inventory/export/{export_id}/download")
 
     def request(self) -> None:
-        response = self._post("/inventory/export")
-        self._raise_for_error(response)
+        self._post("/inventory/export")
