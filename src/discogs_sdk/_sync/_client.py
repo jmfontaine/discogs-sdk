@@ -180,7 +180,7 @@ class Discogs(BaseClient):
             t0 = time.monotonic()  # Unaffected by system clock adjustments (NTP, DST)
             try:
                 response = self._http_client.request(method, url, **kwargs)
-            except (httpx.ConnectError, httpx.TimeoutException) as exc:
+            except (httpx.NetworkError, httpx.TimeoutException) as exc:
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 if attempt == self.max_retries or not may_retry_transport_error(method, exc):
                     logger.debug("HTTP connection error after %.0fms: %s", elapsed_ms, exc)

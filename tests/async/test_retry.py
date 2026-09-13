@@ -278,3 +278,28 @@ class TestWriteRetrySafety:
 
         assert route.call_count == 2
         assert mock_sleep.call_count == 1
+
+    async def test_read_error_is_mapped_and_retried_for_reads(self, client, respx_mock):
+        responses = iter([httpx.ReadError("connection reset"), httpx.Response(200, json=make_release())])
+
+        def side_effect(request):
+            result = next(responses)
+            if isinstance(result, Exception):
+                raise result
+            return result
+
+        route = respx_mock.get("/releases/1").mock(side_effect=side_effect)
+
+        with patch("asyncio.sleep", new_callable=AsyncMock):
+            await client.releases.get(1)
+
+        assert route.call_count == 2
+
+    async def test_read_error_does_not_replay_a_write(self, client, respx_mock):
+        route = respx_mock.post("/marketplace/listings").mock(side_effect=httpx.ReadError("connection reset"))
+
+        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep, pytest.raises(DiscogsConnectionError):
+            await client.marketplace.listings.create(release_id=352665, condition="Mint (M)", price=29.99)
+
+        assert route.call_count == 1
+        mock_sleep.assert_not_called()
