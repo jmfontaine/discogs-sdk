@@ -8,7 +8,7 @@
   <a href="https://github.com/jmfontaine/discogs-sdk/blob/main/LICENSE.txt"><img src="https://img.shields.io/pypi/l/discogs-sdk.svg" alt="License"></a>
 </p>
 
-discogs-sdk is a modern Python client for the [Discogs API](https://www.discogs.com/developers) with full endpoint coverage, a fluent chainable syntax, and built-in response caching.
+discogs-sdk is a modern Python client for the [Discogs API](https://www.discogs.com/developers) covering every documented v2 endpoint, with a fluent chainable syntax and built-in response caching.
 
 ```python
 from discogs_sdk import Discogs
@@ -33,7 +33,7 @@ Requires Python 3.10+.
 
 ## Features
 
-- **Full API Coverage** — Every endpoint in the Discogs API v2
+- **Documented API Coverage** — Every endpoint and parameter in the Discogs API v2 documentation
 - **Fluent API** — Chain sub-resources naturally: `client.releases.get(id).rating.get()`
 - **Lazy Loading** — No HTTP calls until you actually need the data
 - **Effortless Pagination** — Browse results without managing pages or offsets
@@ -85,7 +85,18 @@ You can also pass credentials explicitly:
 client = Discogs(token="your-token-here")
 ```
 
-The SDK supports three auth modes: personal token, consumer key/secret, and OAuth 1.0a. Credentials passed to the constructor take precedence over environment variables (`DISCOGS_TOKEN`, `DISCOGS_CONSUMER_KEY`, etc.). See [`examples/authentication.py`](examples/authentication.py) for the full OAuth flow.
+The SDK supports three auth modes: personal token, consumer key/secret, and OAuth 1.0a. Exactly one mode is selected
+when the client is constructed, and only that mode's credentials are used. The precedence is:
+
+1. An explicit `token` selects personal-token auth and overrides every environment credential.
+2. Explicit OAuth access-token credentials select OAuth; any missing half may come from the matching `DISCOGS_*`
+   variable, but an unrelated environment token never takes over.
+3. Explicit `consumer_key`/`consumer_secret` select consumer auth, without borrowing environment access tokens.
+4. With no auth arguments, the environment resolves the mode: `DISCOGS_TOKEN`, then a complete OAuth set, then
+   `DISCOGS_CONSUMER_KEY`/`DISCOGS_CONSUMER_SECRET`, then unauthenticated.
+
+An explicitly selected but incomplete credential set raises `ValueError` rather than quietly falling back to a
+different account or mode. See [`examples/authentication.py`](examples/authentication.py) for the full OAuth flow.
 
 > [!TIP]
 > Use a `.env` file with [python-dotenv](https://pypi.org/project/python-dotenv/) or
@@ -175,11 +186,13 @@ user.collection.folders.create(name="Industrial")
 for item in user.collection.folders.get(0).releases.list(sort="added"):
     print(item.basic_information.title)
 
-# Add a release
-user.collection.folders.get(1).releases.create(release_id=352665)
+# Add a release. The response identifies the copy you just created, which is
+# how you tell it apart from copies of the same release you already own.
+created = user.collection.folders.get(1).releases.create(release_id=352665)
 
 # Deep chaining: folder -> release -> instance -> fields
-user.collection.folders.get(1).releases.get(352665).instances.get(98765).fields.update(field_id=1, value="Signed copy")
+instances = user.collection.folders.get(1).releases.get(352665).instances
+instances.get(created.instance_id).fields.update(field_id=1, value="Signed copy")
 
 # Collection value
 value = user.collection.value.get()
@@ -270,7 +283,30 @@ The [`examples/`](examples/) directory has runnable scripts for every feature:
 | `timeout` | `30.0` | Request timeout in seconds |
 | `token` | `None` | Personal access token |
 
-Credentials are resolved in order: constructor args > environment variables.
+See [Authentication](#authentication) for how a credential mode is selected.
+
+### Caching
+
+Only successful `GET`/`HEAD` responses are cached. Entries are keyed by method, fully resolved URL, the effective
+`Accept` representation, and a non-reversible digest of the selected mode's credentials, so two clients sharing one
+cache — or one SQLite directory — never serve each other's private responses, and unauthenticated traffic gets its
+own namespace. No token or secret is stored in a key.
+
+`client.no_cache()` bypasses the cache for the current execution context. Scopes nest, the previous state is
+restored even when the block raises, and concurrent tasks or threads each carry their own state:
+
+```python
+with client.no_cache():
+    fresh = client.releases.get(352665).title  # always hits the API
+```
+
+### Custom HTTP clients
+
+An injected `http_client` owns its transport configuration and its lifecycle: `client.close()` never closes it.
+SDK credentials, User-Agent and media type are still applied per request, so they describe the request without
+mutating your client's defaults, and its own `httpx.Auth` cannot replace credentials you gave the SDK. When the SDK
+has no credentials of its own, your client's authentication is preserved and its responses are not cached, because
+the SDK cannot tell whose account they belong to.
 
 ## Field naming
 
