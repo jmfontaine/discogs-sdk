@@ -16,8 +16,13 @@ class TestListsGet:
     def test_get_resolves(self, client, respx_mock):
         respx_mock.get("/lists/1").mock(return_value=httpx.Response(200, json=make_list()))
         lazy = client.lists.get(1)
+        assert lazy.id == 1  # the detail response spells this "list_id"
         assert lazy.name == "Industrial Essentials"
         assert len(lazy.items) == 1
+
+    def test_canonical_id_still_accepted(self, client, respx_mock):
+        respx_mock.get("/lists/1").mock(return_value=httpx.Response(200, json={"id": 1, "name": "L"}))
+        assert client.lists.get(1).id == 1
 
 
 class TestUserLists:

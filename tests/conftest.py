@@ -106,14 +106,25 @@ def make_label_release(id: int = 1, title: str = "Head Like a Hole") -> dict[str
 
 
 def make_list(id: int = 1, name: str = "Industrial Essentials") -> dict[str, Any]:
+    """GET /lists/{id} detail body, which identifies the list as "list_id"."""
     return {
-        "id": id,
+        "list_id": id,
         "name": name,
-        "items": [{"id": 1, "display_title": "The Downward Spiral", "type": "release"}],
+        "items": [
+            {
+                "id": 352665,
+                "display_title": "Nine Inch Nails - The Downward Spiral",
+                "type": "release",
+                "resource_url": f"{BASE_URL}/releases/352665",
+            }
+        ],
+        "resource_url": f"{BASE_URL}/lists/{id}",
+        "public": True,
     }
 
 
 def make_list_summary(id: int = 1, name: str = "Industrial Essentials") -> dict[str, Any]:
+    """An entry in GET /users/{username}/lists, which identifies the list as "id"."""
     return {"id": id, "name": name}
 
 
