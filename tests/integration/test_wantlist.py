@@ -6,7 +6,7 @@ Uses a single release and cleans up after itself.
 import pytest
 
 from discogs_sdk.models.wantlist import Want
-from tests.integration.conftest import CRUD_RELEASE_ID
+from tests.integration.conftest import CRUD_RELEASE_ID, eventually
 
 pytestmark = pytest.mark.integration
 
@@ -27,7 +27,10 @@ class TestWantlistCRUD:
         try:
             assert isinstance(want, Want)
             assert want.id == CRUD_RELEASE_ID
-            assert CRUD_RELEASE_ID in [w.id for w in wantlist.list()]
+            # The write has been observed to lag behind the next read.
+            assert eventually(lambda: CRUD_RELEASE_ID in [w.id for w in wantlist.list()]), (
+                f"Release {CRUD_RELEASE_ID} never showed up in the wantlist after being added"
+            )
         finally:
             # Remove only the entry this test added.
             wantlist.delete(CRUD_RELEASE_ID)
