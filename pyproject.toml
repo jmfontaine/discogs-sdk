@@ -21,9 +21,38 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3.15",
   "Typing :: Typed",
 ]
-dependencies = [ "httpx>=0.28", "pydantic>=2.12", "typing-extensions>=4" ]
+dependencies = [
+  "httpx>=0.28",
+  # KLUDGE: the Python 3.15 pydantic clause below pins a prerelease behind a
+  # version cap. Both are temporary; see the replacement note at the end.
+  #
+  # pydantic 2.13 and earlier pin pydantic-core releases with no cp315 wheels,
+  # so on Python 3.15 they have to be compiled from source, and that build is
+  # rejected by the macOS dynamic loader (observed on macOS 27: the stripped
+  # Mach-O it produces has a mis-aligned LINKEDIT string pool). 2.14 is the
+  # first pydantic release whose pydantic-core pin (2.49) ships 3.15 wheels.
+  #
+  # The floors are additive, and the 3.15 one is pinned per minor version rather
+  # than written as `>='3.15'`: uv_build rewrites that to `python_full_version
+  # >= '3.15'`, and PEP 440 excludes prereleases from such a bound, so a 3.15
+  # release candidate would silently fall back to the 2.12 floor. `=='3.15'`
+  # survives as `python_full_version == '3.15.*'`, which does match 3.15.0rcN.
+  #
+  # Naming 2.14.0b2 also opts pydantic into prerelease selection, so a resolver
+  # would otherwise prefer any newer pydantic prerelease over an older final.
+  # `<2.15` bounds that to the 2.14 series: its betas, its release candidates
+  # and, as soon as it exists, 2.14 final. The bound is temporary: once 2.14 is
+  # released, rewrite the clause below as
+  # `"pydantic>=2.14; python_version=='3.15'"` — the marker stays. Deleting the
+  # clause outright would let a downstream constraint pull 2.13 back in on 3.15,
+  # where it cannot install.
+  "pydantic>=2.12",
+  "pydantic>=2.14.0b2,<2.15; python_version=='3.15'",
+  "typing-extensions>=4",
+]
 urls.Homepage = "https://github.com/jmfontaine/discogs-sdk"
 urls.Issues = "https://github.com/jmfontaine/discogs-sdk/issues"
 urls.Repository = "https://github.com/jmfontaine/discogs-sdk"
@@ -42,7 +71,11 @@ dev = [
   "ruff>=0.15.2",
   "ty>=0.0.17",
 ]
-test = [ "pytest>=8.3", "pytest-asyncio>=0.24", "pytest-cov>=6", "respx>=0.22" ]
+# pytest-asyncio floor is 1.4: it is the first version verified deprecation-
+# clean on Python 3.15. The releases tested below it call asyncio APIs that
+# 3.15 deprecates and marks as slated for removal in 3.16
+# (`iscoroutinefunction` in 0.24, `AbstractEventLoopPolicy` in 1.0-1.3).
+test = [ "pytest>=8.3", "pytest-asyncio>=1.4", "pytest-cov>=6", "respx>=0.22" ]
 
 [tool.ruff]
 target-version = "py310"
@@ -60,7 +93,7 @@ per_rule_ignores.DEP001 = [ "tomllib" ]
 
 [tool.pyproject-fmt]
 column_width = 120
-max_supported_python = "3.14"
+max_supported_python = "3.15"
 
 [tool.ty]
 rules.unused-ignore-comment = "ignore"
@@ -71,6 +104,7 @@ ini_options.addopts = "-m 'not integration'"
 ini_options.markers = [
   "integration: hits the real Discogs API (requires DISCOGS_TOKEN)",
 ]
+ini_options.asyncio_default_fixture_loop_scope = "function"
 ini_options.asyncio_mode = "auto"
 
 [tool.coverage]
