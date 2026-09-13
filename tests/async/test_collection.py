@@ -9,12 +9,14 @@ from discogs_sdk._exceptions import NotFoundError
 from discogs_sdk.models.collection import (
     CollectionField,
     CollectionFolder,
+    CollectionInstanceCreated,
     CollectionItem,
     CollectionValue_,
 )
 from tests.conftest import (
     make_collection_field,
     make_collection_folder,
+    make_collection_instance_created,
     make_collection_item,
     make_collection_value,
     make_paginated_response,
@@ -99,13 +101,17 @@ class TestFolderReleases:
         assert len(results) == 1
         assert isinstance(results[0], CollectionItem)
 
-    async def test_create(self, client, respx_mock):
-        respx_mock.post("/users/trent_reznor/collection/folders/1/releases/400027").mock(
-            return_value=httpx.Response(201)
+    async def test_create_returns_the_new_instance_identity(self, client, respx_mock):
+        respx_mock.post("/users/trent_reznor/collection/folders/1/releases/352665").mock(
+            return_value=httpx.Response(201, json=make_collection_instance_created(instance_id=20))
         )
-        lazy = client.users.get("trent_reznor")
-        folder = lazy.collection.folders.get(1)
-        await folder.releases.create(release_id=400027)
+        folder = client.users.get("trent_reznor").collection.folders.get(1)
+
+        created = await folder.releases.create(release_id=352665)
+
+        assert isinstance(created, CollectionInstanceCreated)
+        assert created.instance_id == 20
+        assert created.resource_url.endswith("/instances/20")
 
     async def test_create_error(self, client, respx_mock):
         respx_mock.post("/users/trent_reznor/collection/folders/1/releases/999").mock(
