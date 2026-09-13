@@ -2,11 +2,11 @@
 
 Verifies that:
   - Each example is valid Python (AST parses)
-  - All imports resolve (no renamed/deleted classes or modules)
+  - Its import statements resolve (no renamed or deleted modules and names)
 
-Examples are NOT executed — only import statements are run.
-This catches the most common form of drift (API surface changes)
-without requiring mocks or a live API.
+Nothing here runs an example or touches the API: a call that no longer exists,
+a wrong argument or a broken request order all pass this check. The behaviour
+the examples demonstrate is covered by tests/test_examples_behavior.py.
 """
 
 from __future__ import annotations
