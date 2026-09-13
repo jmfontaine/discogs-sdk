@@ -50,12 +50,13 @@ lazily, paginate automatically, support OAuth 1.0a and back off on HTTP 429, so 
 
 | | discogs-sdk | python3-discogs-client |
 |---|---|---|
-| Documented v2 API coverage | Complete | Partial * |
+| Documented v2 API coverage | Complete | Partial † |
 | Sync and async | Both | Sync only |
 | Responses | Typed Pydantic models | Untyped attributes |
 | Response cache | In-memory or SQLite | None |
 
-* No inventory export or upload, release ratings or have/want stats, collection fields, folder creation, contributions or submissions
+† No inventory export or upload, release ratings or have/want stats, collection fields, folder creation,
+contributions or submissions.
 
 ## Quick start
 
