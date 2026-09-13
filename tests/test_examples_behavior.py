@@ -7,11 +7,18 @@ HTTP, so a regression fails here instead of in a user's terminal.
 
 from __future__ import annotations
 
+import httpx
 import pytest
 import respx
 
-from discogs_sdk import AsyncDiscogs
-from tests.conftest import BASE_URL, make_artist, make_artist_release, make_paginated_response
+from discogs_sdk import AsyncDiscogs, Discogs
+from tests.conftest import (
+    BASE_URL,
+    make_artist,
+    make_artist_release,
+    make_paginated_response,
+    make_release,
+)
 
 
 @pytest.fixture
@@ -45,3 +52,21 @@ class TestAsyncProxyVersusModel:
             artist = await client.artists.get(3857)
             with pytest.raises(AttributeError):
                 artist.releases  # noqa: B018
+
+
+class TestCustomTransportLifecycle:
+    """examples/advanced.py: the injected client outlives every SDK request."""
+
+    def test_injected_client_stays_open_and_carries_sdk_headers(self, respx_mock):
+        route = respx_mock.get("/releases/352665").respond(200, json=make_release())
+
+        with httpx.Client(headers={"X-App-Trace": "example"}) as custom_http:
+            custom_client = Discogs(token="secret-token", http_client=custom_http)
+            assert custom_client.releases.get(352665).title == "The Downward Spiral"
+            custom_client.close()
+            assert custom_http.is_closed is False
+
+        request = route.calls[0].request
+        assert request.headers["Authorization"] == "Discogs token=secret-token"
+        assert request.headers["X-App-Trace"] == "example"
+        assert custom_http.is_closed is True
