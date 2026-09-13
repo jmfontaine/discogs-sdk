@@ -10,6 +10,7 @@ if True:  # ASYNC
 else:
     from collections.abc import Generator
     from contextlib import contextmanager
+from contextvars import ContextVar
 from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -46,6 +47,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("discogs_sdk")
 
+# Clients whose cache is bypassed in the current execution context. Held as a
+# ContextVar so concurrent tasks and threads cannot clobber each other's state.
+_CACHE_BYPASS: ContextVar[frozenset[int]] = ContextVar("discogs_sdk_cache_bypass", default=frozenset())
 _CACHEABLE_METHODS = frozenset({"GET", "HEAD"})
 
 
@@ -129,7 +133,6 @@ class AsyncDiscogs(BaseClient):
             self._cache = (
                 SQLiteCache(ttl=cache_ttl, cache_dir=Path(cache_dir)) if cache_dir else MemoryCache(ttl=cache_ttl)
             )
-        self._cache_enabled: bool = True
 
     async def _send(
         self,
@@ -162,7 +165,7 @@ class AsyncDiscogs(BaseClient):
 
         use_cache = (
             self._cache is not None
-            and self._cache_enabled
+            and id(self) not in _CACHE_BYPASS.get()
             and method.upper() in _CACHEABLE_METHODS
             # An injected client may carry its own authentication that the SDK
             # cannot identify, so its responses must not be shared across clients.
@@ -260,22 +263,32 @@ class AsyncDiscogs(BaseClient):
 
         @asynccontextmanager
         async def no_cache(self) -> AsyncGenerator[Self, None]:
-            """Context manager that temporarily disables the response cache."""
-            self._cache_enabled = False
+            """Bypass the response cache for the current execution context.
+
+            Scopes nest, and the exact previous state is restored on exit, including
+            when the block raises. Concurrent tasks and threads each carry their own
+            state, so one task leaving a scope never re-enables another's cache.
+            """
+            token = _CACHE_BYPASS.set(_CACHE_BYPASS.get() | {id(self)})
             try:
                 yield self
             finally:
-                self._cache_enabled = True
+                _CACHE_BYPASS.reset(token)
     else:
 
         @contextmanager
         def no_cache(self) -> Generator[Self, None, None]:
-            """Context manager that temporarily disables the response cache."""
-            self._cache_enabled = False
+            """Bypass the response cache for the current execution context.
+
+            Scopes nest, and the exact previous state is restored on exit, including
+            when the block raises. Concurrent tasks and threads each carry their own
+            state, so one task leaving a scope never re-enables another's cache.
+            """
+            token = _CACHE_BYPASS.set(_CACHE_BYPASS.get() | {id(self)})
             try:
                 yield self
             finally:
-                self._cache_enabled = True
+                _CACHE_BYPASS.reset(token)
 
     def clear_cache(self) -> None:
         """Purge all cached responses. No-op when caching is disabled."""

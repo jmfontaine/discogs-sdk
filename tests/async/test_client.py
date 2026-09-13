@@ -252,6 +252,74 @@ class TestCacheBranch:
             assert route.call_count == 2  # served from cache
             await client.close()
 
+    async def test_nested_no_cache_scopes_stay_bypassed(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/1").mock(return_value=httpx.Response(200, json={"id": 1}))
+            client = AsyncDiscogs(token="t", cache=True)
+            await client._send("GET", f"{BASE_URL}/releases/1")
+            assert route.call_count == 1
+
+            async with client.no_cache():
+                async with client.no_cache():
+                    await client._send("GET", f"{BASE_URL}/releases/1")
+                assert route.call_count == 2
+                # Still inside the outer scope: must not fall back to the cache.
+                await client._send("GET", f"{BASE_URL}/releases/1")
+                assert route.call_count == 3
+
+            await client._send("GET", f"{BASE_URL}/releases/1")
+            assert route.call_count == 3
+            await client.close()
+
+    async def test_exception_restores_previous_bypass_state(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/1").mock(return_value=httpx.Response(200, json={"id": 1}))
+            client = AsyncDiscogs(token="t", cache=True)
+            await client._send("GET", f"{BASE_URL}/releases/1")
+
+            async with client.no_cache():
+                with pytest.raises(RuntimeError):
+                    async with client.no_cache():
+                        raise RuntimeError("boom")
+                await client._send("GET", f"{BASE_URL}/releases/1")
+                assert route.call_count == 2
+
+            await client._send("GET", f"{BASE_URL}/releases/1")
+            assert route.call_count == 2
+            await client.close()
+
+    async def test_concurrent_tasks_keep_independent_bypass_state(self):
+        import asyncio
+
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/1").mock(return_value=httpx.Response(200, json={"id": 1}))
+            client = AsyncDiscogs(token="t", cache=True)
+            await client._send("GET", f"{BASE_URL}/releases/1")
+            assert route.call_count == 1
+
+            left_entered = asyncio.Event()
+            right_exited = asyncio.Event()
+
+            async def bypassing():
+                async with client.no_cache():
+                    left_entered.set()
+                    await right_exited.wait()
+                    await client._send("GET", f"{BASE_URL}/releases/1")
+
+            async def caching():
+                await left_entered.wait()
+                async with client.no_cache():
+                    await client._send("GET", f"{BASE_URL}/releases/1")
+                right_exited.set()
+                await client._send("GET", f"{BASE_URL}/releases/1")
+
+            await asyncio.gather(bypassing(), caching())
+
+            # Two bypassed fetches; the sibling's cached read after its own scope
+            # exited must not have been forced onto the network.
+            assert route.call_count == 3
+            await client.close()
+
     def test_clear_cache_with_cache(self):
         client = AsyncDiscogs(token="t", cache=True)
         assert client._cache is not None
