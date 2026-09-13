@@ -52,12 +52,18 @@ Compared with [python3-discogs-client](https://github.com/joalla/discogs_client)
 
 | | discogs-sdk | python3-discogs-client |
 |---|---|---|
+| Documented v2 endpoints reached | 48 / 48 | 33 / 48 |
 | Async & sync | ✓ | Sync only |
 | Pydantic response models | ✓ | ✗ (plain attribute access) |
 | Fluent sub-resource chaining | ✓ | ✗ |
 | Persistent HTTP response cache | ✓ (memory or SQLite) | ✗ |
 | Auto-pagination | ✓ | ✓ |
 | OAuth 1.0a | ✓ | ✓ |
+
+The 15 endpoints `python3-discogs-client` does not reach are inventory export (3), inventory upload (5), release
+ratings — community and per-user (2), release have/want stats (1), collection custom fields — definitions and
+per-instance values (2), user contributions (1) and user submissions (1). It also creates no collection folders and
+cannot rename or delete them, and always sends a currency when quoting a marketplace fee.
 
 Both libraries defer HTTP until data is accessed, and both retry after a 429 — `python3-discogs-client` enables an
 exponential-backoff wrapper by default, so those are not differentiators. It also keeps fetched fields on the model
