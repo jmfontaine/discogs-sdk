@@ -41,6 +41,7 @@ declared in the `dev` dependency group — and then installs the git hooks. Ever
 Key commands:
 
 ```bash
+just check-endpoints    # Verify every documented endpoint is reachable
 just format             # Auto-format code
 just generate-sync      # Regenerate _sync/ from _async/ sources
 just lint-fix           # Auto-fix lint issues
@@ -51,6 +52,12 @@ just type-check         # Run type checker
 ```
 
 Run `just --list` to see all available commands.
+
+`just check-endpoints` compares the routes the SDK calls against the local API reference in `docs/discogs_api/`,
+failing on a documented route the SDK never reaches and on a route the SDK calls that the reference does not
+document. It is not part of `just qa`, because that reference copy is git-ignored and so is absent in CI. Adding
+`--compare-upstream` also re-checks every claim the README makes about `python3-discogs-client`, against a fresh
+clone of it; run that before editing the comparison table.
 
 ### Async-first architecture
 

@@ -3,6 +3,10 @@ set quiet := true
 _list:
     just --list
 
+# Verify the SDK reaches every documented endpoint (add --compare-upstream for the README comparison)
+check-endpoints *args:
+    uv run python scripts/check_endpoint_coverage.py {{ args }}
+
 # Preview release notes for unreleased changes
 changelog-preview:
     uvx git-cliff --unreleased
