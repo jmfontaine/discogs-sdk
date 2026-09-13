@@ -60,11 +60,16 @@ urls.Repository = "https://github.com/jmfontaine/discogs-sdk"
 [dependency-groups]
 dev = [
   "ast-comments>=1.2",
+  # The API reference updater (scripts/update_api_docs.py). curl-cffi is here
+  # for browser TLS impersonation; see the KLUDGE in that script.
+  "beautifulsoup4>=4.13",
+  "curl-cffi>=0.13",
   # KLUDGE: deadcode is deliberately absent here — scripts/check_dead_code.sh
   # pins it to deadcode==2.4.1 under Python 3.13, since 2.4.1 (its latest
   # release) uses the `ast.Str` alias removed in Python 3.14. Restore it as a
   # normal dev dependency once the tool runs on current Python.
   "deptry>=0.24",
+  "markdownify>=1.2",
   "pre-commit>=4.4",
   "pyproject-fmt>=2.16.1",
   "pyright>=1.1.408",

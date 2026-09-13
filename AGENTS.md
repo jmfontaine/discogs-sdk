@@ -27,6 +27,7 @@ just deps-update        # Update deps to latest versions
 just test-integration   # Run integration tests (requires DISCOGS_TOKEN)
 just verify-types       # Audit public API type annotation coverage (informational, not a gate)
 just verify-oauth       # Verify OAuth flow interactively
+just update-api-docs    # Compare docs/discogs_api/ with the official reference (writes only with --write)
 just release            # Tag, push, and monitor the publish workflow
 just pre-commit         # Run pre-commit hooks on all files
 just pre-commit-install # Install pre-commit hooks
@@ -116,6 +117,12 @@ Embedded objects like `SubLabel`, `ArtistCredit`, and `LabelCredit` stay minimal
 ## Discogs API Documentation
 
 The official Discogs API documentation is available locally in `docs/discogs_api/` as Markdown files. This directory is git-ignored for copyright reasons. Use these files as a reference when implementing or verifying API endpoints, request/response shapes, and query parameters.
+
+Refresh it with `just update-api-docs` (`scripts/update_api_docs.py`), which fetches
+the official reference and reports drift. Because the directory is git-ignored, an
+overwrite is irreversible, so writing is opt-in: the default run and `--check` only
+report, `--diff` prints the unified diffs, and `--write` is required to replace the
+local files.
 
 ## Discogs API Quirks
 
