@@ -7,7 +7,7 @@ import pytest
 
 from discogs_sdk._exceptions import DiscogsAPIError
 from discogs_sdk.models.upload import Upload
-from tests.conftest import make_paginated_response, make_upload
+from tests.conftest import make_paginated_response, make_upload, make_upload_completed
 
 
 class TestUploadsCreate:
@@ -58,11 +58,13 @@ class TestUploadsDelete:
 class TestUploadsList:
     async def test_list(self, client, respx_mock):
         respx_mock.get("/inventory/upload").mock(
-            return_value=httpx.Response(200, json=make_paginated_response("items", [make_upload()]))
+            return_value=httpx.Response(
+                200, json=make_paginated_response("items", [make_upload(), make_upload_completed(id=2)])
+            )
         )
         results = [item async for item in client.uploads.list()]
-        assert len(results) == 1
-        assert isinstance(results[0], Upload)
+        assert [upload.id for upload in results] == [1, 2]
+        assert results[1].results == "CSV file contains 1 records.<p>Processed 1 records."
 
 
 class TestUploadsGet:
@@ -75,3 +77,17 @@ class TestUploadsGet:
         result = await client.uploads.get(1)
         assert isinstance(result, Upload)
         assert result.id == 1
+
+    async def test_completed_upload_returns_its_results_string(self, client, respx_mock):
+        respx_mock.get("/inventory/upload/1").mock(return_value=httpx.Response(200, json=make_upload_completed()))
+        result = await client.uploads.get(1)
+        assert result.results == "CSV file contains 1 records.<p>Processed 1 records."
+
+    async def test_pending_upload_has_no_results(self, client, respx_mock):
+        respx_mock.get("/inventory/upload/1").mock(return_value=httpx.Response(200, json=make_upload()))
+        assert (await client.uploads.get(1)).results is None
+
+    async def test_null_results_stays_none(self, client, respx_mock):
+        body = make_upload() | {"results": None}
+        respx_mock.get("/inventory/upload/1").mock(return_value=httpx.Response(200, json=body))
+        assert (await client.uploads.get(1)).results is None

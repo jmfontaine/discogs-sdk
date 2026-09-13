@@ -183,7 +183,22 @@ def make_search_result(
 
 
 def make_upload(id: int = 1, status: str = "pending") -> dict[str, Any]:
+    """A queued upload: the API omits results until processing finishes."""
     return {"id": id, "status": status, "filename": "inventory.csv"}
+
+
+def make_upload_completed(
+    id: int = 1,
+    results: str = "CSV file contains 1 records.<p>Processed 1 records.",
+) -> dict[str, Any]:
+    """A finished upload: results is a summary string that may contain markup."""
+    return {
+        "id": id,
+        "status": "success",
+        "filename": "inventory.csv",
+        "results": results,
+        "finished_ts": "2024-01-01T00:00:00-08:00",
+    }
 
 
 def make_user(id: int = 1, username: str = "trent_reznor") -> dict[str, Any]:
