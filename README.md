@@ -287,7 +287,7 @@ The [`examples/`](examples/) directory has runnable scripts for every feature:
 | `consumer_key` | `None` | OAuth consumer key |
 | `consumer_secret` | `None` | OAuth consumer secret |
 | `http_client` | `None` | Custom `httpx.Client` or `httpx.AsyncClient` |
-| `max_retries` | `3` | Max retries; reads retry on 429/5xx/transport failures, mutations only on pre-send failures |
+| `max_retries` | `3` | Max retries; reads retry on 429/5xx, network errors and timeouts, mutations only on pre-send failures |
 | `timeout` | `30.0` | Request timeout in seconds |
 | `token` | `None` | Personal access token |
 

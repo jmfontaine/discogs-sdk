@@ -44,9 +44,10 @@ def may_retry_status(method: str, status_code: int) -> bool:
 def may_retry_transport_error(method: str, exc: Exception) -> bool:
     """Whether *exc* allows another attempt for *method*.
 
-    Reads retry every transport failure. Mutations retry only failures that prove
-    no request reached the server: the connection was never established or never
-    acquired. A read, write or ambiguous timeout may follow a committed change.
+    Reads retry the network errors and timeouts ``_send`` catches. Mutations retry
+    only failures that prove no request reached the server: the connection was
+    never established or never acquired. A read, write or ambiguous timeout may
+    follow a committed change.
     """
     if method.upper() in _SAFE_METHODS:
         return True
