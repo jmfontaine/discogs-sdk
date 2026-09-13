@@ -188,7 +188,7 @@ class TestRetryCoversLazy:
             assert lazy.title == "The Downward Spiral"
 
 
-class TestRetryConversPaginator:
+class TestRetryCoversPaginator:
     def test_paginator_fetch_retries(self, client, respx_mock):
         page_body = make_paginated_response("releases", [make_release()])
         responses = iter(
