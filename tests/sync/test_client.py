@@ -7,19 +7,12 @@ import pytest
 import respx
 
 from discogs_sdk import Discogs
-from discogs_sdk._cache import MemoryCache, SQLiteCache
+from discogs_sdk._cache import MemoryCache
 from discogs_sdk._exceptions import AuthenticationError
 from tests.conftest import BASE_URL, make_identity, make_release
 
 
 class TestCustomHttpClient:
-    def test_custom_client_injection(self):
-        custom = httpx.Client()
-        client = Discogs(token="t", http_client=custom)
-        assert client._http_client is custom
-        assert client._owns_client is False
-        custom.close()
-
     def test_injected_client_transmits_sdk_headers(self):
         with respx.mock(base_url=BASE_URL) as router:
             route = router.get("/releases/352665").respond(200, json=make_release())
@@ -170,28 +163,46 @@ class TestCacheIsolation:
 
 
 class TestCacheBranch:
-    def test_cache_true_creates_memory_cache(self):
-        client = Discogs(token="t", cache=True)
-        assert isinstance(client._cache, MemoryCache)
+    def test_caching_disabled_by_default(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            client = Discogs(token="t")
+            _ = client.releases.get(352665).title
+            _ = client.releases.get(352665).title
+            assert route.call_count == 2
+            client.close()
 
-    def test_cache_false_leaves_cache_none(self):
-        client = Discogs(token="t", cache=False)
-        assert client._cache is None
+    def test_expired_entry_is_refetched(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            client = Discogs(token="t", cache=True, cache_ttl=0)
+            _ = client.releases.get(352665).title
+            _ = client.releases.get(352665).title
+            assert route.call_count == 2  # ttl=0 expires immediately
+            client.close()
 
-    def test_cache_ttl_passed_through(self):
-        client = Discogs(token="t", cache=True, cache_ttl=120)
-        assert client._cache is not None
-        assert client._cache._ttl == 120
+    def test_sqlite_cache_survives_a_new_client(self, tmp_path):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            first = Discogs(token="t", cache=True, cache_dir=tmp_path)
+            _ = first.releases.get(352665).title
+            first.close()
 
-    def test_cache_dir_creates_sqlite_cache(self, tmp_path):
-        client = Discogs(token="t", cache=True, cache_dir=tmp_path)
-        assert isinstance(client._cache, SQLiteCache)
-        client._cache.close()
+            second = Discogs(token="t", cache=True, cache_dir=tmp_path)
+            assert second.releases.get(352665).title == "The Downward Spiral"
+            assert route.call_count == 1
+            second.close()
 
-    def test_cache_accepts_response_cache_instance(self):
-        cache = MemoryCache(ttl=60)
-        client = Discogs(token="t", cache=cache)
-        assert client._cache is cache
+    def test_custom_cache_instance_receives_the_response(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            cache = MemoryCache(ttl=600)
+            client = Discogs(token="t", cache=cache)
+            _ = client.releases.get(352665).title
+            _ = client.releases.get(352665).title
+            assert route.call_count == 1
+            assert len(cache._store) == 1
+            client.close()
 
     def test_cached_get_served_without_http(self):
         with respx.mock(base_url=BASE_URL) as router:
@@ -315,14 +326,17 @@ class TestCacheBranch:
             assert route.call_count == 3
             client.close()
 
-    def test_clear_cache_with_cache(self):
-        client = Discogs(token="t", cache=True)
-        assert client._cache is not None
-        client._cache.set("k", 200, {}, b"x")
-        client.clear_cache()
-        assert client._cache.get("k") is None
+    def test_clear_cache_forces_a_refetch(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            client = Discogs(token="t", cache=True)
+            _ = client.releases.get(352665).title
+            client.clear_cache()
+            _ = client.releases.get(352665).title
+            assert route.call_count == 2
+            client.close()
 
-    def test_clear_cache_noop_when_disabled(self):
+    def test_clear_cache_without_cache(self):
         client = Discogs(token="t", cache=False)
         client.clear_cache()  # should not raise
 

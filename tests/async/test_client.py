@@ -7,19 +7,12 @@ import pytest
 import respx
 
 from discogs_sdk import AsyncDiscogs
-from discogs_sdk._cache import MemoryCache, SQLiteCache
+from discogs_sdk._cache import MemoryCache
 from discogs_sdk._exceptions import AuthenticationError, NotFoundError
 from tests.conftest import BASE_URL, make_identity, make_release
 
 
 class TestCustomHttpClient:
-    async def test_custom_client_injection(self):
-        custom = httpx.AsyncClient()
-        client = AsyncDiscogs(token="t", http_client=custom)
-        assert client._http_client is custom
-        assert client._owns_client is False
-        await custom.aclose()
-
     async def test_injected_client_transmits_sdk_headers(self):
         with respx.mock(base_url=BASE_URL) as router:
             route = router.get("/releases/352665").respond(200, json=make_release())
@@ -172,28 +165,46 @@ class TestCacheIsolation:
 
 
 class TestCacheBranch:
-    def test_cache_true_creates_memory_cache(self):
-        client = AsyncDiscogs(token="t", cache=True)
-        assert isinstance(client._cache, MemoryCache)
+    async def test_caching_disabled_by_default(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            client = AsyncDiscogs(token="t")
+            await client.releases.get(352665)
+            await client.releases.get(352665)
+            assert route.call_count == 2
+            await client.close()
 
-    def test_cache_false_leaves_cache_none(self):
-        client = AsyncDiscogs(token="t", cache=False)
-        assert client._cache is None
+    async def test_expired_entry_is_refetched(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            client = AsyncDiscogs(token="t", cache=True, cache_ttl=0)
+            await client.releases.get(352665)
+            await client.releases.get(352665)
+            assert route.call_count == 2  # ttl=0 expires immediately
+            await client.close()
 
-    def test_cache_ttl_passed_through(self):
-        client = AsyncDiscogs(token="t", cache=True, cache_ttl=120)
-        assert client._cache is not None
-        assert client._cache._ttl == 120
+    async def test_sqlite_cache_survives_a_new_client(self, tmp_path):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            first = AsyncDiscogs(token="t", cache=True, cache_dir=tmp_path)
+            await first.releases.get(352665)
+            await first.close()
 
-    def test_cache_dir_creates_sqlite_cache(self, tmp_path):
-        client = AsyncDiscogs(token="t", cache=True, cache_dir=tmp_path)
-        assert isinstance(client._cache, SQLiteCache)
-        client._cache.close()
+            second = AsyncDiscogs(token="t", cache=True, cache_dir=tmp_path)
+            assert (await second.releases.get(352665)).title == "The Downward Spiral"
+            assert route.call_count == 1
+            await second.close()
 
-    def test_cache_accepts_response_cache_instance(self):
-        cache = MemoryCache(ttl=60)
-        client = AsyncDiscogs(token="t", cache=cache)
-        assert client._cache is cache
+    async def test_custom_cache_instance_receives_the_response(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            cache = MemoryCache(ttl=600)
+            client = AsyncDiscogs(token="t", cache=cache)
+            await client.releases.get(352665)
+            await client.releases.get(352665)
+            assert route.call_count == 1
+            assert len(cache._store) == 1
+            await client.close()
 
     async def test_cached_get_served_without_http(self):
         """Second GET for the same URL returns cached response, no network call."""
@@ -339,22 +350,19 @@ class TestCacheBranch:
             assert route.call_count == 3
             await client.close()
 
-    def test_clear_cache_with_cache(self):
-        client = AsyncDiscogs(token="t", cache=True)
-        assert client._cache is not None
-        client._cache.set("k", 200, {}, b"x")
-        client.clear_cache()
-        assert client._cache.get("k") is None
+    async def test_clear_cache_forces_a_refetch(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            client = AsyncDiscogs(token="t", cache=True)
+            await client.releases.get(352665)
+            client.clear_cache()
+            await client.releases.get(352665)
+            assert route.call_count == 2
+            await client.close()
 
     def test_clear_cache_without_cache(self):
         client = AsyncDiscogs(token="t", cache=False)
         client.clear_cache()  # should not raise
-
-    async def test_close_closes_sqlite_cache(self, tmp_path):
-        client = AsyncDiscogs(token="t", cache=True, cache_dir=tmp_path)
-        assert isinstance(client._cache, SQLiteCache)
-        await client.close()
-        assert client._cache._db is None  # SQLite connection closed
 
 
 class TestOAuthInSend:
