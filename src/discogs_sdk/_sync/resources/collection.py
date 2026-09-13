@@ -10,7 +10,13 @@ from typing import TYPE_CHECKING, Any
 from discogs_sdk._sync._lazy import LazyResource
 from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk._sync._resource import SyncAPIResource
-from discogs_sdk.models.collection import CollectionField, CollectionFolder, CollectionItem, CollectionValue_
+from discogs_sdk.models.collection import (
+    CollectionField,
+    CollectionFolder,
+    CollectionInstanceCreated,
+    CollectionItem,
+    CollectionValue_,
+)
 
 if TYPE_CHECKING:
     from discogs_sdk._sync._client import Discogs
@@ -114,8 +120,10 @@ class FolderReleases(SyncAPIResource):
             client=self._client, items_key="releases", model_cls=CollectionItem, params=params, path=self._base_path()
         )
 
-    def create(self, *, release_id: int) -> None:
-        self._post(f"{self._base_path()}/{release_id}")
+    def create(self, *, release_id: int) -> CollectionInstanceCreated:
+        """Add *release_id* to this folder and return the new instance's identity."""
+        response = self._post(f"{self._base_path()}/{release_id}")
+        return self._parse_response(response, CollectionInstanceCreated)
 
 
 # --- Collection Folders ---

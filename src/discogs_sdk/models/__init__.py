@@ -23,6 +23,7 @@ from discogs_sdk.models.artist import Artist, ArtistRelease
 from discogs_sdk.models.collection import (
     CollectionField,
     CollectionFolder,
+    CollectionInstanceCreated,
     CollectionItem,
     CollectionValue_,
 )
@@ -60,6 +61,7 @@ __all__ = [
     "BasicInformation",
     "CollectionField",
     "CollectionFolder",
+    "CollectionInstanceCreated",
     "CollectionItem",
     "CollectionValue_",
     "Community",

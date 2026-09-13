@@ -52,6 +52,21 @@ def make_collection_item(
     return {"id": id, "instance_id": instance_id, "folder_id": folder_id}
 
 
+def make_collection_instance_created(
+    instance_id: int = 3,
+    username: str = "trent_reznor",
+    folder_id: int = 1,
+    release_id: int = 352665,
+) -> dict[str, Any]:
+    """HTTP 201 body from adding a release to a folder (identity only)."""
+    return {
+        "instance_id": instance_id,
+        "resource_url": (
+            f"{BASE_URL}/users/{username}/collection/folders/{folder_id}/releases/{release_id}/instances/{instance_id}"
+        ),
+    }
+
+
 def make_collection_value() -> dict[str, Any]:
     return {"median": "$10.00", "minimum": "$1.00", "maximum": "$100.00"}
 

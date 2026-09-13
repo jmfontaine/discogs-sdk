@@ -10,6 +10,7 @@ from discogs_sdk._async._resource import AsyncAPIResource
 from discogs_sdk.models.collection import (
     CollectionField,
     CollectionFolder,
+    CollectionInstanceCreated,
     CollectionItem,
     CollectionValue_,
 )
@@ -123,8 +124,10 @@ class FolderReleases(AsyncAPIResource):
             path=self._base_path(),
         )
 
-    async def create(self, *, release_id: int) -> None:
-        await self._post(f"{self._base_path()}/{release_id}")
+    async def create(self, *, release_id: int) -> CollectionInstanceCreated:
+        """Add *release_id* to this folder and return the new instance's identity."""
+        response = await self._post(f"{self._base_path()}/{release_id}")
+        return self._parse_response(response, CollectionInstanceCreated)
 
 
 # --- Collection Folders ---

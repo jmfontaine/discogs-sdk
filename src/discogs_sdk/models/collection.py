@@ -22,6 +22,17 @@ class CollectionItem(SDKModel):
     rating: int | None = None
 
 
+class CollectionInstanceCreated(SDKModel):
+    """Acknowledgement returned when a release is added to a folder.
+
+    It carries the identity of the new instance only; it is not a full
+    ``CollectionItem``. Use ``instance_id`` to edit or remove exactly that copy.
+    """
+
+    instance_id: int
+    resource_url: str
+
+
 class CollectionField(SDKModel):
     id: int
     lines: int | None = None
