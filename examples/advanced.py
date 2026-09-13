@@ -142,14 +142,22 @@ client = Discogs(token="YOUR_TOKEN_HERE", user_agent="MyApp/1.0 +https://myapp.e
 
 # ━━ Custom httpx client ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Pass your own httpx.Client for full control over transport, proxies,
-# certificates, etc.  The SDK will NOT close a client you provide.
-custom_http = httpx.Client(
+# certificates, etc.  The SDK sends its own credentials, User-Agent and
+# media type per request, and it will NOT close a client you provide.
+# Keep it open until its last SDK request — scope it explicitly.
+with httpx.Client(
     timeout=10.0,
     limits=httpx.Limits(max_connections=20),
-)
-client = Discogs(token="YOUR_TOKEN_HERE", http_client=custom_http)
-# Remember to close it yourself when done:
-custom_http.close()
+    headers={"X-App-Trace": "example"},  # preserved alongside the SDK headers
+) as custom_http:
+    custom_client = Discogs(token="YOUR_TOKEN_HERE", http_client=custom_http)
+    print(custom_client.releases.get(352665).title)
+    custom_client.close()  # closes nothing: custom_http is yours
+# custom_http is closed here, after its final SDK request.
+
+
+# The remaining sections use a client that owns its own transport.
+client = Discogs(token="YOUR_TOKEN_HERE")
 
 
 # ━━ Exports (inventory CSV) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
