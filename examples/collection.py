@@ -65,41 +65,48 @@ for item in user.collection.folders.get(0).releases.list(
 # ━━ Adding releases ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 # Add a release to a folder.  Folder 1 = "Uncategorized".
-user.collection.folders.get(1).releases.create(release_id=352665)
+# The response identifies the copy you just created.  Keep it: the same
+# release can sit in your collection several times, and this instance id
+# is the only way to tell your new copy from the ones already there.
+created = user.collection.folders.get(1).releases.create(release_id=352665)
+instance_id = created.instance_id
+print(f"Added instance #{instance_id} ({created.resource_url})")
 
 
 # ━━ Instance management ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Each copy of a release in your collection is an "instance".
 # Deep chaining: folder -> release -> instance.
+#
+# Everything below edits the copy created above, so cleanup runs in a
+# `finally`: a failed edit must still not leave the example's copy behind.
+try:
+    # Get a reference to that instance.  This is a lightweight ref object —
+    # no HTTP calls yet.
+    instance_ref = (
+        user.collection.folders.get(1)  # folder (no HTTP)
+        .releases.get(352665)  # release ref (no HTTP)
+        .instances.get(instance_id)  # instance ref (no HTTP)
+    )
 
-# Get a reference to a specific instance.  This is a lightweight ref
-# object — no HTTP calls yet.
-instance_ref = (
-    user.collection.folders.get(1)  # folder (no HTTP)
-    .releases.get(352665)  # release ref (no HTTP)
-    .instances.get(98765)  # instance ref (no HTTP)
-)
+    # Update instance fields (e.g. rating).
+    user.collection.folders.get(1).releases.get(352665).instances.update(
+        instance_id,
+        rating=5,
+    )
 
-# Update instance fields (e.g. rating).
-user.collection.folders.get(1).releases.get(352665).instances.update(
-    98765,
-    rating=5,
-)
+    # ━━ Custom fields ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-# Delete an instance from the collection.
-user.collection.folders.get(1).releases.get(352665).instances.delete(98765)
+    # List custom fields defined for this collection.
+    fields = user.collection.fields.list()
+    for field in fields:
+        print(f"  [{field.id}] {field.name} ({field.type})")
 
-
-# ━━ Custom fields ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-# List custom fields defined for this collection.
-fields = user.collection.fields.list()
-for field in fields:
-    print(f"  [{field.id}] {field.name} ({field.type})")
-
-# Update a custom field value on a specific instance.
-# Navigate: folder -> release -> instance -> fields -> update
-user.collection.folders.get(1).releases.get(352665).instances.get(98765).fields.update(field_id=1, value="Signed copy")
+    # Update a custom field value on that instance.
+    # Navigate: folder -> release -> instance -> fields -> update
+    instance_ref.fields.update(field_id=1, value="Signed copy")
+finally:
+    # Remove only the copy this example created.
+    user.collection.folders.get(1).releases.get(352665).instances.delete(instance_id)
 
 
 # ━━ Collection value ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
