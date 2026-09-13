@@ -25,7 +25,32 @@ logger = logging.getLogger("discogs_sdk")
 DEFAULT_BASE_URL = "https://api.discogs.com"
 DEFAULT_TIMEOUT = 30.0
 DEFAULT_CACHE_TTL = 3600.0
+# Statuses worth retrying when replaying the request cannot duplicate an effect.
 _RETRY_STATUSES: frozenset[int] = frozenset({429, 500, 502, 503, 504})
+_SAFE_METHODS: frozenset[str] = frozenset({"GET", "HEAD"})
+
+
+def may_retry_status(method: str, status_code: int) -> bool:
+    """Whether *status_code* allows another attempt for *method*.
+
+    Any status means the server was reached, so a mutation is never replayed:
+    the change may already be committed. ``Retry-After`` still reaches callers
+    through ``RateLimitError``.
+    """
+    return method.upper() in _SAFE_METHODS and status_code in _RETRY_STATUSES
+
+
+def may_retry_transport_error(method: str, exc: Exception) -> bool:
+    """Whether *exc* allows another attempt for *method*.
+
+    Reads retry every transport failure. Mutations retry only failures that prove
+    no request reached the server: the connection was never established or never
+    acquired. A read, write or ambiguous timeout may follow a committed change.
+    """
+    if method.upper() in _SAFE_METHODS:
+        return True
+    return isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout))
+
 
 try:
     _SDK_VERSION = importlib.metadata.version("discogs-sdk")

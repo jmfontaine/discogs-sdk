@@ -13,7 +13,7 @@ from discogs_sdk._exceptions import DiscogsAPIError, DiscogsConnectionError, Rat
 from discogs_sdk._sync._lazy import LazyResource
 from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk.models.release import Release
-from tests.conftest import BASE_URL, make_paginated_response, make_release
+from tests.conftest import BASE_URL, make_listing, make_paginated_response, make_release
 
 
 @pytest.fixture
@@ -210,18 +210,71 @@ class TestRetryCoversPaginator:
             assert len(results) == 1
 
 
-class TestRetryCoversPostFile:
-    def test_post_file_retries(self, client, respx_mock, tmp_path):
-        csv_file = tmp_path / "test.csv"
-        csv_file.write_text("header\nrow1\n")
+class TestWriteRetrySafety:
+    """A mutation that may already have been committed must never be replayed."""
 
+    def test_read_timeout_does_not_replay_a_create(self, client, respx_mock):
+        created: list[dict] = []
+
+        def side_effect(request):
+            # The server commits, then the response is lost on the way back.
+            created.append({"listing_id": 1 + len(created)})
+            raise httpx.ReadTimeout("Timed out reading response")
+
+        route = respx_mock.post("/marketplace/listings").mock(side_effect=side_effect)
+
+        with (
+            patch("time.sleep") as mock_sleep,
+            pytest.raises(DiscogsConnectionError, match="Timed out reading response"),
+        ):
+            client.marketplace.listings.create(release_id=352665, condition="Mint (M)", price=29.99)
+
+        assert len(created) == 1
+        assert route.call_count == 1
+        mock_sleep.assert_not_called()
+
+    def test_server_error_does_not_replay_a_file_upload(self, client, respx_mock, tmp_path):
+        csv_file = tmp_path / "inventory.csv"
+        csv_file.write_text("release_id,price\n352665,29.99\n")
+        route = respx_mock.post("/inventory/upload/add").mock(
+            return_value=httpx.Response(502, json={"message": "Bad Gateway"})
+        )
+
+        with patch("time.sleep") as mock_sleep, pytest.raises(DiscogsAPIError) as exc_info:
+            client.uploads.create(file=str(csv_file))
+
+        assert exc_info.value.status_code == 502
+        assert route.call_count == 1
+        mock_sleep.assert_not_called()
+
+    def test_delete_is_not_replayed_after_a_server_error(self, client, respx_mock):
+        route = respx_mock.delete("/marketplace/listings/1").mock(
+            return_value=httpx.Response(503, json={"message": "Service Unavailable"})
+        )
+
+        with patch("time.sleep"), pytest.raises(DiscogsAPIError):
+            client.marketplace.listings.delete(1)
+
+        assert route.call_count == 1
+
+    def test_connection_failure_before_send_is_retried(self, client, respx_mock):
         responses = iter(
             [
-                httpx.Response(502, text="Bad Gateway"),
-                httpx.Response(200, json={}),
+                httpx.ConnectError("Connection refused"),
+                httpx.Response(201, json=make_listing()),
             ]
         )
-        respx_mock.post("/inventory/upload/add").mock(side_effect=lambda req: next(responses))
 
-        with patch("time.sleep"):
-            client.uploads.create(file=str(csv_file))
+        def side_effect(request):
+            result = next(responses)
+            if isinstance(result, Exception):
+                raise result
+            return result
+
+        route = respx_mock.post("/marketplace/listings").mock(side_effect=side_effect)
+
+        with patch("time.sleep") as mock_sleep:
+            client.marketplace.listings.create(release_id=352665, condition="Mint (M)", price=29.99)
+
+        assert route.call_count == 2
+        assert mock_sleep.call_count == 1

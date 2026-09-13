@@ -15,13 +15,14 @@ import httpx
 from typing_extensions import Self
 
 from discogs_sdk._base_client import (
-    _RETRY_STATUSES,
     DEFAULT_BASE_URL,
     DEFAULT_CACHE_TTL,
     DEFAULT_TIMEOUT,
     SDK_AUTH_GUARD,
     BaseClient,
     MediaType,
+    may_retry_status,
+    may_retry_transport_error,
 )
 from discogs_sdk._cache import MemoryCache, ResponseCache, SQLiteCache
 from discogs_sdk._exceptions import DiscogsConnectionError
@@ -176,7 +177,7 @@ class Discogs(BaseClient):
                 response = self._http_client.request(method, url, **kwargs)
             except (httpx.ConnectError, httpx.TimeoutException) as exc:
                 elapsed_ms = (time.monotonic() - t0) * 1000
-                if attempt == self.max_retries:
+                if attempt == self.max_retries or not may_retry_transport_error(method, exc):
                     logger.debug("HTTP connection error after %.0fms: %s", elapsed_ms, exc)
                     raise DiscogsConnectionError(str(exc)) from exc
                 delay = self._retry_delay(attempt)
@@ -193,7 +194,7 @@ class Discogs(BaseClient):
                 continue
             elapsed_ms = (time.monotonic() - t0) * 1000
             logger.debug("HTTP response: %s %s -> %d (%.0fms)", method, url, response.status_code, elapsed_ms)
-            if response.status_code not in _RETRY_STATUSES or attempt == self.max_retries:
+            if not may_retry_status(method, response.status_code) or attempt == self.max_retries:
                 if use_cache and 200 <= response.status_code < 300:
                     assert self._cache is not None  # narrowed by use_cache
                     # response.content is already decompressed by httpx, so strip
