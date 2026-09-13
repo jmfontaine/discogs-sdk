@@ -26,7 +26,10 @@ cd discogs-sdk
 just setup
 ```
 
-This installs dependencies with [uv](https://docs.astral.sh/uv/) and sets up pre-commit hooks.
+`just setup` needs only [uv](https://docs.astral.sh/uv/) and
+[just](https://github.com/casey/just) on your PATH. It installs every dependency — including pre-commit, which is
+declared in the `dev` dependency group — and then installs the git hooks. Every recipe invokes pre-commit through
+`uv run`, so no global installation is required.
 
 > [!TIP]
 > The task runner is [just](https://github.com/casey/just). If you don't have it installed, you can run the underlying
