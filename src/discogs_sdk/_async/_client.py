@@ -32,6 +32,7 @@ from discogs_sdk._base_client import (
     DEFAULT_BASE_URL,
     DEFAULT_CACHE_TTL,
     DEFAULT_TIMEOUT,
+    SDK_AUTH_GUARD,
     BaseClient,
     MediaType,
 )
@@ -112,13 +113,12 @@ class AsyncDiscogs(BaseClient):
             media_type=media_type,
         )
         if http_client is not None:
+            # An injected client owns its transport and lifecycle. SDK headers are
+            # applied per request instead, so its defaults are never mutated.
             self._http_client = http_client
             self._owns_client = False
         else:
-            self._http_client = httpx.AsyncClient(
-                headers=self._build_headers(),
-                timeout=self.timeout,
-            )
+            self._http_client = httpx.AsyncClient(timeout=self.timeout)
             self._owns_client = True
 
         self._cache: ResponseCache | None = None
@@ -139,15 +139,25 @@ class AsyncDiscogs(BaseClient):
         params: dict[str, Any] | None = None,
         files: dict[str, Any] | None = None,
     ) -> httpx.Response:
-        kwargs: dict[str, Any] = {}
+        build_kwargs: dict[str, Any] = {}
         if json is not None:
-            kwargs["json"] = json
+            build_kwargs["json"] = json
         if params is not None:
-            kwargs["params"] = params
+            build_kwargs["params"] = params
         if files is not None:
-            kwargs["files"] = files
+            build_kwargs["files"] = files
+
+        # Per-request headers win over an injected client's defaults, so SDK
+        # credentials and media type always describe the request we asked for.
+        headers = self._build_headers()
         if self._uses_oauth:
-            kwargs.setdefault("headers", {})["Authorization"] = self._build_oauth_header_for_request()
+            headers["Authorization"] = self._build_oauth_header_for_request()
+        build_kwargs["headers"] = headers
+
+        kwargs = dict(build_kwargs)
+        if self._auth_mode != "none":
+            # Stop a custom client's own httpx.Auth from overwriting our header.
+            kwargs["auth"] = SDK_AUTH_GUARD
 
         # Build the full URL for cache key before httpx resolves params.
         use_cache = self._cache is not None and self._cache_enabled and method.upper() in _CACHEABLE_METHODS
@@ -155,7 +165,7 @@ class AsyncDiscogs(BaseClient):
         if use_cache:
             # httpx merges params into the URL, so we need to build the key
             # the same way to get consistent cache hits.
-            req = self._http_client.build_request(method, url, **kwargs)
+            req = self._http_client.build_request(method, url, **build_kwargs)
             cache_key = f"{method.upper()}:{req.url}"
 
             cached = self._cache.get(cache_key)  # type: ignore[union-attr]
