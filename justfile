@@ -22,10 +22,7 @@ deps-update:
 
 # Find dead code
 dead-code:
-    #!/usr/bin/env bash
-    output=$(uv run deadcode src tests examples 2>&1)
-    echo "$output"
-    echo "$output" | grep -q "DC0" && exit 1 || exit 0
+    scripts/check_dead_code.sh
 
 # Run formatters
 format:

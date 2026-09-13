@@ -21,7 +21,7 @@ just format             # ruff format + pyproject-fmt
 just type-check         # ty check
 just generate-sync      # Generate _sync/ from _async/ sources
 just sync-check         # Check _sync/ is up to date with _async/
-just dead-code          # deadcode src tests examples
+just dead-code          # deadcode src tests examples (run via uvx under Python 3.13)
 just deps-unused        # deptry src
 just deps-update        # Update deps to latest versions
 just test-integration   # Run integration tests (requires DISCOGS_TOKEN)
@@ -164,6 +164,8 @@ The workflow runs QA + tests, publishes to PyPI via Trusted Publishers (OIDC), a
 ## Key Conventions
 
 - Python 3.10+ required, ruff targets 3.10 to match `requires-python`, line length 120
+- Dead-code analysis runs through `scripts/check_dead_code.sh`, which pins the tool and its interpreter;
+  every caller (justfile, pre-commit, both workflows) invokes that script rather than `deadcode` directly
 - All public API exports go through `src/discogs_sdk/__init__.py`
 - New resources: add to `_async/resources/`, wire into `_async/_client.py`, export from `__init__.py`, then regenerate sync
 - New models: add to `models/`, export from `models/__init__.py` and `__init__.py`
