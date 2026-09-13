@@ -17,8 +17,14 @@ class TestListsGet:
         respx_mock.get("/lists/1").mock(return_value=httpx.Response(200, json=make_list()))
         result = await client.lists.get(1)
         assert isinstance(result, List_)
+        assert result.id == 1  # the detail response spells this "list_id"
         assert result.name == "Industrial Essentials"
         assert len(result.items) == 1
+
+    async def test_canonical_id_still_accepted(self, client, respx_mock):
+        respx_mock.get("/lists/1").mock(return_value=httpx.Response(200, json={"id": 1, "name": "L"}))
+        result = await client.lists.get(1)
+        assert result.id == 1
 
 
 class TestUserLists:

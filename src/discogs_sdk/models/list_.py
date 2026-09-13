@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 
 from discogs_sdk.models._common import SDKModel
 
@@ -16,7 +16,8 @@ class ListItem(SDKModel):
 
 
 class List_(SDKModel):
-    id: int
+    # The list detail response identifies the list as "list_id".
+    id: int = Field(validation_alias=AliasChoices("id", "list_id"))
     created_at: str | None = Field(default=None, validation_alias="created_ts")
     description: str | None = None
     items: list[ListItem] | None = None
