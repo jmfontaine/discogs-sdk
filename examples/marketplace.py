@@ -61,13 +61,17 @@ for order in client.marketplace.orders.list(
 ):
     print(f"  Order {order.id}: {order.status}")
 
-# Update order status.
-updated = client.marketplace.orders.update(
-    "12345-1",
-    status="Shipped",
-    shipping=5.00,
-)
+# Update order status.  The new status must appear in the order's
+# next_status list.
+updated = client.marketplace.orders.update("12345-1", status="Shipped")
 print(f"Order now: {updated.status}")
+
+# Changing the shipping amount is a separate request: it invoices the buyer
+# and moves the order to "Invoice Sent" by itself, which is why Discogs
+# rejects setting shipping and status together.  It is only allowed while the
+# order is not cancelled, Payment Received or Shipped.
+invoiced = client.marketplace.orders.update("12345-2", shipping=5.00)
+print(f"Order now: {invoiced.status}")  # Invoice Sent
 
 
 # ━━ Order messages ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

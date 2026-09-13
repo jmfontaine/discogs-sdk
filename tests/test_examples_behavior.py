@@ -7,6 +7,8 @@ HTTP, so a regression fails here instead of in a user's terminal.
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 import respx
@@ -18,6 +20,7 @@ from tests.conftest import (
     make_artist,
     make_artist_release,
     make_collection_instance_created,
+    make_order,
     make_paginated_response,
     make_release,
 )
@@ -121,3 +124,28 @@ class TestCollectionMutationOrder:
                 instances.delete(instance_id)
 
         assert deleted.call_count == 1
+
+
+class TestOrderUpdateSeparation:
+    """examples/marketplace.py: status and shipping travel in separate requests."""
+
+    def test_status_change_sends_status_only(self, respx_mock):
+        route = respx_mock.post("/marketplace/orders/12345-1").respond(
+            200, json=make_order(id="12345-1", status="Shipped")
+        )
+
+        with Discogs(token="t") as client:
+            client.marketplace.orders.update("12345-1", status="Shipped")
+
+        assert json.loads(route.calls[0].request.content) == {"status": "Shipped"}
+
+    def test_shipping_change_sends_shipping_only(self, respx_mock):
+        route = respx_mock.post("/marketplace/orders/12345-2").respond(
+            200, json=make_order(id="12345-2", status="Invoice Sent")
+        )
+
+        with Discogs(token="t") as client:
+            updated = client.marketplace.orders.update("12345-2", shipping=5.00)
+
+        assert json.loads(route.calls[0].request.content) == {"shipping": 5.0}
+        assert updated.status == "Invoice Sent"
