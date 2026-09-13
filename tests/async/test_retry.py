@@ -191,7 +191,7 @@ class TestRetryCoversLazy:
             assert isinstance(result, Release)
 
 
-class TestRetryConversPaginator:
+class TestRetryCoversPaginator:
     async def test_paginator_fetch_retries(self, client, respx_mock):
         page_body = make_paginated_response("releases", [make_release()])
         responses = iter(
