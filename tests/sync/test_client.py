@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import httpx
+import httpx2
 import pytest
 import respx
 
@@ -14,9 +14,9 @@ from tests.conftest import BASE_URL, make_identity, make_release
 
 class TestCustomHttpClient:
     def test_injected_client_transmits_sdk_headers(self):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/releases/352665").respond(200, json=make_release())
-            custom = httpx.Client(headers={"X-Trace": "keep-me"})
+            custom = httpx2.Client(headers={"X-Trace": "keep-me"})
             client = Discogs(token="secret-token", http_client=custom, media_type="html")
             assert client.releases.get(352665).title
             request = route.calls[0].request
@@ -30,18 +30,18 @@ class TestCustomHttpClient:
             custom.close()
 
     def test_custom_client_auth_cannot_replace_sdk_credentials(self):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/releases/352665").respond(200, json=make_release())
-            custom = httpx.Client(auth=httpx.BasicAuth("user", "pass"), headers={"Authorization": "Custom default"})
+            custom = httpx2.Client(auth=httpx2.BasicAuth("user", "pass"), headers={"Authorization": "Custom default"})
             client = Discogs(token="secret-token", http_client=custom)
             assert client.releases.get(352665).title
             assert route.calls[0].request.headers["Authorization"] == "Discogs token=secret-token"
             custom.close()
 
     def test_unauthenticated_client_keeps_custom_auth(self):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/releases/352665").respond(200, json=make_release())
-            custom = httpx.Client(auth=httpx.BasicAuth("user", "pass"))
+            custom = httpx2.Client(auth=httpx2.BasicAuth("user", "pass"))
             client = Discogs(http_client=custom)
             assert client.releases.get(352665).title
             assert route.calls[0].request.headers["Authorization"].startswith("Basic ")
@@ -52,11 +52,11 @@ class TestCacheIsolation:
     """Cached entries must never cross account or representation boundaries."""
 
     def test_two_tokens_sharing_a_cache_get_their_own_identity(self):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/oauth/identity").mock(
                 side_effect=[
-                    httpx.Response(200, json=make_identity(id=1, username="trent_reznor")),
-                    httpx.Response(200, json=make_identity(id=2, username="atticus_ross")),
+                    respx.MockResponse(200, json=make_identity(id=1, username="trent_reznor")),
+                    respx.MockResponse(200, json=make_identity(id=2, username="atticus_ross")),
                 ]
             )
             cache = MemoryCache(ttl=600)
@@ -69,11 +69,11 @@ class TestCacheIsolation:
             client_b.close()
 
     def test_unauthenticated_client_cannot_read_an_authenticated_entry(self, tmp_path):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/oauth/identity").mock(
                 side_effect=[
-                    httpx.Response(200, json=make_identity()),
-                    httpx.Response(401, json={"message": "You must authenticate to access this resource."}),
+                    respx.MockResponse(200, json=make_identity()),
+                    respx.MockResponse(401, json={"message": "You must authenticate to access this resource."}),
                 ]
             )
             authenticated = Discogs(token="token-a", cache=True, cache_dir=tmp_path)
@@ -87,7 +87,7 @@ class TestCacheIsolation:
             anonymous.close()
 
     def test_same_credentials_reuse_entry_after_reopening_sqlite(self, tmp_path):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/oauth/identity").respond(200, json=make_identity())
             first = Discogs(token="token-a", cache=True, cache_dir=tmp_path)
             first.user.identity()
@@ -99,12 +99,12 @@ class TestCacheIsolation:
             second.close()
 
     def test_media_type_representations_do_not_collide(self):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/releases/352665").mock(
                 side_effect=[
-                    httpx.Response(200, json=make_release(title="Discogs markup")),
-                    httpx.Response(200, json=make_release(title="<b>HTML</b>")),
-                    httpx.Response(200, json=make_release(title="plain text")),
+                    respx.MockResponse(200, json=make_release(title="Discogs markup")),
+                    respx.MockResponse(200, json=make_release(title="<b>HTML</b>")),
+                    respx.MockResponse(200, json=make_release(title="plain text")),
                 ]
             )
             cache = MemoryCache(ttl=600)
@@ -122,9 +122,9 @@ class TestCacheIsolation:
 
     def test_unidentifiable_transport_is_never_cached(self):
         """An injected client's own auth is opaque, so its responses must not be shared."""
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/releases/352665").respond(200, json=make_release())
-            custom = httpx.Client(auth=httpx.BasicAuth("user", "pass"))
+            custom = httpx2.Client(auth=httpx2.BasicAuth("user", "pass"))
             client = Discogs(http_client=custom, cache=True)
 
             _ = client.releases.get(352665).title
@@ -135,7 +135,7 @@ class TestCacheIsolation:
             custom.close()
 
     def test_oauth_requests_hit_cache_despite_fresh_signing_values(self):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/oauth/identity").respond(200, json=make_identity())
             client = Discogs(
                 consumer_key="ck",
@@ -152,7 +152,7 @@ class TestCacheIsolation:
             client.close()
 
     def test_cache_keys_never_contain_credentials(self):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             router.get("/oauth/identity").respond(200, json=make_identity())
             cache = MemoryCache(ttl=600)
             client = Discogs(token="super-secret-token", cache=cache)
@@ -164,7 +164,7 @@ class TestCacheIsolation:
 
 class TestCacheBranch:
     def test_caching_disabled_by_default(self):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/releases/352665").respond(200, json=make_release())
             client = Discogs(token="t")
             _ = client.releases.get(352665).title
@@ -173,7 +173,7 @@ class TestCacheBranch:
             client.close()
 
     def test_expired_entry_is_refetched(self):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/releases/352665").respond(200, json=make_release())
             client = Discogs(token="t", cache=True, cache_ttl=0)
             _ = client.releases.get(352665).title
@@ -182,7 +182,7 @@ class TestCacheBranch:
             client.close()
 
     def test_sqlite_cache_survives_a_new_client(self, tmp_path):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/releases/352665").respond(200, json=make_release())
             first = Discogs(token="t", cache=True, cache_dir=tmp_path)
             _ = first.releases.get(352665).title
@@ -194,7 +194,7 @@ class TestCacheBranch:
             second.close()
 
     def test_custom_cache_instance_receives_the_response(self):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/releases/352665").respond(200, json=make_release())
             cache = MemoryCache(ttl=600)
             client = Discogs(token="t", cache=cache)
@@ -205,8 +205,8 @@ class TestCacheBranch:
             client.close()
 
     def test_cached_get_served_without_http(self):
-        with respx.mock(base_url=BASE_URL) as router:
-            route = router.get("/releases/1").mock(return_value=httpx.Response(200, json={"id": 1}))
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/1").mock(return_value=respx.MockResponse(200, json={"id": 1}))
             client = Discogs(token="t", cache=True)
             r1 = client._send("GET", f"{BASE_URL}/releases/1")
             assert r1.status_code == 200
@@ -220,14 +220,14 @@ class TestCacheBranch:
         """Cache hit with original content-encoding: gzip must not corrupt the body.
 
         Regression: the cache stored decompressed bodies with the original
-        content-encoding header, causing httpx to double-decompress on cache hit.
+        content-encoding header, causing httpx2 to double-decompress on cache hit.
         """
         import gzip
 
         compressed = gzip.compress(b'{"id": 1}')
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             router.get("/releases/1").mock(
-                return_value=httpx.Response(
+                return_value=respx.MockResponse(
                     200,
                     content=compressed,
                     headers={"content-encoding": "gzip", "content-type": "application/json"},
@@ -243,8 +243,8 @@ class TestCacheBranch:
             client.close()
 
     def test_no_cache_context_manager(self):
-        with respx.mock(base_url=BASE_URL) as router:
-            route = router.get("/releases/1").mock(return_value=httpx.Response(200, json={"id": 1}))
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/1").mock(return_value=respx.MockResponse(200, json={"id": 1}))
             client = Discogs(token="t", cache=True)
             client._send("GET", f"{BASE_URL}/releases/1")
             assert route.call_count == 1
@@ -256,8 +256,8 @@ class TestCacheBranch:
             client.close()
 
     def test_nested_no_cache_scopes_stay_bypassed(self):
-        with respx.mock(base_url=BASE_URL) as router:
-            route = router.get("/releases/1").mock(return_value=httpx.Response(200, json={"id": 1}))
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/1").mock(return_value=respx.MockResponse(200, json={"id": 1}))
             client = Discogs(token="t", cache=True)
             client._send("GET", f"{BASE_URL}/releases/1")
             assert route.call_count == 1
@@ -275,8 +275,8 @@ class TestCacheBranch:
             client.close()
 
     def test_exception_restores_previous_bypass_state(self):
-        with respx.mock(base_url=BASE_URL) as router:
-            route = router.get("/releases/1").mock(return_value=httpx.Response(200, json={"id": 1}))
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/1").mock(return_value=respx.MockResponse(200, json={"id": 1}))
             client = Discogs(token="t", cache=True)
             client._send("GET", f"{BASE_URL}/releases/1")
 
@@ -293,8 +293,8 @@ class TestCacheBranch:
     def test_threads_keep_independent_bypass_state(self):
         import threading
 
-        with respx.mock(base_url=BASE_URL) as router:
-            route = router.get("/releases/1").mock(return_value=httpx.Response(200, json={"id": 1}))
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/1").mock(return_value=respx.MockResponse(200, json={"id": 1}))
             client = Discogs(token="t", cache=True)
             client._send("GET", f"{BASE_URL}/releases/1")
             assert route.call_count == 1
@@ -327,7 +327,7 @@ class TestCacheBranch:
             client.close()
 
     def test_clear_cache_forces_a_refetch(self):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/releases/352665").respond(200, json=make_release())
             client = Discogs(token="t", cache=True)
             _ = client.releases.get(352665).title
@@ -343,8 +343,8 @@ class TestCacheBranch:
 
 class TestOAuthInSend:
     def test_oauth_headers_injected(self):
-        with respx.mock(base_url=BASE_URL) as router:
-            router.get("/releases/1").mock(return_value=httpx.Response(200, json={"id": 1}))
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            router.get("/releases/1").mock(return_value=respx.MockResponse(200, json={"id": 1}))
             client = Discogs(
                 consumer_key="ck",
                 consumer_secret="cs",
@@ -364,7 +364,7 @@ class TestLifecycle:
         client.close()
 
     def test_close_when_not_owns_client(self):
-        custom = httpx.Client()
+        custom = httpx2.Client()
         client = Discogs(token="t", http_client=custom)
         client.close()
         assert not custom.is_closed
@@ -384,7 +384,7 @@ class TestCredentialPrecedence:
         monkeypatch.setenv("DISCOGS_ACCESS_TOKEN", "env-at")
         monkeypatch.setenv("DISCOGS_ACCESS_TOKEN_SECRET", "env-ats")
 
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/oauth/identity").respond(200, json=make_identity(username="trent_reznor"))
             client = Discogs(token="explicit-token")
 
@@ -396,7 +396,7 @@ class TestCredentialPrecedence:
     def test_explicit_oauth_beats_environment_token(self, monkeypatch):
         monkeypatch.setenv("DISCOGS_TOKEN", "env-token")
 
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/oauth/identity").respond(200, json=make_identity(username="atticus_ross"))
             client = Discogs(
                 consumer_key="ck",
@@ -417,7 +417,7 @@ class TestCredentialPrecedence:
         monkeypatch.setenv("DISCOGS_ACCESS_TOKEN", "env-at")
         monkeypatch.setenv("DISCOGS_ACCESS_TOKEN_SECRET", "env-ats")
 
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/releases/352665").respond(200, json=make_release())
             client = Discogs(consumer_key="ck", consumer_secret="cs")
 

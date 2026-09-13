@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import httpx
 import pytest
+import respx
 
 from discogs_sdk._exceptions import NotFoundError
 from discogs_sdk.models.collection import (
@@ -27,7 +27,7 @@ class TestCollectionFoldersList:
     async def test_returns_list_not_page(self, client, respx_mock):
         """Non-paginated: returns list[CollectionFolder], not AsyncPage."""
         respx_mock.get("/users/trent_reznor/collection/folders").mock(
-            return_value=httpx.Response(
+            return_value=respx.MockResponse(
                 200,
                 json={"folders": [make_collection_folder(id=0), make_collection_folder(id=1, name="Custom")]},
             )
@@ -47,7 +47,7 @@ class TestCollectionFoldersGet:
 
     async def test_get_resolves(self, client, respx_mock):
         respx_mock.get("/users/trent_reznor/collection/folders/0").mock(
-            return_value=httpx.Response(200, json=make_collection_folder())
+            return_value=respx.MockResponse(200, json=make_collection_folder())
         )
         lazy = client.users.get("trent_reznor")
         result = await lazy.collection.folders.get(0)
@@ -58,7 +58,7 @@ class TestCollectionFoldersGet:
 class TestCollectionFoldersCRUD:
     async def test_create(self, client, respx_mock):
         respx_mock.post("/users/trent_reznor/collection/folders").mock(
-            return_value=httpx.Response(201, json=make_collection_folder(id=2, name="New"))
+            return_value=respx.MockResponse(201, json=make_collection_folder(id=2, name="New"))
         )
         lazy = client.users.get("trent_reznor")
         result = await lazy.collection.folders.create(name="New")
@@ -67,20 +67,20 @@ class TestCollectionFoldersCRUD:
 
     async def test_update(self, client, respx_mock):
         respx_mock.post("/users/trent_reznor/collection/folders/2").mock(
-            return_value=httpx.Response(200, json=make_collection_folder(id=2, name="Renamed"))
+            return_value=respx.MockResponse(200, json=make_collection_folder(id=2, name="Renamed"))
         )
         lazy = client.users.get("trent_reznor")
         result = await lazy.collection.folders.update(2, name="Renamed")
         assert result.name == "Renamed"
 
     async def test_delete(self, client, respx_mock):
-        respx_mock.delete("/users/trent_reznor/collection/folders/2").mock(return_value=httpx.Response(204))
+        respx_mock.delete("/users/trent_reznor/collection/folders/2").mock(return_value=respx.MockResponse(204))
         lazy = client.users.get("trent_reznor")
         await lazy.collection.folders.delete(2)
 
     async def test_delete_error(self, client, respx_mock):
         respx_mock.delete("/users/trent_reznor/collection/folders/999").mock(
-            return_value=httpx.Response(404, json={"message": "Not Found"})
+            return_value=respx.MockResponse(404, json={"message": "Not Found"})
         )
         lazy = client.users.get("trent_reznor")
         with pytest.raises(NotFoundError):
@@ -90,7 +90,7 @@ class TestCollectionFoldersCRUD:
 class TestFolderReleases:
     async def test_list(self, client, respx_mock):
         respx_mock.get("/users/trent_reznor/collection/folders/0/releases").mock(
-            return_value=httpx.Response(
+            return_value=respx.MockResponse(
                 200,
                 json=make_paginated_response("releases", [make_collection_item()]),
             )
@@ -103,7 +103,7 @@ class TestFolderReleases:
 
     async def test_create_returns_the_new_instance_identity(self, client, respx_mock):
         respx_mock.post("/users/trent_reznor/collection/folders/1/releases/352665").mock(
-            return_value=httpx.Response(201, json=make_collection_instance_created(instance_id=20))
+            return_value=respx.MockResponse(201, json=make_collection_instance_created(instance_id=20))
         )
         folder = client.users.get("trent_reznor").collection.folders.get(1)
 
@@ -115,7 +115,7 @@ class TestFolderReleases:
 
     async def test_create_error(self, client, respx_mock):
         respx_mock.post("/users/trent_reznor/collection/folders/1/releases/999").mock(
-            return_value=httpx.Response(404, json={"message": "Not Found"})
+            return_value=respx.MockResponse(404, json={"message": "Not Found"})
         )
         lazy = client.users.get("trent_reznor")
         folder = lazy.collection.folders.get(1)
@@ -146,7 +146,7 @@ class TestDeepChaining:
 
     async def test_instance_fields_update(self, client, respx_mock):
         respx_mock.post("/users/trent_reznor/collection/folders/3/releases/400027/instances/42/fields/1").mock(
-            return_value=httpx.Response(204)
+            return_value=respx.MockResponse(204)
         )
         lazy = client.users.get("trent_reznor")
         folder = lazy.collection.folders.get(3)
@@ -156,7 +156,7 @@ class TestDeepChaining:
 
     async def test_instance_fields_update_error(self, client, respx_mock):
         respx_mock.post("/users/trent_reznor/collection/folders/3/releases/400027/instances/42/fields/1").mock(
-            return_value=httpx.Response(404, json={"message": "Not Found"})
+            return_value=respx.MockResponse(404, json={"message": "Not Found"})
         )
         lazy = client.users.get("trent_reznor")
         folder = lazy.collection.folders.get(3)
@@ -168,7 +168,7 @@ class TestDeepChaining:
 class TestCollectionInstances:
     async def test_update(self, client, respx_mock):
         respx_mock.post("/users/trent_reznor/collection/folders/0/releases/400027/instances/1").mock(
-            return_value=httpx.Response(204)
+            return_value=respx.MockResponse(204)
         )
         lazy = client.users.get("trent_reznor")
         folder = lazy.collection.folders.get(0)
@@ -177,7 +177,7 @@ class TestCollectionInstances:
 
     async def test_update_error(self, client, respx_mock):
         respx_mock.post("/users/trent_reznor/collection/folders/0/releases/400027/instances/1").mock(
-            return_value=httpx.Response(404, json={"message": "Not Found"})
+            return_value=respx.MockResponse(404, json={"message": "Not Found"})
         )
         lazy = client.users.get("trent_reznor")
         folder = lazy.collection.folders.get(0)
@@ -187,7 +187,7 @@ class TestCollectionInstances:
 
     async def test_delete(self, client, respx_mock):
         respx_mock.delete("/users/trent_reznor/collection/folders/0/releases/400027/instances/1").mock(
-            return_value=httpx.Response(204)
+            return_value=respx.MockResponse(204)
         )
         lazy = client.users.get("trent_reznor")
         folder = lazy.collection.folders.get(0)
@@ -196,7 +196,7 @@ class TestCollectionInstances:
 
     async def test_delete_error_empty_body(self, client, respx_mock):
         respx_mock.delete("/users/trent_reznor/collection/folders/0/releases/400027/instances/1").mock(
-            return_value=httpx.Response(404, json={"message": "Not Found"})
+            return_value=respx.MockResponse(404, json={"message": "Not Found"})
         )
         lazy = client.users.get("trent_reznor")
         folder = lazy.collection.folders.get(0)
@@ -208,7 +208,7 @@ class TestCollectionInstances:
 class TestCollectionReleases:
     async def test_cross_folder_list(self, client, respx_mock):
         respx_mock.get("/users/trent_reznor/collection/releases/400027").mock(
-            return_value=httpx.Response(
+            return_value=respx.MockResponse(
                 200,
                 json=make_paginated_response("releases", [make_collection_item()]),
             )
@@ -223,7 +223,7 @@ class TestCollectionReleases:
 class TestCollectionFields:
     async def test_list_returns_list_not_page(self, client, respx_mock):
         respx_mock.get("/users/trent_reznor/collection/fields").mock(
-            return_value=httpx.Response(200, json={"fields": [make_collection_field()]})
+            return_value=respx.MockResponse(200, json={"fields": [make_collection_field()]})
         )
         lazy = client.users.get("trent_reznor")
         result = await lazy.collection.fields.list()
@@ -235,7 +235,7 @@ class TestCollectionFields:
 class TestCollectionValue:
     async def test_get(self, client, respx_mock):
         respx_mock.get("/users/trent_reznor/collection/value").mock(
-            return_value=httpx.Response(200, json=make_collection_value())
+            return_value=respx.MockResponse(200, json=make_collection_value())
         )
         lazy = client.users.get("trent_reznor")
         result = await lazy.collection.value.get()
@@ -246,7 +246,7 @@ class TestCollectionValue:
 class TestCollectionModels:
     async def test_folder_required_fields(self, client, respx_mock):
         respx_mock.get("/users/trent_reznor/collection/folders/0").mock(
-            return_value=httpx.Response(200, json={"id": 0, "name": "All"})
+            return_value=respx.MockResponse(200, json={"id": 0, "name": "All"})
         )
         lazy = client.users.get("trent_reznor")
         result = await lazy.collection.folders.get(0)
@@ -254,7 +254,7 @@ class TestCollectionModels:
 
     async def test_folder_extra_allow(self, client, respx_mock):
         respx_mock.get("/users/trent_reznor/collection/folders/0").mock(
-            return_value=httpx.Response(200, json={"id": 0, "name": "All", "_unknown_extra_field": "test"})
+            return_value=respx.MockResponse(200, json={"id": 0, "name": "All", "_unknown_extra_field": "test"})
         )
         lazy = client.users.get("trent_reznor")
         result = await lazy.collection.folders.get(0)

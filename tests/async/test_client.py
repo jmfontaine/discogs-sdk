@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import httpx
+import httpx2
 import pytest
 import respx
 
@@ -14,9 +14,9 @@ from tests.conftest import BASE_URL, make_identity, make_release
 
 class TestCustomHttpClient:
     async def test_injected_client_transmits_sdk_headers(self):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/releases/352665").respond(200, json=make_release())
-            custom = httpx.AsyncClient(headers={"X-Trace": "keep-me"})
+            custom = httpx2.AsyncClient(headers={"X-Trace": "keep-me"})
             client = AsyncDiscogs(token="secret-token", http_client=custom, media_type="html")
             await client.releases.get(352665)
             request = route.calls[0].request
@@ -30,10 +30,10 @@ class TestCustomHttpClient:
             await custom.aclose()
 
     async def test_custom_client_auth_cannot_replace_sdk_credentials(self):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/releases/352665").respond(200, json=make_release())
-            custom = httpx.AsyncClient(
-                auth=httpx.BasicAuth("user", "pass"), headers={"Authorization": "Custom default"}
+            custom = httpx2.AsyncClient(
+                auth=httpx2.BasicAuth("user", "pass"), headers={"Authorization": "Custom default"}
             )
             client = AsyncDiscogs(token="secret-token", http_client=custom)
             await client.releases.get(352665)
@@ -41,9 +41,9 @@ class TestCustomHttpClient:
             await custom.aclose()
 
     async def test_unauthenticated_client_keeps_custom_auth(self):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/releases/352665").respond(200, json=make_release())
-            custom = httpx.AsyncClient(auth=httpx.BasicAuth("user", "pass"))
+            custom = httpx2.AsyncClient(auth=httpx2.BasicAuth("user", "pass"))
             client = AsyncDiscogs(http_client=custom)
             await client.releases.get(352665)
             assert route.calls[0].request.headers["Authorization"].startswith("Basic ")
@@ -54,11 +54,11 @@ class TestCacheIsolation:
     """Cached entries must never cross account or representation boundaries."""
 
     async def test_two_tokens_sharing_a_cache_get_their_own_identity(self):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/oauth/identity").mock(
                 side_effect=[
-                    httpx.Response(200, json=make_identity(id=1, username="trent_reznor")),
-                    httpx.Response(200, json=make_identity(id=2, username="atticus_ross")),
+                    respx.MockResponse(200, json=make_identity(id=1, username="trent_reznor")),
+                    respx.MockResponse(200, json=make_identity(id=2, username="atticus_ross")),
                 ]
             )
             cache = MemoryCache(ttl=600)
@@ -71,11 +71,11 @@ class TestCacheIsolation:
             await client_b.close()
 
     async def test_unauthenticated_client_cannot_read_an_authenticated_entry(self, tmp_path):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/oauth/identity").mock(
                 side_effect=[
-                    httpx.Response(200, json=make_identity()),
-                    httpx.Response(401, json={"message": "You must authenticate to access this resource."}),
+                    respx.MockResponse(200, json=make_identity()),
+                    respx.MockResponse(401, json={"message": "You must authenticate to access this resource."}),
                 ]
             )
             authenticated = AsyncDiscogs(token="token-a", cache=True, cache_dir=tmp_path)
@@ -89,7 +89,7 @@ class TestCacheIsolation:
             await anonymous.close()
 
     async def test_same_credentials_reuse_entry_after_reopening_sqlite(self, tmp_path):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/oauth/identity").respond(200, json=make_identity())
             first = AsyncDiscogs(token="token-a", cache=True, cache_dir=tmp_path)
             await first.user.identity()
@@ -101,12 +101,12 @@ class TestCacheIsolation:
             await second.close()
 
     async def test_media_type_representations_do_not_collide(self):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/releases/352665").mock(
                 side_effect=[
-                    httpx.Response(200, json=make_release(title="Discogs markup")),
-                    httpx.Response(200, json=make_release(title="<b>HTML</b>")),
-                    httpx.Response(200, json=make_release(title="plain text")),
+                    respx.MockResponse(200, json=make_release(title="Discogs markup")),
+                    respx.MockResponse(200, json=make_release(title="<b>HTML</b>")),
+                    respx.MockResponse(200, json=make_release(title="plain text")),
                 ]
             )
             cache = MemoryCache(ttl=600)
@@ -124,9 +124,9 @@ class TestCacheIsolation:
 
     async def test_unidentifiable_transport_is_never_cached(self):
         """An injected client's own auth is opaque, so its responses must not be shared."""
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/releases/352665").respond(200, json=make_release())
-            custom = httpx.AsyncClient(auth=httpx.BasicAuth("user", "pass"))
+            custom = httpx2.AsyncClient(auth=httpx2.BasicAuth("user", "pass"))
             client = AsyncDiscogs(http_client=custom, cache=True)
 
             await client.releases.get(352665)
@@ -137,7 +137,7 @@ class TestCacheIsolation:
             await custom.aclose()
 
     async def test_oauth_requests_hit_cache_despite_fresh_signing_values(self):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/oauth/identity").respond(200, json=make_identity())
             client = AsyncDiscogs(
                 consumer_key="ck",
@@ -154,7 +154,7 @@ class TestCacheIsolation:
             await client.close()
 
     async def test_cache_keys_never_contain_credentials(self):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             router.get("/oauth/identity").respond(200, json=make_identity())
             cache = MemoryCache(ttl=600)
             client = AsyncDiscogs(token="super-secret-token", cache=cache)
@@ -166,7 +166,7 @@ class TestCacheIsolation:
 
 class TestCacheBranch:
     async def test_caching_disabled_by_default(self):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/releases/352665").respond(200, json=make_release())
             client = AsyncDiscogs(token="t")
             await client.releases.get(352665)
@@ -175,7 +175,7 @@ class TestCacheBranch:
             await client.close()
 
     async def test_expired_entry_is_refetched(self):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/releases/352665").respond(200, json=make_release())
             client = AsyncDiscogs(token="t", cache=True, cache_ttl=0)
             await client.releases.get(352665)
@@ -184,7 +184,7 @@ class TestCacheBranch:
             await client.close()
 
     async def test_sqlite_cache_survives_a_new_client(self, tmp_path):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/releases/352665").respond(200, json=make_release())
             first = AsyncDiscogs(token="t", cache=True, cache_dir=tmp_path)
             await first.releases.get(352665)
@@ -196,7 +196,7 @@ class TestCacheBranch:
             await second.close()
 
     async def test_custom_cache_instance_receives_the_response(self):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/releases/352665").respond(200, json=make_release())
             cache = MemoryCache(ttl=600)
             client = AsyncDiscogs(token="t", cache=cache)
@@ -208,8 +208,8 @@ class TestCacheBranch:
 
     async def test_cached_get_served_without_http(self):
         """Second GET for the same URL returns cached response, no network call."""
-        with respx.mock(base_url=BASE_URL) as router:
-            route = router.get("/releases/1").mock(return_value=httpx.Response(200, json={"id": 1}))
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/1").mock(return_value=respx.MockResponse(200, json={"id": 1}))
             client = AsyncDiscogs(token="t", cache=True)
             # First call: hits the network
             r1 = await client._send("GET", f"{BASE_URL}/releases/1")
@@ -225,14 +225,14 @@ class TestCacheBranch:
         """Cache hit with original content-encoding: gzip must not corrupt the body.
 
         Regression: the cache stored decompressed bodies with the original
-        content-encoding header, causing httpx to double-decompress on cache hit.
+        content-encoding header, causing httpx2 to double-decompress on cache hit.
         """
         import gzip
 
         compressed = gzip.compress(b'{"id": 1}')
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             router.get("/releases/1").mock(
-                return_value=httpx.Response(
+                return_value=respx.MockResponse(
                     200,
                     content=compressed,
                     headers={"content-encoding": "gzip", "content-type": "application/json"},
@@ -248,8 +248,8 @@ class TestCacheBranch:
             await client.close()
 
     async def test_post_not_cached(self):
-        with respx.mock(base_url=BASE_URL) as router:
-            route = router.post("/some/endpoint").mock(return_value=httpx.Response(200, json={}))
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.post("/some/endpoint").mock(return_value=respx.MockResponse(200, json={}))
             client = AsyncDiscogs(token="t", cache=True)
             await client._send("POST", f"{BASE_URL}/some/endpoint")
             await client._send("POST", f"{BASE_URL}/some/endpoint")
@@ -257,8 +257,10 @@ class TestCacheBranch:
             await client.close()
 
     async def test_non_2xx_not_cached(self):
-        with respx.mock(base_url=BASE_URL) as router:
-            route = router.get("/releases/404").mock(return_value=httpx.Response(404, json={"message": "not found"}))
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/404").mock(
+                return_value=respx.MockResponse(404, json={"message": "not found"})
+            )
             client = AsyncDiscogs(token="t", cache=True, max_retries=0)
             for _ in range(2):
                 with pytest.raises(NotFoundError):
@@ -267,8 +269,8 @@ class TestCacheBranch:
             await client.close()
 
     async def test_no_cache_context_manager(self):
-        with respx.mock(base_url=BASE_URL) as router:
-            route = router.get("/releases/1").mock(return_value=httpx.Response(200, json={"id": 1}))
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/1").mock(return_value=respx.MockResponse(200, json={"id": 1}))
             client = AsyncDiscogs(token="t", cache=True)
             # Populate cache
             await client._send("GET", f"{BASE_URL}/releases/1")
@@ -283,8 +285,8 @@ class TestCacheBranch:
             await client.close()
 
     async def test_nested_no_cache_scopes_stay_bypassed(self):
-        with respx.mock(base_url=BASE_URL) as router:
-            route = router.get("/releases/1").mock(return_value=httpx.Response(200, json={"id": 1}))
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/1").mock(return_value=respx.MockResponse(200, json={"id": 1}))
             client = AsyncDiscogs(token="t", cache=True)
             await client._send("GET", f"{BASE_URL}/releases/1")
             assert route.call_count == 1
@@ -302,8 +304,8 @@ class TestCacheBranch:
             await client.close()
 
     async def test_exception_restores_previous_bypass_state(self):
-        with respx.mock(base_url=BASE_URL) as router:
-            route = router.get("/releases/1").mock(return_value=httpx.Response(200, json={"id": 1}))
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/1").mock(return_value=respx.MockResponse(200, json={"id": 1}))
             client = AsyncDiscogs(token="t", cache=True)
             await client._send("GET", f"{BASE_URL}/releases/1")
 
@@ -321,8 +323,8 @@ class TestCacheBranch:
     async def test_concurrent_tasks_keep_independent_bypass_state(self):
         import asyncio
 
-        with respx.mock(base_url=BASE_URL) as router:
-            route = router.get("/releases/1").mock(return_value=httpx.Response(200, json={"id": 1}))
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/1").mock(return_value=respx.MockResponse(200, json={"id": 1}))
             client = AsyncDiscogs(token="t", cache=True)
             await client._send("GET", f"{BASE_URL}/releases/1")
             assert route.call_count == 1
@@ -351,7 +353,7 @@ class TestCacheBranch:
             await client.close()
 
     async def test_clear_cache_forces_a_refetch(self):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/releases/352665").respond(200, json=make_release())
             client = AsyncDiscogs(token="t", cache=True)
             await client.releases.get(352665)
@@ -367,8 +369,8 @@ class TestCacheBranch:
 
 class TestOAuthInSend:
     async def test_oauth_headers_injected(self):
-        with respx.mock(base_url=BASE_URL) as router:
-            router.get("/releases/1").mock(return_value=httpx.Response(200, json={"id": 1}))
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            router.get("/releases/1").mock(return_value=respx.MockResponse(200, json={"id": 1}))
             client = AsyncDiscogs(
                 consumer_key="ck",
                 consumer_secret="cs",
@@ -388,7 +390,7 @@ class TestLifecycle:
         await client.close()
 
     async def test_close_when_not_owns_client(self):
-        custom = httpx.AsyncClient()
+        custom = httpx2.AsyncClient()
         client = AsyncDiscogs(token="t", http_client=custom)
         # close should not close the custom client
         await client.close()
@@ -410,7 +412,7 @@ class TestCredentialPrecedence:
         monkeypatch.setenv("DISCOGS_ACCESS_TOKEN", "env-at")
         monkeypatch.setenv("DISCOGS_ACCESS_TOKEN_SECRET", "env-ats")
 
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/oauth/identity").respond(200, json=make_identity(username="trent_reznor"))
             client = AsyncDiscogs(token="explicit-token")
 
@@ -422,7 +424,7 @@ class TestCredentialPrecedence:
     async def test_explicit_oauth_beats_environment_token(self, monkeypatch):
         monkeypatch.setenv("DISCOGS_TOKEN", "env-token")
 
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/oauth/identity").respond(200, json=make_identity(username="atticus_ross"))
             client = AsyncDiscogs(
                 consumer_key="ck",
@@ -443,7 +445,7 @@ class TestCredentialPrecedence:
         monkeypatch.setenv("DISCOGS_ACCESS_TOKEN", "env-at")
         monkeypatch.setenv("DISCOGS_ACCESS_TOKEN_SECRET", "env-ats")
 
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             route = router.get("/releases/352665").respond(200, json=make_release())
             client = AsyncDiscogs(consumer_key="ck", consumer_secret="cs")
 

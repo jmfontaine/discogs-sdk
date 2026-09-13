@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import httpx
 import pytest
+import respx
 
 from discogs_sdk.models.release import (
     CommunityRating,
@@ -27,7 +27,7 @@ class TestReleasesGet:
         assert respx_mock.calls.call_count == 0
 
     async def test_get_resolves_to_release(self, client, respx_mock):
-        respx_mock.get("/releases/400027").mock(return_value=httpx.Response(200, json=make_release()))
+        respx_mock.get("/releases/400027").mock(return_value=respx.MockResponse(200, json=make_release()))
         result = await client.releases.get(400027)
         assert isinstance(result, Release)
         assert result.id == 400027
@@ -58,7 +58,9 @@ class TestReleaseSubResources:
 
 class TestReleaseRating:
     async def test_community_rating(self, client, respx_mock):
-        respx_mock.get("/releases/400027/rating").mock(return_value=httpx.Response(200, json=make_community_rating()))
+        respx_mock.get("/releases/400027/rating").mock(
+            return_value=respx.MockResponse(200, json=make_community_rating())
+        )
         lazy = client.releases.get(400027)
         result = await lazy.rating.get()
         assert isinstance(result, CommunityRating)
@@ -66,7 +68,7 @@ class TestReleaseRating:
 
     async def test_user_rating(self, client, respx_mock):
         respx_mock.get("/releases/400027/rating/trent_reznor").mock(
-            return_value=httpx.Response(200, json=make_user_release_rating())
+            return_value=respx.MockResponse(200, json=make_user_release_rating())
         )
         lazy = client.releases.get(400027)
         result = await lazy.rating.get("trent_reznor")
@@ -76,7 +78,7 @@ class TestReleaseRating:
 
     async def test_update_rating(self, client, respx_mock):
         respx_mock.put("/releases/400027/rating/trent_reznor").mock(
-            return_value=httpx.Response(200, json=make_user_release_rating(rating=4))
+            return_value=respx.MockResponse(200, json=make_user_release_rating(rating=4))
         )
         lazy = client.releases.get(400027)
         result = await lazy.rating.update("trent_reznor", 4)
@@ -84,13 +86,13 @@ class TestReleaseRating:
         assert result.rating == 4
 
     async def test_delete_rating(self, client, respx_mock):
-        respx_mock.delete("/releases/400027/rating/trent_reznor").mock(return_value=httpx.Response(204))
+        respx_mock.delete("/releases/400027/rating/trent_reznor").mock(return_value=respx.MockResponse(204))
         lazy = client.releases.get(400027)
         await lazy.rating.delete("trent_reznor")  # should not raise
 
     async def test_delete_rating_error_empty_body(self, client, respx_mock):
         respx_mock.delete("/releases/400027/rating/trent_reznor").mock(
-            return_value=httpx.Response(404, json={"message": "Not Found"})
+            return_value=respx.MockResponse(404, json={"message": "Not Found"})
         )
         lazy = client.releases.get(400027)
         from discogs_sdk._exceptions import NotFoundError
@@ -101,7 +103,7 @@ class TestReleaseRating:
 
 class TestReleaseStats:
     async def test_stats_get(self, client, respx_mock):
-        respx_mock.get("/releases/400027/stats").mock(return_value=httpx.Response(200, json=make_release_stats()))
+        respx_mock.get("/releases/400027/stats").mock(return_value=respx.MockResponse(200, json=make_release_stats()))
         lazy = client.releases.get(400027)
         result = await lazy.stats.get()
         assert isinstance(result, ReleaseStats)
@@ -110,14 +112,14 @@ class TestReleaseStats:
 
 class TestReleasePriceSuggestions:
     async def test_price_suggestions_get(self, client, respx_mock):
-        respx_mock.get("/marketplace/price_suggestions/400027").mock(return_value=httpx.Response(200, json={}))
+        respx_mock.get("/marketplace/price_suggestions/400027").mock(return_value=respx.MockResponse(200, json={}))
         lazy = client.releases.get(400027)
         result = await lazy.price_suggestions.get()
         assert isinstance(result, PriceSuggestions)
 
     async def test_price_suggestions_subscript_after_await(self, client, respx_mock):
         body = {"Mint (M)": {"currency": "USD", "value": 25.00}}
-        respx_mock.get("/marketplace/price_suggestions/400027").mock(return_value=httpx.Response(200, json=body))
+        respx_mock.get("/marketplace/price_suggestions/400027").mock(return_value=respx.MockResponse(200, json=body))
         proxy = client.releases.get(400027).price_suggestions.get()
         await proxy
         assert proxy["Mint (M)"].value == 25.00
@@ -127,7 +129,7 @@ class TestReleasePriceSuggestions:
             "Mint (M)": {"currency": "USD", "value": 25.00},
             "Very Good Plus (VG+)": {"currency": "USD", "value": 15.00},
         }
-        respx_mock.get("/marketplace/price_suggestions/400027").mock(return_value=httpx.Response(200, json=body))
+        respx_mock.get("/marketplace/price_suggestions/400027").mock(return_value=respx.MockResponse(200, json=body))
         result = await client.releases.get(400027).price_suggestions.get()
         conditions = result.conditions
         assert len(conditions) == 2
@@ -136,7 +138,7 @@ class TestReleasePriceSuggestions:
 
     async def test_price_suggestions_getitem(self, client, respx_mock):
         body = {"Mint (M)": {"currency": "USD", "value": 25.00}}
-        respx_mock.get("/marketplace/price_suggestions/400027").mock(return_value=httpx.Response(200, json=body))
+        respx_mock.get("/marketplace/price_suggestions/400027").mock(return_value=respx.MockResponse(200, json=body))
         result = await client.releases.get(400027).price_suggestions.get()
         assert result["Mint (M)"].value == 25.00
         with pytest.raises(KeyError):
@@ -145,7 +147,9 @@ class TestReleasePriceSuggestions:
 
 class TestReleaseMarketplaceStats:
     async def test_marketplace_stats_get(self, client, respx_mock):
-        respx_mock.get("/marketplace/stats/400027").mock(return_value=httpx.Response(200, json={"num_for_sale": 10}))
+        respx_mock.get("/marketplace/stats/400027").mock(
+            return_value=respx.MockResponse(200, json={"num_for_sale": 10})
+        )
         lazy = client.releases.get(400027)
         result = await lazy.marketplace_stats.get()
         assert isinstance(result, MarketplaceReleaseStats)
@@ -154,14 +158,14 @@ class TestReleaseMarketplaceStats:
 
 class TestReleaseModel:
     async def test_required_fields(self, client, respx_mock):
-        respx_mock.get("/releases/1").mock(return_value=httpx.Response(200, json={"id": 1, "title": "T"}))
+        respx_mock.get("/releases/1").mock(return_value=respx.MockResponse(200, json={"id": 1, "title": "T"}))
         result = await client.releases.get(1)
         assert result.id == 1
         assert result.year is None
 
     async def test_extra_allow(self, client, respx_mock):
         respx_mock.get("/releases/1").mock(
-            return_value=httpx.Response(200, json={"id": 1, "title": "T", "unknown_field": "val"})
+            return_value=respx.MockResponse(200, json={"id": 1, "title": "T", "unknown_field": "val"})
         )
         result = await client.releases.get(1)
         assert result.model_extra["unknown_field"] == "val"
@@ -174,18 +178,18 @@ class TestCurrencySelection:
         assert respx_mock.calls.call_count == 0
 
     async def test_release_sends_requested_currency(self, client, respx_mock):
-        route = respx_mock.get("/releases/352665").mock(return_value=httpx.Response(200, json=make_release()))
+        route = respx_mock.get("/releases/352665").mock(return_value=respx.MockResponse(200, json=make_release()))
         await client.releases.get(352665, curr_abbr="EUR")
         assert route.calls[0].request.url.params["curr_abbr"] == "EUR"
 
     async def test_release_without_currency_sends_no_parameter(self, client, respx_mock):
-        route = respx_mock.get("/releases/352665").mock(return_value=httpx.Response(200, json=make_release()))
+        route = respx_mock.get("/releases/352665").mock(return_value=respx.MockResponse(200, json=make_release()))
         await client.releases.get(352665)
         assert "curr_abbr" not in route.calls[0].request.url.params
 
     async def test_marketplace_stats_sends_requested_currency(self, client, respx_mock):
         route = respx_mock.get("/marketplace/stats/352665").mock(
-            return_value=httpx.Response(200, json={"num_for_sale": 3, "blocked_from_sale": False})
+            return_value=respx.MockResponse(200, json={"num_for_sale": 3, "blocked_from_sale": False})
         )
         await client.releases.get(352665).marketplace_stats.get(curr_abbr="GBP")
         assert route.calls[0].request.url.params["curr_abbr"] == "GBP"

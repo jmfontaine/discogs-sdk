@@ -15,7 +15,7 @@ from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import httpx
+import httpx2
 from typing_extensions import Self
 
 from discogs_sdk._async.resources.artists import Artists
@@ -76,7 +76,7 @@ class AsyncDiscogs(BaseClient):
         cache: bool | ResponseCache = False,
         cache_ttl: float = DEFAULT_CACHE_TTL,
         cache_dir: str | Path | None = None,
-        http_client: httpx.AsyncClient | None = None,
+        http_client: httpx2.AsyncClient | None = None,
         user_agent: str | None = None,
         media_type: MediaType = "discogs",
     ) -> None:
@@ -109,7 +109,7 @@ class AsyncDiscogs(BaseClient):
             cache_dir: Directory for the cache database. When provided, uses
                 SQLite for persistence; otherwise caches in memory only.
                 Ignored when *cache* is a ``ResponseCache`` instance or ``False``.
-            http_client: Custom ``httpx.AsyncClient`` to use instead of creating
+            http_client: Custom ``httpx2.AsyncClient`` to use instead of creating
                 one. It keeps its transport configuration and its lifecycle:
                 ``close()`` never closes it. SDK credentials, User-Agent and
                 media type are applied per request without mutating its defaults,
@@ -139,7 +139,7 @@ class AsyncDiscogs(BaseClient):
             self._http_client = http_client
             self._owns_client = False
         else:
-            self._http_client = httpx.AsyncClient(timeout=self.timeout)
+            self._http_client = httpx2.AsyncClient(timeout=self.timeout)
             self._owns_client = True
 
         self._cache: ResponseCache | None = None
@@ -158,7 +158,7 @@ class AsyncDiscogs(BaseClient):
         json: dict[str, Any] | None = None,
         params: dict[str, Any] | None = None,
         files: dict[str, Any] | None = None,
-    ) -> httpx.Response:
+    ) -> httpx2.Response:
         build_kwargs: dict[str, Any] = {}
         if json is not None:
             build_kwargs["json"] = json
@@ -192,7 +192,7 @@ class AsyncDiscogs(BaseClient):
         )
         cache_key = ""
         if use_cache:
-            # httpx merges params into the URL, so build the request first to key
+            # httpx2 merges params into the URL, so build the request first to key
             # on the fully resolved URL.
             req = self._http_client.build_request(method, url, **build_kwargs)
             cache_key = self._build_cache_key(method, str(req.url), headers["Accept"])
@@ -201,14 +201,14 @@ class AsyncDiscogs(BaseClient):
             if cached is not None:
                 status, cached_headers, body = cached
                 logger.debug("Cache hit: %s %s", method, url)
-                return httpx.Response(status_code=status, headers=cached_headers, content=body)
+                return httpx2.Response(status_code=status, headers=cached_headers, content=body)
 
         for attempt in range(self.max_retries + 1):
             logger.debug("HTTP request: %s %s", method, url)
             t0 = time.monotonic()  # Unaffected by system clock adjustments (NTP, DST)
             try:
                 response = await self._http_client.request(method, url, **kwargs)
-            except (httpx.NetworkError, httpx.TimeoutException) as exc:
+            except (httpx2.NetworkError, httpx2.TimeoutException) as exc:
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 if attempt == self.max_retries or not may_retry_transport_error(method, exc):
                     logger.debug("HTTP connection error after %.0fms: %s", elapsed_ms, exc)
@@ -241,7 +241,7 @@ class AsyncDiscogs(BaseClient):
             if not may_retry_status(method, response.status_code) or attempt == self.max_retries:
                 if use_cache and 200 <= response.status_code < 300:
                     assert self._cache is not None  # narrowed by use_cache
-                    # response.content is already decompressed by httpx, so strip
+                    # response.content is already decompressed by httpx2, so strip
                     # transport-layer headers that describe the wire encoding.
                     cache_headers = {
                         k: v

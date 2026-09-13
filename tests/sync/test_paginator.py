@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import httpx
 import pytest
+import respx
 
 from discogs_sdk._exceptions import DiscogsAPIError
 from discogs_sdk._sync._paginator import SyncPage
@@ -15,7 +15,7 @@ class TestSinglePage:
     def test_iterates_all_items(self, client, respx_mock):
         items = [make_release(id=i, title=f"R{i}") for i in range(3)]
         respx_mock.get("/releases").mock(
-            return_value=httpx.Response(200, json=make_paginated_response("releases", items))
+            return_value=respx.MockResponse(200, json=make_paginated_response("releases", items))
         )
         page = SyncPage(client=client, path="/releases", params={}, model_cls=Release, items_key="releases")
         results = list(page)
@@ -24,7 +24,7 @@ class TestSinglePage:
 
     def test_stops_with_stop_iteration(self, client, respx_mock):
         respx_mock.get("/releases").mock(
-            return_value=httpx.Response(200, json=make_paginated_response("releases", [make_release()]))
+            return_value=respx.MockResponse(200, json=make_paginated_response("releases", [make_release()]))
         )
         page = SyncPage(client=client, path="/releases", params={}, model_cls=Release, items_key="releases")
         results = list(page)
@@ -48,8 +48,8 @@ class TestMultiPage:
         )
         responses = iter(
             [
-                httpx.Response(200, json=page1),
-                httpx.Response(200, json=page2),
+                respx.MockResponse(200, json=page1),
+                respx.MockResponse(200, json=page2),
             ]
         )
         respx_mock.get("/releases").mock(side_effect=lambda req: next(responses))
@@ -73,8 +73,8 @@ class TestEmptyNextPage:
         page2 = make_paginated_response("releases", [], page=2, pages=2)
         responses = iter(
             [
-                httpx.Response(200, json=page1),
-                httpx.Response(200, json=page2),
+                respx.MockResponse(200, json=page1),
+                respx.MockResponse(200, json=page2),
             ]
         )
         respx_mock.get("/releases").mock(side_effect=lambda req: next(responses))
@@ -90,7 +90,7 @@ class TestItemsPath:
             "pagination": {"page": 1, "pages": 1, "urls": {}},
             "submissions": {"releases": [make_release(id=1), make_release(id=2)]},
         }
-        respx_mock.get("/users/trent_reznor/submissions").mock(return_value=httpx.Response(200, json=body))
+        respx_mock.get("/users/trent_reznor/submissions").mock(return_value=respx.MockResponse(200, json=body))
         page = SyncPage(
             client=client,
             path="/users/trent_reznor/submissions",
@@ -113,7 +113,7 @@ class TestPaginationMetadata:
 
     def test_populated_after_first_iteration(self, client, respx_mock):
         respx_mock.get("/releases").mock(
-            return_value=httpx.Response(
+            return_value=respx.MockResponse(
                 200,
                 json=make_paginated_response(
                     "releases", [make_release()], page=1, pages=3, per_page=25, total_items=75
@@ -145,7 +145,7 @@ class TestPaginationMetadata:
             per_page=1,
             total_items=2,
         )
-        responses = iter([httpx.Response(200, json=page1), httpx.Response(200, json=page2)])
+        responses = iter([respx.MockResponse(200, json=page1), respx.MockResponse(200, json=page2)])
         respx_mock.get("/releases").mock(side_effect=lambda req: next(responses))
         page = SyncPage(client=client, path="/releases", params={}, model_cls=Release, items_key="releases")
         results = list(page)
@@ -160,7 +160,7 @@ class TestPageParam:
     def test_page_overrides_default(self, client, respx_mock):
         """When page is passed in params, it overrides the default page=1."""
         respx_mock.get("/releases").mock(
-            return_value=httpx.Response(
+            return_value=respx.MockResponse(
                 200, json=make_paginated_response("releases", [make_release()], page=3, pages=5)
             )
         )
@@ -173,7 +173,9 @@ class TestPageParam:
     def test_per_page_passed_through(self, client, respx_mock):
         """per_page param is sent to the API."""
         respx_mock.get("/releases").mock(
-            return_value=httpx.Response(200, json=make_paginated_response("releases", [make_release()], per_page=10))
+            return_value=respx.MockResponse(
+                200, json=make_paginated_response("releases", [make_release()], per_page=10)
+            )
         )
         page = SyncPage(
             client=client, path="/releases", params={"per_page": 10}, model_cls=Release, items_key="releases"
@@ -186,7 +188,7 @@ class TestPageParam:
 
 class TestErrors:
     def test_error_on_first_page(self, no_retry_client, respx_mock):
-        respx_mock.get("/releases").mock(return_value=httpx.Response(500, json={"message": "Server Error"}))
+        respx_mock.get("/releases").mock(return_value=respx.MockResponse(500, json={"message": "Server Error"}))
         page = SyncPage(client=no_retry_client, path="/releases", params={}, model_cls=Release, items_key="releases")
         with pytest.raises(DiscogsAPIError):
             list(page)
@@ -213,7 +215,7 @@ class TestEmptySelectedCategories:
         ]
         responses = iter(pages)
         route = respx_mock.get("/users/trent_reznor/submissions").mock(
-            side_effect=lambda req: httpx.Response(200, json=next(responses))
+            side_effect=lambda req: respx.MockResponse(200, json=next(responses))
         )
 
         titles = [item.title for item in client.users.get("trent_reznor").submissions.list()]
@@ -230,7 +232,7 @@ class TestEmptySelectedCategories:
         ]
         responses = iter(pages)
         route = respx_mock.get("/users/trent_reznor/submissions").mock(
-            side_effect=lambda req: httpx.Response(200, json=next(responses))
+            side_effect=lambda req: respx.MockResponse(200, json=next(responses))
         )
 
         titles = [item.title for item in client.users.get("trent_reznor").submissions.list()]
@@ -245,7 +247,7 @@ class TestEmptySelectedCategories:
         ]
         responses = iter(pages)
         route = respx_mock.get("/users/trent_reznor/submissions").mock(
-            side_effect=lambda req: httpx.Response(200, json=next(responses))
+            side_effect=lambda req: respx.MockResponse(200, json=next(responses))
         )
 
         page = client.users.get("trent_reznor").submissions.list()
@@ -259,8 +261,8 @@ class TestEmptySelectedCategories:
     def test_failure_on_a_later_page_propagates(self, no_retry_client, respx_mock):
         responses = iter(
             [
-                httpx.Response(200, json=_submissions_page(1, 3, releases=[])),
-                httpx.Response(502, html="<html>Bad Gateway</html>"),
+                respx.MockResponse(200, json=_submissions_page(1, 3, releases=[])),
+                respx.MockResponse(502, html="<html>Bad Gateway</html>"),
             ]
         )
         respx_mock.get("/users/trent_reznor/submissions").mock(side_effect=lambda req: next(responses))

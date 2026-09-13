@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import httpx
+import respx
 
 from discogs_sdk.models.master import MasterVersion
 from tests.conftest import make_master, make_master_version, make_paginated_response
@@ -14,7 +14,7 @@ class TestMastersGet:
         assert respx_mock.calls.call_count == 0
 
     def test_get_resolves_to_master(self, client, respx_mock):
-        respx_mock.get("/masters/5765").mock(return_value=httpx.Response(200, json=make_master()))
+        respx_mock.get("/masters/5765").mock(return_value=respx.MockResponse(200, json=make_master()))
         lazy = client.masters.get(5765)
         assert lazy.title == "The Downward Spiral"
 
@@ -28,7 +28,7 @@ class TestMasterVersions:
     def test_versions_list(self, client, respx_mock):
         items = [make_master_version(id=i) for i in range(2)]
         respx_mock.get("/masters/5765/versions").mock(
-            return_value=httpx.Response(200, json=make_paginated_response("versions", items))
+            return_value=respx.MockResponse(200, json=make_paginated_response("versions", items))
         )
         lazy = client.masters.get(5765)
         results = list(lazy.versions.list())
@@ -37,7 +37,7 @@ class TestMasterVersions:
 
     def test_versions_list_with_params(self, client, respx_mock):
         respx_mock.get("/masters/5765/versions").mock(
-            return_value=httpx.Response(200, json=make_paginated_response("versions", [make_master_version()]))
+            return_value=respx.MockResponse(200, json=make_paginated_response("versions", [make_master_version()]))
         )
         lazy = client.masters.get(5765)
         results = list(lazy.versions.list(format="Vinyl", country="US"))
@@ -47,7 +47,7 @@ class TestMasterVersions:
 class TestMasterVersionFilters:
     def test_label_and_released_are_sent(self, client, respx_mock):
         route = respx_mock.get("/masters/3719/versions").mock(
-            return_value=httpx.Response(200, json=make_paginated_response("versions", [make_master_version()]))
+            return_value=respx.MockResponse(200, json=make_paginated_response("versions", [make_master_version()]))
         )
 
         versions = list(client.masters.get(3719).versions.list(label="Nothing Records", released="1994"))
@@ -59,7 +59,7 @@ class TestMasterVersionFilters:
 
     def test_existing_filters_still_sent(self, client, respx_mock):
         route = respx_mock.get("/masters/3719/versions").mock(
-            return_value=httpx.Response(200, json=make_paginated_response("versions", [make_master_version()]))
+            return_value=respx.MockResponse(200, json=make_paginated_response("versions", [make_master_version()]))
         )
 
         page = client.masters.get(3719).versions.list(format="Vinyl", country="US", sort="released", sort_order="asc")

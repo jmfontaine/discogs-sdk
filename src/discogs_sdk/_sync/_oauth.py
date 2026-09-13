@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from urllib.parse import parse_qs
 
-import httpx
+import httpx2
 
 from discogs_sdk._base_client import DEFAULT_BASE_URL, USER_AGENT, build_oauth_header
 from discogs_sdk._oauth_types import AccessToken, RequestToken
@@ -31,7 +31,7 @@ def get_request_token(
         "Authorization": auth_header,
         "User-Agent": USER_AGENT,
     }
-    with httpx.Client() as client:
+    with httpx2.Client() as client:
         response = client.get(f"{base_url.rstrip('/')}{_REQUEST_TOKEN_PATH}", headers=headers)
     response.raise_for_status()
     parsed = parse_qs(response.text)
@@ -68,7 +68,7 @@ def get_access_token(
         "Authorization": auth_header,
         "User-Agent": USER_AGENT,
     }
-    with httpx.Client() as client:
+    with httpx2.Client() as client:
         response = client.post(f"{base_url.rstrip('/')}{_ACCESS_TOKEN_PATH}", headers=headers)
     response.raise_for_status()
     parsed = parse_qs(response.text)

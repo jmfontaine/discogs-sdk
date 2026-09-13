@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 
-import httpx
+import httpx2
 import pytest
 import respx
 
@@ -28,7 +28,7 @@ from tests.conftest import (
 
 @pytest.fixture
 def respx_mock():
-    with respx.mock(base_url=BASE_URL) as router:
+    with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
         yield router
 
 
@@ -65,7 +65,7 @@ class TestCustomTransportLifecycle:
     def test_injected_client_stays_open_and_carries_sdk_headers(self, respx_mock):
         route = respx_mock.get("/releases/352665").respond(200, json=make_release())
 
-        with httpx.Client(headers={"X-App-Trace": "example"}) as custom_http:
+        with httpx2.Client(headers={"X-App-Trace": "example"}) as custom_http:
             custom_client = Discogs(token="secret-token", http_client=custom_http)
             assert custom_client.releases.get(352665).title == "The Downward Spiral"
             custom_client.close()

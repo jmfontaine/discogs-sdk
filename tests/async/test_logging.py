@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-import httpx
+import httpx2
 import pytest
 import respx
 
@@ -16,7 +16,7 @@ from tests.conftest import BASE_URL, make_release
 
 @pytest.fixture
 def respx_mock():
-    with respx.mock(base_url=BASE_URL) as router:
+    with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
         yield router
 
 
@@ -31,7 +31,7 @@ async def _noop_sleep(_: float) -> None:
 
 class TestRequestResponseLogging:
     async def test_logs_request_and_response(self, client, respx_mock, caplog):
-        respx_mock.get("/releases/1").mock(return_value=httpx.Response(200, json=make_release()))
+        respx_mock.get("/releases/1").mock(return_value=respx.MockResponse(200, json=make_release()))
 
         with caplog.at_level(logging.DEBUG, logger="discogs_sdk"):
             result = await client.releases.get(1)
@@ -55,8 +55,8 @@ class TestRetryLogging:
     async def test_logs_retry_on_429(self, client, respx_mock, caplog, monkeypatch):
         responses = iter(
             [
-                httpx.Response(429, json={"message": "Rate limited"}),
-                httpx.Response(200, json=make_release()),
+                respx.MockResponse(429, json={"message": "Rate limited"}),
+                respx.MockResponse(200, json=make_release()),
             ]
         )
         respx_mock.get("/releases/1").mock(side_effect=lambda req: next(responses))
@@ -75,8 +75,8 @@ class TestRetryLogging:
     async def test_logs_retry_on_5xx(self, client, respx_mock, caplog, monkeypatch):
         responses = iter(
             [
-                httpx.Response(502, text="Bad Gateway"),
-                httpx.Response(200, json=make_release()),
+                respx.MockResponse(502, text="Bad Gateway"),
+                respx.MockResponse(200, json=make_release()),
             ]
         )
         respx_mock.get("/releases/1").mock(side_effect=lambda req: next(responses))
@@ -93,9 +93,9 @@ class TestRetryLogging:
     async def test_logs_multiple_retries(self, client, respx_mock, caplog, monkeypatch):
         responses = iter(
             [
-                httpx.Response(500, json={"message": "Error"}),
-                httpx.Response(503, text="Service Unavailable"),
-                httpx.Response(200, json=make_release()),
+                respx.MockResponse(500, json={"message": "Error"}),
+                respx.MockResponse(503, text="Service Unavailable"),
+                respx.MockResponse(200, json=make_release()),
             ]
         )
         respx_mock.get("/releases/1").mock(side_effect=lambda req: next(responses))
@@ -115,8 +115,8 @@ class TestRetryLogging:
         client = AsyncDiscogs(token="test-token", max_retries=1)
         responses = iter(
             [
-                httpx.Response(429, json={"message": "Rate limited"}),
-                httpx.Response(429, json={"message": "Rate limited"}, headers={"Retry-After": "10"}),
+                respx.MockResponse(429, json={"message": "Rate limited"}),
+                respx.MockResponse(429, json={"message": "Rate limited"}, headers={"Retry-After": "10"}),
             ]
         )
         respx_mock.get("/releases/1").mock(side_effect=lambda req: next(responses))
@@ -140,8 +140,8 @@ class TestConnectionErrorLogging:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                raise httpx.ConnectError("Connection refused")
-            return httpx.Response(200, json=make_release())
+                raise httpx2.ConnectError("Connection refused")
+            return respx.MockResponse(200, json=make_release())
 
         respx_mock.get("/releases/1").mock(side_effect=side_effect)
         monkeypatch.setattr(asyncio, "sleep", _noop_sleep)
@@ -157,7 +157,7 @@ class TestConnectionErrorLogging:
 
     async def test_logs_final_connection_error(self, respx_mock, caplog, monkeypatch):
         client = AsyncDiscogs(token="test-token", max_retries=1)
-        respx_mock.get("/releases/1").mock(side_effect=httpx.ConnectError("Connection refused"))
+        respx_mock.get("/releases/1").mock(side_effect=httpx2.ConnectError("Connection refused"))
         monkeypatch.setattr(asyncio, "sleep", _noop_sleep)
 
         with caplog.at_level(logging.DEBUG, logger="discogs_sdk"):
@@ -172,7 +172,7 @@ class TestConnectionErrorLogging:
 
 class TestNoSensitiveDataLogged:
     async def test_auth_token_not_in_logs(self, client, respx_mock, caplog):
-        respx_mock.get("/releases/1").mock(return_value=httpx.Response(200, json=make_release()))
+        respx_mock.get("/releases/1").mock(return_value=respx.MockResponse(200, json=make_release()))
 
         with caplog.at_level(logging.DEBUG, logger="discogs_sdk"):
             result = await client.releases.get(1)

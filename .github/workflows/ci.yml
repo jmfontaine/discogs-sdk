@@ -189,7 +189,7 @@ jobs:
           print(f"import path ok: {package}")
           PY
       - name: Check what the wheel metadata resolved
-        # Before the test stack lands: it pins shared dependencies such as httpx
+        # Before the test stack lands: it pins shared dependencies such as httpx2
         # and would otherwise mask what the wheel itself selected.
         run: |
           /tmp/artifact-env/bin/python -m pip check

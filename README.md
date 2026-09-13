@@ -272,7 +272,7 @@ The [`examples/`](examples/) directory has runnable scripts for every feature:
 | `cache` | `False` | Enable response caching, or pass a custom `ResponseCache` instance |
 | `consumer_key` | `None` | OAuth consumer key |
 | `consumer_secret` | `None` | OAuth consumer secret |
-| `http_client` | `None` | Custom `httpx.Client` or `httpx.AsyncClient` |
+| `http_client` | `None` | Custom `httpx2.Client` or `httpx2.AsyncClient` |
 | `max_retries` | `3` | Max retries; reads retry on 429/5xx, network errors and timeouts, mutations only on pre-send failures |
 | `timeout` | `30.0` | Request timeout in seconds |
 | `token` | `None` | Personal access token |
@@ -296,10 +296,11 @@ with client.no_cache():
 
 ### Custom HTTP clients
 
-An injected `http_client` owns its transport configuration and its lifecycle: `client.close()` never closes it.
-SDK credentials, User-Agent and media type are still applied per request, so they describe the request without
-mutating your client's defaults, and its own `httpx.Auth` cannot replace credentials you gave the SDK. When the SDK
-has no credentials of its own, your client's authentication is preserved and its responses are not cached, because
+An injected `http_client` must be an `httpx2` client — the SDK is built on [httpx2](https://github.com/pydantic/httpx2),
+Pydantic's maintained continuation of httpx. It owns its transport configuration and its lifecycle: `client.close()`
+never closes it. SDK credentials, User-Agent and media type are still applied per request, so they describe the request
+without mutating your client's defaults, and its own `httpx2.Auth` cannot replace credentials you gave the SDK. When the
+SDK has no credentials of its own, your client's authentication is preserved and its responses are not cached, because
 the SDK cannot tell whose account they belong to.
 
 ## Field naming

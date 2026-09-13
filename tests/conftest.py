@@ -8,6 +8,19 @@ import pytest
 
 BASE_URL = "https://api.discogs.com"
 
+# KLUDGE: mocked responses across this suite are built with `respx.MockResponse`
+# rather than the `httpx2.Response` the SDK actually returns, and every
+# `respx.mock(...)` has to pass `using="httpcore2"`. respx is written against
+# httpx: its `return_value`/`side_effect` guards assert
+# `isinstance(..., httpx.Response)` and reject an `httpx2.Response` outright
+# (https://github.com/lundberg/respx/issues/324), and its built-in mockers patch
+# httpx/httpcore, so the default `using` would silently intercept nothing. The
+# `httpcore2` mocker comes from the `pytest-httpx2` plugin. Note the asymmetry:
+# `side_effect` exceptions must stay `httpx2.*`, because a legacy
+# `httpx.ConnectError` surfaces unchanged and escapes the SDK's retry handlers.
+# Once #324 lands, drop `respx.MockResponse` for `httpx2.Response`; `using=` and
+# the plugin stay, since they are respx's supported httpx2 path.
+
 _DISCOGS_ENV_VARS = (
     "DISCOGS_ACCESS_TOKEN",
     "DISCOGS_ACCESS_TOKEN_SECRET",
