@@ -8,6 +8,7 @@ from discogs_sdk._base_client import USER_AGENT, BaseClient, build_oauth_header
 from discogs_sdk._exceptions import (
     AuthenticationError,
     DiscogsAPIError,
+    ForbiddenError,
     NotFoundError,
     RateLimitError,
     ValidationError,
@@ -135,17 +136,29 @@ class TestTokenResolution:
         assert c._consumer_key == "env-key"
         assert c._consumer_secret == "env-secret"
 
-    def test_access_token_from_env(self, monkeypatch):
+    def test_complete_oauth_from_env(self, monkeypatch):
+        monkeypatch.setenv("DISCOGS_CONSUMER_KEY", "env-key")
+        monkeypatch.setenv("DISCOGS_CONSUMER_SECRET", "env-secret")
         monkeypatch.setenv("DISCOGS_ACCESS_TOKEN", "env-at")
         monkeypatch.setenv("DISCOGS_ACCESS_TOKEN_SECRET", "env-ats")
         c = BaseClient()
+        assert c._uses_oauth is True
         assert c._access_token == "env-at"
         assert c._access_token_secret == "env-ats"
 
+    def test_partial_oauth_env_does_not_authenticate(self, monkeypatch):
+        monkeypatch.setenv("DISCOGS_ACCESS_TOKEN", "env-at")
+        monkeypatch.setenv("DISCOGS_ACCESS_TOKEN_SECRET", "env-ats")
+        c = BaseClient()
+        assert "Authorization" not in c._build_headers()
+        assert c._access_token is None
+
     def test_explicit_overrides_env_for_consumer(self, monkeypatch):
         monkeypatch.setenv("DISCOGS_CONSUMER_KEY", "env-key")
+        monkeypatch.setenv("DISCOGS_CONSUMER_SECRET", "env-secret")
         c = BaseClient(consumer_key="explicit-key")
         assert c._consumer_key == "explicit-key"
+        assert c._consumer_secret == "env-secret"
 
 
 class TestBuildOAuthHeader:
@@ -196,6 +209,13 @@ class TestMaybeRaise:
             c._maybe_raise(401, {"message": "Unauthorized"})
         assert exc_info.value.status_code == 401
         assert "Unauthorized" in str(exc_info.value)
+
+    def test_403_raises_forbidden_error(self):
+        c = BaseClient(token="t")
+        with pytest.raises(ForbiddenError) as exc_info:
+            c._maybe_raise(403, {"message": "Forbidden"})
+        assert exc_info.value.status_code == 403
+        assert "Forbidden" in str(exc_info.value)
 
     def test_404_raises_not_found(self):
         c = BaseClient(token="t")
@@ -298,12 +318,46 @@ class TestBuildOAuthHeaderForRequest:
         assert 'oauth_consumer_key="ck"' in header
         assert 'oauth_token="at"' in header
 
-    def test_raises_without_consumer_key(self):
+    def test_raises_when_oauth_is_not_the_selected_mode(self):
         c = BaseClient(token="t")
-        with pytest.raises(ValueError, match="consumer_key and consumer_secret"):
+        with pytest.raises(ValueError, match="OAuth is not the selected authentication mode"):
             c._build_oauth_header_for_request()
 
-    def test_raises_without_access_token(self):
+
+class TestAuthModeSelection:
+    def test_explicit_token_beats_environment_oauth(self, monkeypatch):
+        monkeypatch.setenv("DISCOGS_CONSUMER_KEY", "env-key")
+        monkeypatch.setenv("DISCOGS_CONSUMER_SECRET", "env-secret")
+        monkeypatch.setenv("DISCOGS_ACCESS_TOKEN", "env-at")
+        monkeypatch.setenv("DISCOGS_ACCESS_TOKEN_SECRET", "env-ats")
+        c = BaseClient(token="explicit")
+        assert c._uses_oauth is False
+        assert c._build_headers()["Authorization"] == "Discogs token=explicit"
+
+    def test_explicit_oauth_beats_environment_token(self, monkeypatch):
+        monkeypatch.setenv("DISCOGS_TOKEN", "env-token")
+        c = BaseClient(
+            consumer_key="ck",
+            consumer_secret="cs",
+            access_token="at",
+            access_token_secret="ats",
+        )
+        assert c._uses_oauth is True
+        assert c._token is None
+        assert "Authorization" not in c._build_headers()
+
+    def test_explicit_consumer_does_not_borrow_environment_oauth(self, monkeypatch):
+        monkeypatch.setenv("DISCOGS_ACCESS_TOKEN", "env-at")
+        monkeypatch.setenv("DISCOGS_ACCESS_TOKEN_SECRET", "env-ats")
         c = BaseClient(consumer_key="ck", consumer_secret="cs")
-        with pytest.raises(ValueError, match="access_token and access_token_secret"):
-            c._build_oauth_header_for_request()
+        assert c._uses_oauth is False
+        assert c._access_token is None
+        assert c._build_headers()["Authorization"] == "Discogs key=ck, secret=cs"
+
+    def test_incomplete_explicit_oauth_raises(self):
+        with pytest.raises(ValueError, match="consumer_key, consumer_secret"):
+            BaseClient(access_token="at", access_token_secret="ats")
+
+    def test_incomplete_explicit_consumer_raises(self):
+        with pytest.raises(ValueError, match="consumer_secret is missing"):
+            BaseClient(consumer_key="ck")

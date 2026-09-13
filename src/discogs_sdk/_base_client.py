@@ -6,7 +6,7 @@ import os
 import random
 import time
 import urllib.parse
-from typing import Any, Literal
+from typing import Any, Literal, NoReturn
 
 from discogs_sdk._exceptions import (
     AuthenticationError,
@@ -32,6 +32,22 @@ except importlib.metadata.PackageNotFoundError:  # pragma: no cover — package 
 USER_AGENT = f"discogs-sdk/{_SDK_VERSION} +https://github.com/jmfontaine/discogs-sdk"
 
 MediaType = Literal["discogs", "html", "plaintext"]
+AuthMode = Literal["none", "token", "oauth", "consumer"]
+_AUTH_MODE_LABELS: dict[str, str] = {
+    "none": "none (unauthenticated)",
+    "token": "personal access token",
+    "oauth": "OAuth 1.0a",
+    "consumer": "consumer key/secret",
+}
+
+
+def _raise_incomplete_credentials(mode: str, **credentials: str | None) -> NoReturn:
+    missing = sorted(name for name, value in credentials.items() if not value)
+    raise ValueError(
+        f"{mode} authentication was selected but {', '.join(missing)} "
+        f"{'is' if len(missing) == 1 else 'are'} missing. Pass the missing value(s) to the "
+        "constructor or set the matching DISCOGS_* environment variable(s)."
+    )
 
 
 def _generate_nonce() -> str:
@@ -86,49 +102,120 @@ class BaseClient:
         self._user_agent: str = user_agent if user_agent else USER_AGENT
         self._media_type: MediaType = media_type
 
-        # Resolve credentials: constructor arg → env var
-        self._token = token or os.environ.get("DISCOGS_TOKEN")
-        self._consumer_key = consumer_key or os.environ.get("DISCOGS_CONSUMER_KEY")
-        self._consumer_secret = consumer_secret or os.environ.get("DISCOGS_CONSUMER_SECRET")
-        self._access_token = access_token or os.environ.get("DISCOGS_ACCESS_TOKEN")
-        self._access_token_secret = access_token_secret or os.environ.get("DISCOGS_ACCESS_TOKEN_SECRET")
+        self._auth_mode: AuthMode = self._select_auth_mode(
+            token=token,
+            consumer_key=consumer_key,
+            consumer_secret=consumer_secret,
+            access_token=access_token,
+            access_token_secret=access_token_secret,
+        )
+        logger.debug("Auth: %s", _AUTH_MODE_LABELS[self._auth_mode])
 
-        if self._token:
-            logger.debug("Auth: personal access token")
-        elif self._uses_oauth:
-            logger.debug("Auth: OAuth 1.0a")
-        elif self._consumer_key:
-            logger.debug("Auth: consumer key/secret")
-        else:
-            logger.debug("Auth: none (unauthenticated)")
+    def _select_auth_mode(
+        self,
+        *,
+        token: str | None,
+        consumer_key: str | None,
+        consumer_secret: str | None,
+        access_token: str | None,
+        access_token_secret: str | None,
+    ) -> AuthMode:
+        """Pick exactly one authentication mode and bind only that mode's credentials.
+
+        Precedence, documented in the README: an explicit personal token wins over
+        every environment credential; explicit OAuth access-token credentials select
+        OAuth; explicit consumer credentials select consumer auth without borrowing
+        environment access tokens; otherwise the environment resolves the mode.
+        """
+        env = os.environ.get
+        self._token: str | None = None
+        self._consumer_key: str | None = None
+        self._consumer_secret: str | None = None
+        self._access_token: str | None = None
+        self._access_token_secret: str | None = None
+        self._oauth_credentials: tuple[str, str, str, str] | None = None
+
+        if token:
+            self._token = token
+            return "token"
+
+        if access_token or access_token_secret:
+            # Explicitly selected OAuth. Missing halves may come from the matching
+            # environment variables, but an unrelated env token must not take over.
+            key = consumer_key or env("DISCOGS_CONSUMER_KEY")
+            secret = consumer_secret or env("DISCOGS_CONSUMER_SECRET")
+            oauth_token = access_token or env("DISCOGS_ACCESS_TOKEN")
+            oauth_secret = access_token_secret or env("DISCOGS_ACCESS_TOKEN_SECRET")
+            if not (key and secret and oauth_token and oauth_secret):
+                _raise_incomplete_credentials(
+                    "OAuth",
+                    consumer_key=key,
+                    consumer_secret=secret,
+                    access_token=oauth_token,
+                    access_token_secret=oauth_secret,
+                )
+            self._consumer_key, self._consumer_secret = key, secret
+            self._access_token, self._access_token_secret = oauth_token, oauth_secret
+            self._oauth_credentials = (key, secret, oauth_token, oauth_secret)
+            return "oauth"
+
+        if consumer_key or consumer_secret:
+            # Explicitly selected consumer auth. Never borrow environment access
+            # tokens here; that would silently upgrade to a different identity.
+            key = consumer_key or env("DISCOGS_CONSUMER_KEY")
+            secret = consumer_secret or env("DISCOGS_CONSUMER_SECRET")
+            if not (key and secret):
+                _raise_incomplete_credentials("Consumer key/secret", consumer_key=key, consumer_secret=secret)
+            self._consumer_key, self._consumer_secret = key, secret
+            return "consumer"
+
+        # Nothing explicit selected a mode: fall back to the environment.
+        env_token = env("DISCOGS_TOKEN")
+        if env_token:
+            self._token = env_token
+            return "token"
+
+        key, secret = env("DISCOGS_CONSUMER_KEY"), env("DISCOGS_CONSUMER_SECRET")
+        oauth_token, oauth_secret = env("DISCOGS_ACCESS_TOKEN"), env("DISCOGS_ACCESS_TOKEN_SECRET")
+        if key and secret and oauth_token and oauth_secret:
+            self._consumer_key, self._consumer_secret = key, secret
+            self._access_token, self._access_token_secret = oauth_token, oauth_secret
+            self._oauth_credentials = (key, secret, oauth_token, oauth_secret)
+            return "oauth"
+
+        if key and secret:
+            self._consumer_key, self._consumer_secret = key, secret
+            return "consumer"
+
+        return "none"
 
     @property
     def _uses_oauth(self) -> bool:
-        return bool(self._consumer_key and self._consumer_secret and self._access_token and self._access_token_secret)
+        return self._auth_mode == "oauth"
 
     def _build_headers(self) -> dict[str, str]:
         headers = {
             "User-Agent": self._user_agent,
             "Accept": f"application/vnd.discogs.v2.{self._media_type}+json",
         }
-        if self._token:
+        if self._auth_mode == "token":
             headers["Authorization"] = f"Discogs token={self._token}"
-        elif self._consumer_key and self._consumer_secret and not self._access_token:
+        elif self._auth_mode == "consumer":
             headers["Authorization"] = f"Discogs key={self._consumer_key}, secret={self._consumer_secret}"
         # OAuth headers are per-request (need fresh nonce/timestamp),
         # so they are added in _build_oauth_header_for_request() instead.
         return headers
 
     def _build_oauth_header_for_request(self) -> str:
-        if not (self._consumer_key and self._consumer_secret):
-            raise ValueError("OAuth requires consumer_key and consumer_secret")
-        if not (self._access_token and self._access_token_secret):
-            raise ValueError("OAuth requires access_token and access_token_secret")
+        credentials = self._oauth_credentials
+        if credentials is None:
+            raise ValueError("OAuth is not the selected authentication mode")
+        consumer_key, consumer_secret, token, token_secret = credentials
         return build_oauth_header(
-            consumer_key=self._consumer_key,
-            consumer_secret=self._consumer_secret,
-            token=self._access_token,
-            token_secret=self._access_token_secret,
+            consumer_key=consumer_key,
+            consumer_secret=consumer_secret,
+            token=token,
+            token_secret=token_secret,
         )
 
     def _build_url(self, path: str) -> str:
