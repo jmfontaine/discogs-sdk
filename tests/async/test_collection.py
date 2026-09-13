@@ -12,7 +12,6 @@ from discogs_sdk.models.collection import (
     CollectionItem,
     CollectionValue_,
 )
-
 from tests.conftest import (
     make_collection_field,
     make_collection_folder,

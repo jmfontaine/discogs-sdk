@@ -8,7 +8,6 @@ import pytest
 from discogs_sdk._async._paginator import AsyncPage
 from discogs_sdk._exceptions import DiscogsAPIError
 from discogs_sdk.models.release import Release
-
 from tests.conftest import BASE_URL, make_paginated_response, make_release
 
 

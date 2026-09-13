@@ -2,6 +2,7 @@
 # Do not edit directly — edit the corresponding file in _async/ instead.
 
 from __future__ import annotations
+
 from discogs_sdk._sync._lazy import LazyResource
 from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk._sync._resource import SyncAPIResource

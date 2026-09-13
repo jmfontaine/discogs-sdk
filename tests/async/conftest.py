@@ -4,7 +4,6 @@ import pytest
 import respx
 
 from discogs_sdk import AsyncDiscogs
-
 from tests.conftest import BASE_URL
 
 

@@ -7,7 +7,6 @@ import pytest
 
 from discogs_sdk._exceptions import DiscogsAPIError
 from discogs_sdk.models.upload import Upload
-
 from tests.conftest import make_paginated_response, make_upload
 
 

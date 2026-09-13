@@ -5,10 +5,9 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk._exceptions import DiscogsAPIError
+from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk.models.release import Release
-
 from tests.conftest import BASE_URL, make_paginated_response, make_release
 
 

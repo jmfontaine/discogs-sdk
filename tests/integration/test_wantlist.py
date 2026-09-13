@@ -6,7 +6,6 @@ Uses a single release and cleans up after itself.
 import pytest
 
 from discogs_sdk.models.wantlist import Want
-
 from tests.integration.conftest import CRUD_RELEASE_ID
 
 pytestmark = pytest.mark.integration

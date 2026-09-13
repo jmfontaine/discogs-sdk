@@ -11,7 +11,6 @@ import respx
 
 from discogs_sdk import AsyncDiscogs
 from discogs_sdk._exceptions import DiscogsConnectionError, RateLimitError
-
 from tests.conftest import BASE_URL, make_release
 
 

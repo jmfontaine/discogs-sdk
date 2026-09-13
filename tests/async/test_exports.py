@@ -7,7 +7,6 @@ import pytest
 
 from discogs_sdk._exceptions import DiscogsAPIError, DiscogsConnectionError, ForbiddenError
 from discogs_sdk.models.export import Export
-
 from tests.conftest import make_export, make_paginated_response
 
 

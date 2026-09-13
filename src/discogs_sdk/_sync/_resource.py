@@ -2,8 +2,10 @@
 # Do not edit directly — edit the corresponding file in _async/ instead.
 
 from __future__ import annotations
+
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
+
 import httpx
 from pydantic import BaseModel
 

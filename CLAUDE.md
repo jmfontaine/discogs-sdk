@@ -163,7 +163,7 @@ The workflow runs QA + tests, publishes to PyPI via Trusted Publishers (OIDC), a
 
 ## Key Conventions
 
-- Python 3.10+ required, ruff targets 3.14, line length 120
+- Python 3.10+ required, ruff targets 3.10 to match `requires-python`, line length 120
 - All public API exports go through `src/discogs_sdk/__init__.py`
 - New resources: add to `_async/resources/`, wire into `_async/_client.py`, export from `__init__.py`, then regenerate sync
 - New models: add to `models/`, export from `models/__init__.py` and `__init__.py`

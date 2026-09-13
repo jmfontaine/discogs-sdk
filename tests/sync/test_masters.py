@@ -5,7 +5,6 @@ from __future__ import annotations
 import httpx
 
 from discogs_sdk.models.master import MasterVersion
-
 from tests.conftest import make_master, make_master_version, make_paginated_response
 
 

@@ -2,7 +2,10 @@
 # Do not edit directly — edit the corresponding file in _async/ instead.
 
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any, Callable
+
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
+
 from pydantic import BaseModel
 
 if TYPE_CHECKING:

@@ -5,7 +5,6 @@ import pytest
 from discogs_sdk.models.artist import ArtistRelease
 from discogs_sdk.models.label import LabelRelease
 from discogs_sdk.models.master import MasterVersion
-
 from tests.integration.conftest import ARTIST_ID, LABEL_ID, MASTER_ID, RELEASE_ID
 
 pytestmark = pytest.mark.integration

@@ -4,9 +4,12 @@
 """OAuth 1.0a helpers for the Discogs API (PLAINTEXT signature method)."""
 
 from __future__ import annotations
+
 from dataclasses import dataclass
 from urllib.parse import parse_qs
+
 import httpx
+
 from discogs_sdk._base_client import DEFAULT_BASE_URL, USER_AGENT, build_oauth_header
 
 _ACCESS_TOKEN_PATH = "/oauth/access_token"

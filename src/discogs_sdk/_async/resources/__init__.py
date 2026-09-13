@@ -22,8 +22,8 @@ from discogs_sdk._async.resources.releases import (
     ReleaseMarketplaceStats,
     ReleasePriceSuggestions,
     ReleaseRating,
-    ReleaseStatsResource,
     Releases,
+    ReleaseStatsResource,
 )
 from discogs_sdk._async.resources.search import SearchResource
 from discogs_sdk._async.resources.uploads import Uploads
@@ -54,11 +54,11 @@ __all__ = [
     "MarketplaceFee",
     "MarketplaceListings",
     "MarketplaceOrders",
-    "Masters",
     "MasterVersions",
+    "Masters",
     "OrderMessages",
-    "ReleasePriceSuggestions",
     "ReleaseMarketplaceStats",
+    "ReleasePriceSuggestions",
     "ReleaseRating",
     "ReleaseStatsResource",
     "Releases",
@@ -68,8 +68,8 @@ __all__ = [
     "UserInventory",
     "UserLists",
     "UserNamespace",
-    "Users",
     "UserSubmissions",
     "UserUpdate",
+    "Users",
     "Wantlist",
 ]

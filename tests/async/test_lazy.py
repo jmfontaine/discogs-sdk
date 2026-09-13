@@ -7,7 +7,6 @@ import pytest
 
 from discogs_sdk._exceptions import NotFoundError
 from discogs_sdk.models.release import Release
-
 from tests.conftest import make_release
 
 
@@ -59,7 +58,7 @@ class TestAttributeAccess:
     async def test_data_attr_before_await_raises(self, client):
         lazy = client.releases.get(400027)
         with pytest.raises(AttributeError, match="Cannot access 'title'"):
-            lazy.title
+            _ = lazy.title
 
     async def test_data_attr_after_await(self, client, respx_mock):
         respx_mock.get("/releases/400027").mock(return_value=httpx.Response(200, json=make_release()))

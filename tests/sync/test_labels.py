@@ -5,7 +5,6 @@ from __future__ import annotations
 import httpx
 
 from discogs_sdk.models.label import LabelRelease
-
 from tests.conftest import make_label, make_label_release, make_paginated_response
 
 

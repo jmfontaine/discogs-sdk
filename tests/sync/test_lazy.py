@@ -5,9 +5,8 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from discogs_sdk._sync._lazy import LazyResource
 from discogs_sdk._exceptions import NotFoundError
-
+from discogs_sdk._sync._lazy import LazyResource
 from tests.conftest import make_release
 
 
@@ -38,7 +37,7 @@ class TestAutoResolve:
         respx_mock.get("/releases/999").mock(return_value=httpx.Response(404, json={"message": "Not Found"}))
         lazy = client.releases.get(999)
         with pytest.raises(NotFoundError):
-            lazy.title
+            _ = lazy.title
 
 
 class TestGetItem:

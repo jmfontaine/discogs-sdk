@@ -53,7 +53,9 @@ class SDKModel(BaseModel):
             alias = field_info.validation_alias or field_info.alias
             if alias == name:
                 return self.__dict__.get(field_name)
-        return super().__getattr__(name)  # type: ignore[misc]  # Pydantic BaseModel.__getattr__ exists at runtime
+        # Pydantic's BaseModel.__getattr__ exists at runtime but is hidden from type
+        # checkers, so both checkers need silencing here.
+        return super().__getattr__(name)  # type: ignore[misc]  # ty: ignore[unresolved-attribute]
 
 
 class Price(SDKModel):

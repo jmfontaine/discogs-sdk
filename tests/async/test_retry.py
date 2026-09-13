@@ -13,7 +13,6 @@ from discogs_sdk._async._lazy import AsyncLazyResource
 from discogs_sdk._async._paginator import AsyncPage
 from discogs_sdk._exceptions import DiscogsAPIError, DiscogsConnectionError, RateLimitError
 from discogs_sdk.models.release import Release
-
 from tests.conftest import BASE_URL, make_paginated_response, make_release
 
 

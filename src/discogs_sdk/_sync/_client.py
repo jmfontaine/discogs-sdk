@@ -2,6 +2,7 @@
 # Do not edit directly — edit the corresponding file in _async/ instead.
 
 from __future__ import annotations
+
 import logging
 import time
 from collections.abc import Generator
@@ -9,15 +10,17 @@ from contextlib import contextmanager
 from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from typing_extensions import Self
+
 import httpx
+from typing_extensions import Self
+
 from discogs_sdk._base_client import (
+    _RETRY_STATUSES,
     DEFAULT_BASE_URL,
     DEFAULT_CACHE_TTL,
     DEFAULT_TIMEOUT,
     BaseClient,
     MediaType,
-    _RETRY_STATUSES,
 )
 from discogs_sdk._cache import MemoryCache, ResponseCache, SQLiteCache
 from discogs_sdk._exceptions import DiscogsConnectionError

@@ -5,7 +5,6 @@ from __future__ import annotations
 import httpx
 
 from discogs_sdk.models.search import SearchResult
-
 from tests.conftest import BASE_URL, make_paginated_response, make_search_result
 
 

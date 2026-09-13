@@ -2,7 +2,9 @@
 # Do not edit directly — edit the corresponding file in _async/ instead.
 
 from __future__ import annotations
+
 from typing import Any
+
 from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk._sync._resource import SyncAPIResource
 from discogs_sdk.models.search import SearchResult

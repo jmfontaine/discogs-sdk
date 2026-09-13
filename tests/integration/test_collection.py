@@ -6,7 +6,6 @@ Creates a folder, adds a release, verifies, then cleans up.
 import pytest
 
 from discogs_sdk.models.collection import CollectionFolder, CollectionItem
-
 from tests.integration.conftest import CRUD_RELEASE_ID
 
 pytestmark = pytest.mark.integration

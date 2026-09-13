@@ -13,7 +13,6 @@ from discogs_sdk.models.release import (
     ReleaseStats,
     UserReleaseRating,
 )
-
 from tests.conftest import (
     make_community_rating,
     make_release,
