@@ -57,7 +57,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
     if: >
       github.event_name == 'push' ||
       (github.event_name == 'pull_request' && github.actor != 'dependabot[bot]') ||
@@ -75,3 +75,40 @@ jobs:
         run: uv sync --all-extras --all-groups
       - name: Run tests
         run: uv run pytest --cov --cov-report=term-missing
+
+  lowest:
+    name: Lowest direct deps (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # One entry per direct-dependency floor branch: 3.15 has its own
+        # pydantic minimum, 3.10 covers 3.10-3.14 and is the oldest supported.
+        python-version: ["3.10", "3.15"]
+    if: >
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && github.actor != 'dependabot[bot]') ||
+      (github.event_name == 'pull_request_target' && github.actor == 'dependabot[bot]')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || '' }}
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install the declared minimum dependencies
+        # The lockfile always resolves newest, so the floors in pyproject.toml
+        # are otherwise never exercised. Note this rewrites uv.lock in the
+        # runner; never run it in a working tree you care about.
+        run: uv sync --all-extras --all-groups --resolution lowest-direct
+      - name: Run tests
+        # `--frozen` is required: plain `uv run` sees a `lowest-direct` lock
+        # while defaulting to `highest`, re-resolves, and quietly reinstalls the
+        # newest versions before the tests run.
+        #
+        # Deprecations are fatal here: the pytest-asyncio floor exists because
+        # earlier releases call asyncio APIs Python 3.15 deprecates, and a plain
+        # run would let that regress silently.
+        run: uv run --frozen python -W error::DeprecationWarning -W error::PendingDeprecationWarning -m pytest --no-cov
