@@ -90,8 +90,14 @@ class ListingProxy(LazyResource[Listing], ListingFields):
 
 
 class MarketplaceListings(SyncAPIResource):
-    def get(self, listing_id: int) -> ListingProxy:
-        return ListingProxy(self._client, f"/marketplace/listings/{listing_id}", Listing)
+    def get(self, listing_id: int, *, curr_abbr: CurrencyCode | None = None) -> ListingProxy:
+        """The listing, priced in *curr_abbr* when given."""
+        return ListingProxy(
+            self._client,
+            f"/marketplace/listings/{listing_id}",
+            Listing,
+            params={"curr_abbr": curr_abbr} if curr_abbr else None,
+        )
 
     def create(
         self, *, release_id: int, condition: Condition, price: float, status: str = "For Sale", **kwargs: Any

@@ -27,11 +27,20 @@ class AsyncLazyResource(Generic[_M]):
     _client: AsyncDiscogs
     _path: str
     _model_cls: type[_M]
+    _params: dict[str, Any] | None
 
-    def __init__(self, client: AsyncDiscogs, path: str, model_cls: type[_M]) -> None:
+    def __init__(
+        self,
+        client: AsyncDiscogs,
+        path: str,
+        model_cls: type[_M],
+        *,
+        params: dict[str, Any] | None = None,
+    ) -> None:
         self._client = client
         self._path = path
         self._model_cls = model_cls
+        self._params = params
         # Written through object.__setattr__ and read through
         # object.__getattribute__: a plain read would recurse through __getattr__.
         object.__setattr__(self, "_resolved", None)
@@ -46,8 +55,9 @@ class AsyncLazyResource(Generic[_M]):
         client = object.__getattribute__(self, "_client")
         path = object.__getattribute__(self, "_path")
         model_cls = object.__getattribute__(self, "_model_cls")
+        params = object.__getattribute__(self, "_params")
 
-        response = await client._send("GET", client._build_url(path))
+        response = await client._send("GET", client._build_url(path), params=params)
         resolved = model_cls.model_validate(response.json())
         object.__setattr__(self, "_resolved", resolved)
         return resolved

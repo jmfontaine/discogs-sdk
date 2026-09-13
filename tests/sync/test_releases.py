@@ -132,3 +132,27 @@ class TestReleaseModel:
         )
         lazy = client.releases.get(1)
         assert lazy.model_extra["unknown_field"] == "val"
+
+
+class TestCurrencySelection:
+    def test_currency_does_not_fetch_eagerly(self, client, respx_mock):
+        proxy = client.releases.get(352665, curr_abbr="EUR")
+        _ = proxy.marketplace_stats.get(curr_abbr="EUR")
+        assert respx_mock.calls.call_count == 0
+
+    def test_release_sends_requested_currency(self, client, respx_mock):
+        route = respx_mock.get("/releases/352665").mock(return_value=httpx.Response(200, json=make_release()))
+        _ = client.releases.get(352665, curr_abbr="EUR").title
+        assert route.calls[0].request.url.params["curr_abbr"] == "EUR"
+
+    def test_release_without_currency_sends_no_parameter(self, client, respx_mock):
+        route = respx_mock.get("/releases/352665").mock(return_value=httpx.Response(200, json=make_release()))
+        _ = client.releases.get(352665).title
+        assert "curr_abbr" not in route.calls[0].request.url.params
+
+    def test_marketplace_stats_sends_requested_currency(self, client, respx_mock):
+        route = respx_mock.get("/marketplace/stats/352665").mock(
+            return_value=httpx.Response(200, json={"num_for_sale": 3, "blocked_from_sale": False})
+        )
+        _ = client.releases.get(352665).marketplace_stats.get(curr_abbr="GBP").num_for_sale
+        assert route.calls[0].request.url.params["curr_abbr"] == "GBP"

@@ -134,3 +134,19 @@ class TestMarketplaceFee:
         )
         lazy = client.marketplace.fee.get(price=10.0, currency="EUR")
         assert lazy.currency == "EUR"
+
+
+class TestListingCurrencySelection:
+    def test_currency_does_not_fetch_eagerly(self, client, respx_mock):
+        _proxy = client.marketplace.listings.get(123, curr_abbr="EUR")
+        assert respx_mock.calls.call_count == 0
+
+    def test_listing_sends_requested_currency(self, client, respx_mock):
+        route = respx_mock.get("/marketplace/listings/123").mock(return_value=httpx.Response(200, json=make_listing()))
+        _ = client.marketplace.listings.get(123, curr_abbr="EUR").id
+        assert route.calls[0].request.url.params["curr_abbr"] == "EUR"
+
+    def test_listing_without_currency_sends_no_parameter(self, client, respx_mock):
+        route = respx_mock.get("/marketplace/listings/123").mock(return_value=httpx.Response(200, json=make_listing()))
+        _ = client.marketplace.listings.get(123).id
+        assert "curr_abbr" not in route.calls[0].request.url.params

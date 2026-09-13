@@ -155,3 +155,19 @@ class TestListingModel:
         )
         result = await client.marketplace.listings.get(1)
         assert result.model_extra["_unknown_extra_field"] == "test"
+
+
+class TestListingCurrencySelection:
+    def test_currency_does_not_fetch_eagerly(self, client, respx_mock):
+        _proxy = client.marketplace.listings.get(123, curr_abbr="EUR")
+        assert respx_mock.calls.call_count == 0
+
+    async def test_listing_sends_requested_currency(self, client, respx_mock):
+        route = respx_mock.get("/marketplace/listings/123").mock(return_value=httpx.Response(200, json=make_listing()))
+        await client.marketplace.listings.get(123, curr_abbr="EUR")
+        assert route.calls[0].request.url.params["curr_abbr"] == "EUR"
+
+    async def test_listing_without_currency_sends_no_parameter(self, client, respx_mock):
+        route = respx_mock.get("/marketplace/listings/123").mock(return_value=httpx.Response(200, json=make_listing()))
+        await client.marketplace.listings.get(123)
+        assert "curr_abbr" not in route.calls[0].request.url.params
