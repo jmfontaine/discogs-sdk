@@ -29,26 +29,25 @@ class TestCollectionFolders:
 
 
 class TestCollectionReleases:
-    """Add release to folder 1 (Uncategorized), verify, then remove."""
+    """Add a release to folder 1 (Uncategorized), verify, then remove that copy."""
 
     def test_add_and_remove_release(self, client, username):
         user = client.users.get(username)
         folder_releases = user.collection.folders.get(1).releases
 
-        # Add release to Uncategorized (folder 1)
-        folder_releases.create(release_id=CRUD_RELEASE_ID)
+        # Keep the acknowledgement: the user may already own other copies of this
+        # release, and only the instance created here may be removed.
+        created = folder_releases.create(release_id=CRUD_RELEASE_ID)
+        instance_id = created.instance_id
 
         try:
-            # Verify it appears
-            page = folder_releases.list()
-            items = list(page)
-            matching = [i for i in items if i.basic_information and i.basic_information.id == CRUD_RELEASE_ID]
-            assert len(matching) > 0
-            assert isinstance(matching[0], CollectionItem)
-
-            instance_id = matching[0].instance_id
+            items = list(folder_releases.list())
+            mine = [item for item in items if item.instance_id == instance_id]
+            assert len(mine) == 1
+            assert isinstance(mine[0], CollectionItem)
+            assert mine[0].basic_information is not None
+            assert mine[0].basic_information.id == CRUD_RELEASE_ID
         finally:
-            # Remove via instance delete (folder 1)
             user.collection.folders.get(1).releases.get(CRUD_RELEASE_ID).instances.delete(instance_id)
 
 
