@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import httpx
+import respx
 
 from discogs_sdk.models.search import SearchResult
 from tests.conftest import BASE_URL, make_paginated_response, make_search_result
@@ -11,7 +11,7 @@ from tests.conftest import BASE_URL, make_paginated_response, make_search_result
 class TestSearch:
     async def test_query_remapped_to_q(self, client, respx_mock):
         respx_mock.get("/database/search").mock(
-            return_value=httpx.Response(200, json=make_paginated_response("results", [make_search_result()]))
+            return_value=respx.MockResponse(200, json=make_paginated_response("results", [make_search_result()]))
         )
         results = [item async for item in client.search(query="nine inch nails")]
         assert len(results) == 1
@@ -21,7 +21,7 @@ class TestSearch:
 
     async def test_none_values_filtered(self, client, respx_mock):
         respx_mock.get("/database/search").mock(
-            return_value=httpx.Response(200, json=make_paginated_response("results", [make_search_result()]))
+            return_value=respx.MockResponse(200, json=make_paginated_response("results", [make_search_result()]))
         )
         results = [item async for item in client.search(query="test", type=None)]
         assert len(results) == 1
@@ -31,7 +31,7 @@ class TestSearch:
     async def test_returns_search_results(self, client, respx_mock):
         items = [make_search_result(id=i, title=f"R{i}") for i in range(3)]
         respx_mock.get("/database/search").mock(
-            return_value=httpx.Response(200, json=make_paginated_response("results", items))
+            return_value=respx.MockResponse(200, json=make_paginated_response("results", items))
         )
         results = [item async for item in client.search(query="test")]
         assert len(results) == 3
@@ -53,8 +53,8 @@ class TestSearch:
         )
         responses = iter(
             [
-                httpx.Response(200, json=page1),
-                httpx.Response(200, json=page2),
+                respx.MockResponse(200, json=page1),
+                respx.MockResponse(200, json=page2),
             ]
         )
         respx_mock.get("/database/search").mock(side_effect=lambda req: next(responses))
@@ -63,7 +63,7 @@ class TestSearch:
 
     async def test_additional_params(self, client, respx_mock):
         respx_mock.get("/database/search").mock(
-            return_value=httpx.Response(200, json=make_paginated_response("results", [make_search_result()]))
+            return_value=respx.MockResponse(200, json=make_paginated_response("results", [make_search_result()]))
         )
         results = [item async for item in client.search(query="test", type="release", year="1994")]
         assert len(results) == 1
@@ -72,7 +72,7 @@ class TestSearch:
 class TestSearchResultModel:
     async def test_required_fields(self, client, respx_mock):
         respx_mock.get("/database/search").mock(
-            return_value=httpx.Response(
+            return_value=respx.MockResponse(
                 200,
                 json=make_paginated_response("results", [{"id": 1, "title": "T"}]),
             )
@@ -82,7 +82,7 @@ class TestSearchResultModel:
 
     async def test_extra_allow(self, client, respx_mock):
         respx_mock.get("/database/search").mock(
-            return_value=httpx.Response(
+            return_value=respx.MockResponse(
                 200,
                 json=make_paginated_response("results", [{"id": 1, "title": "T", "_unknown_extra_field": "test"}]),
             )

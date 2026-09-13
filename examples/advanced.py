@@ -5,7 +5,7 @@ Covers:
   - Rate limit handling
   - Custom User-Agent
   - Response caching
-  - Custom httpx client
+  - Custom httpx2 client
   - Exports (inventory CSV download)
   - Uploads (inventory CSV import)
   - Lists
@@ -13,7 +13,7 @@ Covers:
   - Submissions by type (artists, labels)
 """
 
-import httpx
+import httpx2
 
 from discogs_sdk import (
     AuthenticationError,
@@ -140,14 +140,14 @@ client = Discogs(token="YOUR_TOKEN_HERE", cache=DictCache())
 client = Discogs(token="YOUR_TOKEN_HERE", user_agent="MyApp/1.0 +https://myapp.example.com")
 
 
-# ━━ Custom httpx client ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Pass your own httpx.Client for full control over transport, proxies,
+# ━━ Custom httpx2 client ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Pass your own httpx2.Client for full control over transport, proxies,
 # certificates, etc.  The SDK sends its own credentials, User-Agent and
 # media type per request, and it will NOT close a client you provide.
 # Keep it open until its last SDK request — scope it explicitly.
-with httpx.Client(
+with httpx2.Client(
     timeout=10.0,
-    limits=httpx.Limits(max_connections=20),
+    limits=httpx2.Limits(max_connections=20),
     headers={"X-App-Trace": "example"},  # preserved alongside the SDK headers
 ) as custom_http:
     custom_client = Discogs(token="YOUR_TOKEN_HERE", http_client=custom_http)

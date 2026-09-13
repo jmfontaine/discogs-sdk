@@ -10,7 +10,7 @@ import time
 import urllib.parse
 from typing import Any, Literal, NoReturn
 
-import httpx
+import httpx2
 
 from discogs_sdk._exceptions import (
     AuthenticationError,
@@ -51,7 +51,7 @@ def may_retry_transport_error(method: str, exc: Exception) -> bool:
     """
     if method.upper() in _SAFE_METHODS:
         return True
-    return isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout))
+    return isinstance(exc, (httpx2.ConnectError, httpx2.ConnectTimeout, httpx2.PoolTimeout))
 
 
 try:
@@ -299,7 +299,7 @@ class BaseClient:
         # Exponential backoff (2^attempt) capped at 60s, plus random jitter to avoid thundering herd
         return min(2**attempt, 60) + random.random()
 
-    def _raise_for_response(self, response: httpx.Response) -> None:
+    def _raise_for_response(self, response: httpx2.Response) -> None:
         """Single HTTP-error boundary, applied before any endpoint JSON parsing.
 
         A failing response is decoded as JSON when possible; otherwise its text is

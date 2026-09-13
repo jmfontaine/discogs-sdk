@@ -4,7 +4,7 @@ This file provides guidance to coding agents when working with code in this repo
 
 ## Project Overview
 
-A modern, typed Python SDK for the Discogs API. Supports both sync (`Discogs`) and async (`AsyncDiscogs`) clients with identical APIs. Built on httpx and Pydantic.
+A modern, typed Python SDK for the Discogs API. Supports both sync (`Discogs`) and async (`AsyncDiscogs`) clients with identical APIs. Built on httpx2 and Pydantic.
 
 ## Commands
 
@@ -89,7 +89,15 @@ Env vars: `DISCOGS_TOKEN`, `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `D
 
 ## Testing
 
-- HTTP mocking uses `respx` at the transport level via `respx_mock` fixture
+- HTTP mocking uses `respx` at the transport level via `respx_mock` fixture. Because the SDK runs on httpx2,
+  every `respx.mock(...)` call must pass `using="httpcore2"` — respx's built-in mockers only patch httpx/httpcore
+  and would silently intercept nothing. That mocker is registered by `pytest-httpx2` (respx's httpx2 companion,
+  same author), which loads as a pytest plugin
+- Build mocked responses with `respx.MockResponse(...)`, never `httpx2.Response(...)`: respx's `return_value` and
+  `side_effect` guards hard-code `isinstance(..., httpx.Response)` and reject httpx2 responses outright
+  ([respx#324](https://github.com/lundberg/respx/issues/324)). Exceptions are the opposite — `side_effect` must
+  raise `httpx2.*` errors, since an `httpx.ConnectError` surfaces unchanged and escapes the SDK's handlers.
+  Both rules carry a `KLUDGE:` in `tests/conftest.py` with the removal condition
 - Shared payload factories in `tests/conftest.py` (`make_release()`, `make_artist()`, etc.)
 - Async tests in `tests/async/`, sync tests in `tests/sync/` (both hand-maintained)
 - `pytest-asyncio` with `asyncio_mode="auto"` — no need for `@pytest.mark.asyncio`

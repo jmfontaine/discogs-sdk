@@ -6,7 +6,6 @@ paths are exercised without a real account.
 
 from __future__ import annotations
 
-import httpx
 import pytest
 import respx
 from _pytest.outcomes import Skipped
@@ -48,7 +47,7 @@ def client():
 
 class TestCollectionLifecycle:
     def test_deletes_only_the_instance_it_created(self, client):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             router.post(f"{FOLDER_PATH}/{CRUD_RELEASE_ID}").respond(
                 201, json=make_collection_instance_created(instance_id=20, release_id=CRUD_RELEASE_ID)
             )
@@ -66,7 +65,7 @@ class TestCollectionLifecycle:
             assert deleted_paths == [f"{FOLDER_PATH}/{CRUD_RELEASE_ID}/instances/20"]
 
     def test_verification_failure_still_removes_only_the_created_instance(self, client):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             router.post(f"{FOLDER_PATH}/{CRUD_RELEASE_ID}").respond(
                 201, json=make_collection_instance_created(instance_id=20, release_id=CRUD_RELEASE_ID)
             )
@@ -80,9 +79,9 @@ class TestCollectionLifecycle:
             assert deleted.call_count == 1
 
     def test_failed_creation_deletes_nothing(self, client):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             router.post(f"{FOLDER_PATH}/{CRUD_RELEASE_ID}").mock(
-                return_value=httpx.Response(422, json={"message": "Cannot add to this folder"})
+                return_value=respx.MockResponse(422, json={"message": "Cannot add to this folder"})
             )
 
             with pytest.raises(Exception, match="Cannot add to this folder"):
@@ -103,7 +102,7 @@ EXISTING_WANT = {
 
 class TestWantlistLifecycle:
     def test_pre_existing_want_survives_unchanged(self, client):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             router.get(WANTLIST_PATH).respond(200, json=make_paginated_response("wants", [EXISTING_WANT]))
 
             with pytest.raises(Skipped):
@@ -113,14 +112,14 @@ class TestWantlistLifecycle:
             assert {call.request.method for call in router.calls} == {"GET"}
 
     def test_absent_want_completes_the_cycle_and_leaves_nothing_behind(self, client):
-        with respx.mock(base_url=BASE_URL) as router:
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             listings = iter(
                 [
                     make_paginated_response("wants", []),
                     make_paginated_response("wants", [{"id": CRUD_RELEASE_ID}]),
                 ]
             )
-            router.get(WANTLIST_PATH).mock(side_effect=lambda req: httpx.Response(200, json=next(listings)))
+            router.get(WANTLIST_PATH).mock(side_effect=lambda req: respx.MockResponse(200, json=next(listings)))
             created = router.put(f"{WANTLIST_PATH}/{CRUD_RELEASE_ID}").respond(
                 201, json={"id": CRUD_RELEASE_ID, "basic_information": {"id": CRUD_RELEASE_ID, "title": "PHM"}}
             )

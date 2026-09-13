@@ -20,7 +20,7 @@ GATEWAY_HTML = "<html><head><title>502 Bad Gateway</title></head><body>nginx</bo
 
 @pytest.fixture
 def respx_mock():
-    with respx.mock(base_url=BASE_URL) as router:
+    with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
         yield router
 
 

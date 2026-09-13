@@ -19,5 +19,5 @@ def no_retry_client(respx_mock):
 
 @pytest.fixture
 def respx_mock():
-    with respx.mock(base_url=BASE_URL) as router:
+    with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
         yield router
