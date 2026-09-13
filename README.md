@@ -45,17 +45,23 @@ Requires Python 3.10+.
 
 ### How it compares
 
+Compared with [python3-discogs-client](https://github.com/joalla/discogs_client), checked against its sources
+([`models.py`](https://github.com/joalla/discogs_client/blob/master/discogs_client/models.py),
+[`fetchers.py`](https://github.com/joalla/discogs_client/blob/master/discogs_client/fetchers.py),
+[`utils.py`](https://github.com/joalla/discogs_client/blob/master/discogs_client/utils.py)):
+
 | | discogs-sdk | python3-discogs-client |
 |---|---|---|
-| Full API coverage | ✓ | Partial |
+| Async & sync | ✓ | Sync only |
+| Pydantic response models | ✓ | ✗ (plain attribute access) |
 | Fluent sub-resource chaining | ✓ | ✗ |
-| Lazy loading | ✓ | ✗ |
+| Persistent HTTP response cache | ✓ (memory or SQLite) | ✗ |
 | Auto-pagination | ✓ | ✓ |
-| Automatic rate limit handling | ✓ | ✗ |
-| Caching | ✓ | ✗ |
 | OAuth 1.0a | ✓ | ✓ |
-| Type safe (Pydantic models) | ✓ | ✗ |
-| Async & sync | ✓ | ✗ |
+
+Both libraries defer HTTP until data is accessed, and both retry after a 429 — `python3-discogs-client` enables an
+exponential-backoff wrapper by default, so those are not differentiators. It also keeps fetched fields on the model
+object, which is not the same thing as the response cache above.
 
 ## Quick start
 
