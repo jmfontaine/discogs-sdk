@@ -33,7 +33,7 @@ Requires Python 3.10+.
 
 ## Features
 
-- **Documented API Coverage** — Every endpoint and parameter in the Discogs API v2 documentation
+- **Complete Endpoint Coverage** — Every route in the Discogs API v2 documentation
 - **Fluent API** — Chain sub-resources naturally: `client.releases.get(id).rating.get()`
 - **Lazy Loading** — No HTTP calls until you actually need the data
 - **Effortless Pagination** — Browse results without managing pages or offsets
@@ -45,31 +45,17 @@ Requires Python 3.10+.
 
 ### How it compares
 
-Compared with [python3-discogs-client](https://github.com/joalla/discogs_client), checked against its sources
-([`models.py`](https://github.com/joalla/discogs_client/blob/master/discogs_client/models.py),
-[`fetchers.py`](https://github.com/joalla/discogs_client/blob/master/discogs_client/fetchers.py),
-[`utils.py`](https://github.com/joalla/discogs_client/blob/master/discogs_client/utils.py)):
+The established alternative is [python3-discogs-client](https://github.com/joalla/discogs_client). Both load data
+lazily, paginate automatically, support OAuth 1.0a and back off on HTTP 429, so the differences that matter are:
 
 | | discogs-sdk | python3-discogs-client |
 |---|---|---|
-| Documented v2 API coverage | Complete | Partial (see below) |
-| Async & sync | ✓ | Sync only |
-| Pydantic response models | ✓ | ✗ (plain attribute access) |
-| Persistent HTTP response cache | ✓ (memory or SQLite) | ✗ |
-| Auto-pagination | ✓ | ✓ |
-| OAuth 1.0a | ✓ | ✓ |
+| Documented v2 API coverage | Complete | Partial * |
+| Sync and async | Both | Sync only |
+| Responses | Typed Pydantic models | Untyped attributes |
+| Response cache | In-memory or SQLite | None |
 
-`python3-discogs-client` reaches none of: inventory export, inventory upload, the community and per-user release
-rating endpoints, release have/want stats, collection field definitions, per-instance collection field values, user
-contributions and user submissions. It also has no folder create and no folder rename — `CollectionFolder.name` is
-not writable — and always sends a currency when quoting a marketplace fee. Deleting a folder does work, through the
-generic `PrimaryAPIObject.delete()`.
-
-Both libraries defer HTTP until data is accessed, chain sub-resources off a fetched object, and retry after a 429 —
-`python3-discogs-client` enables an exponential-backoff wrapper by default — so none of those are differentiators.
-It also keeps fetched fields on the model object, which is not the same thing as the response cache above.
-
-Re-check every claim in this section with `just check-endpoints --compare-upstream`.
+* No inventory export or upload, release ratings or have/want stats, collection fields, folder creation, contributions or submissions
 
 ## Quick start
 
