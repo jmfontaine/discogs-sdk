@@ -37,6 +37,7 @@ async def main() -> None:
         # Sub-resource accessors never trigger HTTP, so no await needed.
         # Only the final .get() returns a lazy that needs awaiting.
         rating = await client.releases.get(352665).rating.get()
+        assert not isinstance(rating.rating, int)
         print(f"Average: {rating.rating.average}")
 
         # ── Pagination with async for ─────────────────────────────
@@ -56,7 +57,8 @@ async def main() -> None:
         # doesn't need await — only data access does.
         async for item in user.collection.folders.get(0).releases.list():
             info = item.basic_information
-            print(f"  {info.title}")
+            if info:
+                print(f"  {info.title}")
 
 
 asyncio.run(main())

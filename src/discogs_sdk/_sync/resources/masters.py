@@ -3,10 +3,17 @@
 
 from __future__ import annotations
 
+from functools import cached_property
+from typing import TYPE_CHECKING
+
 from discogs_sdk._sync._lazy import LazyResource
 from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk._sync._resource import SyncAPIResource
+from discogs_sdk.models._lazy_fields import MasterFields
 from discogs_sdk.models.master import Master, MasterVersion
+
+if TYPE_CHECKING:
+    from discogs_sdk._sync._client import Discogs
 
 
 class MasterVersions(SyncAPIResource):
@@ -45,11 +52,20 @@ class MasterVersions(SyncAPIResource):
         )
 
 
+class MasterProxy(LazyResource[Master], MasterFields):
+    """Lazy ``Master`` with its typed sub-resources."""
+
+    _master_id: int
+
+    def __init__(self, client: Discogs, master_id: int) -> None:
+        super().__init__(client, f"/masters/{master_id}", Master)
+        self._master_id = master_id
+
+    @cached_property
+    def versions(self) -> MasterVersions:
+        return MasterVersions(self._client, self._master_id)
+
+
 class Masters(SyncAPIResource):
-    def get(self, master_id: int) -> LazyResource:
-        return LazyResource(
-            client=self._client,
-            model_cls=Master,
-            path=f"/masters/{master_id}",
-            sub_resources={"versions": lambda: MasterVersions(self._client, master_id)},
-        )
+    def get(self, master_id: int) -> MasterProxy:
+        return MasterProxy(self._client, master_id)

@@ -57,7 +57,9 @@ for item in user.collection.folders.get(0).releases.list(
     sort_order="desc",
 ):
     info = item.basic_information
-    print(f"  {info.title} by {info.artists[0].name} (rating: {item.rating})")
+    if info:
+        artists = ", ".join(a.name or "" for a in info.artists or [])
+        print(f"  {info.title} by {artists} (rating: {item.rating})")
 
 
 # ━━ Adding releases ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -119,7 +121,8 @@ for item in user.collection.releases.get(352665).list():
 
 # List wantlist (paginated).
 for want in user.wantlist.list():
-    print(f"  {want.basic_information.title} (rating: {want.rating})")
+    if want.basic_information:
+        print(f"  {want.basic_information.title} (rating: {want.rating})")
 
 # Add to wantlist.
 want = user.wantlist.create(

@@ -3,11 +3,16 @@
 
 from __future__ import annotations
 
+from functools import cached_property
 from typing import TYPE_CHECKING
 
 from discogs_sdk._sync._lazy import LazyResource
 from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk._sync._resource import SyncAPIResource
+from discogs_sdk._sync.resources.collection import Collection
+from discogs_sdk._sync.resources.lists import UserLists
+from discogs_sdk._sync.resources.wantlist import Wantlist
+from discogs_sdk.models._lazy_fields import UserFields
 from discogs_sdk.models.artist import Artist
 from discogs_sdk.models.label import Label
 from discogs_sdk.models.marketplace import Listing
@@ -169,23 +174,44 @@ class UserNamespace:
         return Identity.model_validate(response.json())
 
 
-class Users(SyncAPIResource):
-    def get(self, username: str) -> LazyResource:
-        from discogs_sdk._sync.resources.collection import Collection
-        from discogs_sdk._sync.resources.lists import UserLists
-        from discogs_sdk._sync.resources.wantlist import Wantlist
+class UserProxy(LazyResource[User], UserFields):
+    """Lazy ``User`` with its typed sub-resources."""
 
-        return LazyResource(
-            client=self._client,
-            path=f"/users/{username}",
-            model_cls=User,
-            sub_resources={
-                "collection": lambda: Collection(self._client, username),
-                "contributions": lambda: UserContributions(self._client, username),
-                "inventory": lambda: UserInventory(self._client, username),
-                "lists": lambda: UserLists(self._client, username),
-                "submissions": lambda: UserSubmissions(self._client, username),
-                "update": lambda: UserUpdate(self._client, username),
-                "wantlist": lambda: Wantlist(self._client, username),
-            },
-        )
+    _username: str
+
+    def __init__(self, client: Discogs, username: str) -> None:
+        super().__init__(client, f"/users/{username}", User)
+        self._username = username
+
+    @cached_property
+    def collection(self) -> Collection:
+        return Collection(self._client, self._username)
+
+    @cached_property
+    def contributions(self) -> UserContributions:
+        return UserContributions(self._client, self._username)
+
+    @cached_property
+    def inventory(self) -> UserInventory:
+        return UserInventory(self._client, self._username)
+
+    @cached_property
+    def lists(self) -> UserLists:
+        return UserLists(self._client, self._username)
+
+    @cached_property
+    def submissions(self) -> UserSubmissions:
+        return UserSubmissions(self._client, self._username)
+
+    @cached_property
+    def update(self) -> UserUpdate:
+        return UserUpdate(self._client, self._username)
+
+    @cached_property
+    def wantlist(self) -> Wantlist:
+        return Wantlist(self._client, self._username)
+
+
+class Users(SyncAPIResource):
+    def get(self, username: str) -> UserProxy:
+        return UserProxy(self._client, username)

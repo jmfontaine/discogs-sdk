@@ -6,7 +6,12 @@ from __future__ import annotations
 from discogs_sdk._sync._lazy import LazyResource
 from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk._sync._resource import SyncAPIResource
+from discogs_sdk.models._lazy_fields import UploadFields
 from discogs_sdk.models.upload import Upload
+
+
+class UploadProxy(LazyResource[Upload], UploadFields):
+    """Lazy inventory upload."""
 
 
 class Uploads(SyncAPIResource):
@@ -25,5 +30,5 @@ class Uploads(SyncAPIResource):
             client=self._client, items_key="items", model_cls=Upload, params=params, path="/inventory/upload"
         )
 
-    def get(self, upload_id: int) -> LazyResource:
-        return LazyResource(client=self._client, model_cls=Upload, path=f"/inventory/upload/{upload_id}")
+    def get(self, upload_id: int) -> UploadProxy:
+        return UploadProxy(self._client, f"/inventory/upload/{upload_id}", Upload)

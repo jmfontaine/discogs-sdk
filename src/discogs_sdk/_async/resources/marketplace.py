@@ -42,16 +42,23 @@ class OrderMessages(AsyncAPIResource):
         return self._parse_response(response, OrderMessage)
 
 
+class OrderProxy(AsyncLazyResource[Order]):
+    """Lazy ``Order`` with its typed sub-resources."""
+
+    _order_id: str
+
+    def __init__(self, client: AsyncDiscogs, order_id: str) -> None:
+        super().__init__(client, f"/marketplace/orders/{order_id}", Order)
+        self._order_id = order_id
+
+    @cached_property
+    def messages(self) -> OrderMessages:
+        return OrderMessages(self._client, self._order_id)
+
+
 class MarketplaceOrders(AsyncAPIResource):
-    def get(self, order_id: str) -> AsyncLazyResource:
-        return AsyncLazyResource(
-            client=self._client,
-            model_cls=Order,
-            path=f"/marketplace/orders/{order_id}",
-            sub_resources={
-                "messages": lambda: OrderMessages(self._client, order_id),
-            },
-        )
+    def get(self, order_id: str) -> OrderProxy:
+        return OrderProxy(self._client, order_id)
 
     def list(
         self,
@@ -86,13 +93,13 @@ class MarketplaceOrders(AsyncAPIResource):
         return self._parse_response(response, Order)
 
 
+class ListingProxy(AsyncLazyResource[Listing]):
+    """Lazy marketplace listing."""
+
+
 class MarketplaceListings(AsyncAPIResource):
-    def get(self, listing_id: int) -> AsyncLazyResource:
-        return AsyncLazyResource(
-            client=self._client,
-            model_cls=Listing,
-            path=f"/marketplace/listings/{listing_id}",
-        )
+    def get(self, listing_id: int) -> ListingProxy:
+        return ListingProxy(self._client, f"/marketplace/listings/{listing_id}", Listing)
 
     async def create(
         self, *, release_id: int, condition: Condition, price: float, status: str = "For Sale", **kwargs: Any
@@ -108,17 +115,17 @@ class MarketplaceListings(AsyncAPIResource):
         await self._delete(f"/marketplace/listings/{listing_id}")
 
 
+class FeeProxy(AsyncLazyResource[Fee]):
+    """Lazy marketplace fee quote."""
+
+
 class MarketplaceFee(AsyncAPIResource):
-    def get(self, *, price: float, currency: CurrencyCode | None = None) -> AsyncLazyResource:
+    def get(self, *, price: float, currency: CurrencyCode | None = None) -> FeeProxy:
         if currency:
             path = f"/marketplace/fee/{price}/{currency}"
         else:
             path = f"/marketplace/fee/{price}"
-        return AsyncLazyResource(
-            client=self._client,
-            model_cls=Fee,
-            path=path,
-        )
+        return FeeProxy(self._client, path, Fee)
 
 
 class Marketplace:

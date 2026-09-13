@@ -6,6 +6,10 @@ from discogs_sdk._async._resource import AsyncAPIResource
 from discogs_sdk.models.upload import Upload
 
 
+class UploadProxy(AsyncLazyResource[Upload]):
+    """Lazy inventory upload."""
+
+
 class Uploads(AsyncAPIResource):
     async def create(self, *, file: str) -> None:
         await self._post_file("/inventory/upload/add", file_path=file)
@@ -31,9 +35,5 @@ class Uploads(AsyncAPIResource):
             path="/inventory/upload",
         )
 
-    def get(self, upload_id: int) -> AsyncLazyResource:
-        return AsyncLazyResource(
-            client=self._client,
-            model_cls=Upload,
-            path=f"/inventory/upload/{upload_id}",
-        )
+    def get(self, upload_id: int) -> UploadProxy:
+        return UploadProxy(self._client, f"/inventory/upload/{upload_id}", Upload)
