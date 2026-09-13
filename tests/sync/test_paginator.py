@@ -190,3 +190,83 @@ class TestErrors:
         page = SyncPage(client=no_retry_client, path="/releases", params={}, model_cls=Release, items_key="releases")
         with pytest.raises(DiscogsAPIError):
             list(page)
+
+
+def _submissions_page(page: int, pages: int, *, releases: list[dict], artists: list[dict] | None = None) -> dict:
+    body: dict = {
+        "pagination": {"page": page, "pages": pages, "per_page": 50, "items": 2, "urls": {}},
+        "submissions": {"releases": releases, "artists": artists or []},
+    }
+    if page < pages:
+        body["pagination"]["urls"]["next"] = f"{BASE_URL}/users/trent_reznor/submissions?page={page + 1}"
+    return body
+
+
+class TestEmptySelectedCategories:
+    """An empty selected category must not truncate iteration."""
+
+    def test_continues_past_an_empty_middle_page(self, client, respx_mock):
+        pages = [
+            _submissions_page(1, 3, releases=[make_release(id=1, title="Pretty Hate Machine")]),
+            _submissions_page(2, 3, releases=[], artists=[{"id": 3857, "name": "Nine Inch Nails"}]),
+            _submissions_page(3, 3, releases=[make_release(id=2, title="The Downward Spiral")]),
+        ]
+        responses = iter(pages)
+        route = respx_mock.get("/users/trent_reznor/submissions").mock(
+            side_effect=lambda req: httpx.Response(200, json=next(responses))
+        )
+
+        titles = [item.title for item in client.users.get("trent_reznor").submissions.list()]
+
+        assert titles == ["Pretty Hate Machine", "The Downward Spiral"]
+        assert route.call_count == 3
+
+    def test_continues_past_consecutive_empty_pages(self, client, respx_mock):
+        pages = [
+            _submissions_page(1, 4, releases=[]),
+            _submissions_page(2, 4, releases=[]),
+            _submissions_page(3, 4, releases=[]),
+            _submissions_page(4, 4, releases=[make_release(id=2, title="The Fragile")]),
+        ]
+        responses = iter(pages)
+        route = respx_mock.get("/users/trent_reznor/submissions").mock(
+            side_effect=lambda req: httpx.Response(200, json=next(responses))
+        )
+
+        titles = [item.title for item in client.users.get("trent_reznor").submissions.list()]
+
+        assert titles == ["The Fragile"]
+        assert route.call_count == 4
+
+    def test_empty_final_page_terminates_and_stays_exhausted(self, client, respx_mock):
+        pages = [
+            _submissions_page(1, 2, releases=[make_release(id=1, title="Broken")]),
+            _submissions_page(2, 2, releases=[]),
+        ]
+        responses = iter(pages)
+        route = respx_mock.get("/users/trent_reznor/submissions").mock(
+            side_effect=lambda req: httpx.Response(200, json=next(responses))
+        )
+
+        page = client.users.get("trent_reznor").submissions.list()
+        assert [item.title for item in page] == ["Broken"]
+        assert route.call_count == 2
+
+        with pytest.raises(StopIteration):
+            page.__next__()
+        assert route.call_count == 2
+
+    def test_failure_on_a_later_page_propagates(self, no_retry_client, respx_mock):
+        responses = iter(
+            [
+                httpx.Response(200, json=_submissions_page(1, 3, releases=[])),
+                httpx.Response(502, html="<html>Bad Gateway</html>"),
+            ]
+        )
+        respx_mock.get("/users/trent_reznor/submissions").mock(side_effect=lambda req: next(responses))
+
+        with pytest.raises(DiscogsAPIError) as exc_info:
+            _ = list(no_retry_client.users.get("trent_reznor").submissions.list())
+
+        # Truncation would have looked like success.
+        assert exc_info.value.status_code == 502

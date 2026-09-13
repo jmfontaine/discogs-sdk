@@ -108,12 +108,14 @@ class SyncPage(Generic[T]):
     def __next__(self) -> T:
         if not self._first_page_fetched:
             self._fetch_page()
-        if self._index >= len(self._items):
+        # A page can carry none of the selected items and still have successors:
+        # /users/{username}/submissions splits each page into releases, artists
+        # and labels, so one category is often empty mid-run. Keep fetching until
+        # an item turns up or the API stops offering a next page.
+        while self._index >= len(self._items):
             if self._exhausted:
                 raise StopIteration
             self._fetch_page()
-            if not self._items:
-                raise StopIteration
         item = self._items[self._index]
         self._index += 1
         return item
