@@ -115,6 +115,13 @@ class TestReleasePriceSuggestions:
         result = await lazy.price_suggestions.get()
         assert isinstance(result, PriceSuggestions)
 
+    async def test_price_suggestions_subscript_after_await(self, client, respx_mock):
+        body = {"Mint (M)": {"currency": "USD", "value": 25.00}}
+        respx_mock.get("/marketplace/price_suggestions/400027").mock(return_value=httpx.Response(200, json=body))
+        proxy = client.releases.get(400027).price_suggestions.get()
+        await proxy
+        assert proxy["Mint (M)"].value == 25.00
+
     async def test_price_suggestions_conditions(self, client, respx_mock):
         body = {
             "Mint (M)": {"currency": "USD", "value": 25.00},
