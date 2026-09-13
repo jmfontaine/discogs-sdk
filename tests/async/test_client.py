@@ -372,3 +372,55 @@ class TestLifecycle:
     async def test_context_manager(self):
         async with AsyncDiscogs(token="t") as client:
             assert isinstance(client, AsyncDiscogs)
+
+
+class TestCredentialPrecedence:
+    """Precedence is proven by what reaches the wire and whose identity comes back."""
+
+    async def test_explicit_token_beats_environment_oauth(self, monkeypatch):
+        monkeypatch.setenv("DISCOGS_CONSUMER_KEY", "env-key")
+        monkeypatch.setenv("DISCOGS_CONSUMER_SECRET", "env-secret")
+        monkeypatch.setenv("DISCOGS_ACCESS_TOKEN", "env-at")
+        monkeypatch.setenv("DISCOGS_ACCESS_TOKEN_SECRET", "env-ats")
+
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/oauth/identity").respond(200, json=make_identity(username="trent_reznor"))
+            client = AsyncDiscogs(token="explicit-token")
+
+            assert (await client.user.identity()).username == "trent_reznor"
+
+            assert route.calls[0].request.headers["Authorization"] == "Discogs token=explicit-token"
+            await client.close()
+
+    async def test_explicit_oauth_beats_environment_token(self, monkeypatch):
+        monkeypatch.setenv("DISCOGS_TOKEN", "env-token")
+
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/oauth/identity").respond(200, json=make_identity(username="atticus_ross"))
+            client = AsyncDiscogs(
+                consumer_key="ck",
+                consumer_secret="cs",
+                access_token="at",
+                access_token_secret="ats",
+            )
+
+            assert (await client.user.identity()).username == "atticus_ross"
+
+            authorization = route.calls[0].request.headers["Authorization"]
+            assert authorization.startswith("OAuth ")
+            assert 'oauth_token="at"' in authorization
+            assert "env-token" not in authorization
+            await client.close()
+
+    async def test_explicit_consumer_does_not_borrow_environment_oauth(self, monkeypatch):
+        monkeypatch.setenv("DISCOGS_ACCESS_TOKEN", "env-at")
+        monkeypatch.setenv("DISCOGS_ACCESS_TOKEN_SECRET", "env-ats")
+
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            client = AsyncDiscogs(consumer_key="ck", consumer_secret="cs")
+
+            await client.releases.get(352665)
+
+            assert route.calls[0].request.headers["Authorization"] == "Discogs key=ck, secret=cs"
+            await client.close()
