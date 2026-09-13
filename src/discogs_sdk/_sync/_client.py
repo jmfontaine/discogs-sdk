@@ -19,7 +19,6 @@ from discogs_sdk._base_client import (
     DEFAULT_BASE_URL,
     DEFAULT_CACHE_TTL,
     DEFAULT_TIMEOUT,
-    SDK_AUTH_GUARD,
     BaseClient,
     MediaType,
     may_retry_status,
@@ -150,10 +149,13 @@ class Discogs(BaseClient):
         if self._uses_oauth:
             headers["Authorization"] = self._build_oauth_header_for_request()
         build_kwargs["headers"] = headers
+        # build_request() takes no auth, so it only ever sees build_kwargs.
         kwargs = dict(build_kwargs)
         if self._auth_mode != "none":
-            # Stop a custom client's own httpx.Auth from overwriting our header.
-            kwargs["auth"] = SDK_AUTH_GUARD
+            # Explicit auth=None disables the client's own handler for this
+            # request, so it cannot overwrite the header we just set. Omitted
+            # entirely when unauthenticated, preserving custom-client auth.
+            kwargs["auth"] = None
         # An injected client may carry its own authentication that the SDK
         # cannot identify, so its responses must not be shared across clients.
         use_cache = (
