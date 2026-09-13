@@ -225,6 +225,77 @@ class TestCacheBranch:
             assert route.call_count == 2
             client.close()
 
+    def test_nested_no_cache_scopes_stay_bypassed(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/1").mock(return_value=httpx.Response(200, json={"id": 1}))
+            client = Discogs(token="t", cache=True)
+            client._send("GET", f"{BASE_URL}/releases/1")
+            assert route.call_count == 1
+
+            with client.no_cache():
+                with client.no_cache():
+                    client._send("GET", f"{BASE_URL}/releases/1")
+                assert route.call_count == 2
+                # Still inside the outer scope: must not fall back to the cache.
+                client._send("GET", f"{BASE_URL}/releases/1")
+                assert route.call_count == 3
+
+            client._send("GET", f"{BASE_URL}/releases/1")
+            assert route.call_count == 3
+            client.close()
+
+    def test_exception_restores_previous_bypass_state(self):
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/1").mock(return_value=httpx.Response(200, json={"id": 1}))
+            client = Discogs(token="t", cache=True)
+            client._send("GET", f"{BASE_URL}/releases/1")
+
+            with client.no_cache():
+                with pytest.raises(RuntimeError), client.no_cache():
+                    raise RuntimeError("boom")
+                client._send("GET", f"{BASE_URL}/releases/1")
+                assert route.call_count == 2
+
+            client._send("GET", f"{BASE_URL}/releases/1")
+            assert route.call_count == 2
+            client.close()
+
+    def test_threads_keep_independent_bypass_state(self):
+        import threading
+
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/1").mock(return_value=httpx.Response(200, json={"id": 1}))
+            client = Discogs(token="t", cache=True)
+            client._send("GET", f"{BASE_URL}/releases/1")
+            assert route.call_count == 1
+
+            left_entered = threading.Event()
+            right_exited = threading.Event()
+
+            def bypassing():
+                with client.no_cache():
+                    left_entered.set()
+                    right_exited.wait(timeout=5)
+                    client._send("GET", f"{BASE_URL}/releases/1")
+
+            def caching():
+                left_entered.wait(timeout=5)
+                with client.no_cache():
+                    client._send("GET", f"{BASE_URL}/releases/1")
+                right_exited.set()
+                client._send("GET", f"{BASE_URL}/releases/1")
+
+            threads = [threading.Thread(target=bypassing), threading.Thread(target=caching)]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=5)
+
+            # Two bypassed fetches; the sibling's cached read after its own scope
+            # exited must not have been forced onto the network.
+            assert route.call_count == 3
+            client.close()
+
     def test_clear_cache_with_cache(self):
         client = Discogs(token="t", cache=True)
         assert client._cache is not None
