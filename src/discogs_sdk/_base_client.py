@@ -298,6 +298,26 @@ class BaseClient:
         # Exponential backoff (2^attempt) capped at 60s, plus random jitter to avoid thundering herd
         return min(2**attempt, 60) + random.random()
 
+    def _raise_for_response(self, response: httpx.Response) -> None:
+        """Single HTTP-error boundary, applied before any endpoint JSON parsing.
+
+        A failing response is decoded as JSON when possible; otherwise its text is
+        preserved verbatim, including an empty body, so gateway HTML and blank
+        error pages surface as ``DiscogsAPIError`` rather than a JSON decode error.
+        """
+        if response.status_code < 400:
+            return
+
+        body: dict[str, Any] | str
+        try:
+            decoded = response.json()
+        except ValueError:
+            body = response.text
+        else:
+            body = decoded if isinstance(decoded, dict) else response.text
+
+        self._maybe_raise(response.status_code, body, retry_after=response.headers.get("Retry-After"))
+
     def _maybe_raise(
         self,
         status_code: int,

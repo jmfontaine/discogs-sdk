@@ -102,12 +102,10 @@ class MarketplaceListings(AsyncAPIResource):
         return self._parse_response(response, Listing)
 
     async def update(self, listing_id: int, **kwargs: Any) -> None:
-        response = await self._post(f"/marketplace/listings/{listing_id}", json=kwargs)
-        self._raise_for_error(response)
+        await self._post(f"/marketplace/listings/{listing_id}", json=kwargs)
 
     async def delete(self, listing_id: int) -> None:
-        response = await self._delete(f"/marketplace/listings/{listing_id}")
-        self._raise_for_error(response)
+        await self._delete(f"/marketplace/listings/{listing_id}")
 
 
 class MarketplaceFee(AsyncAPIResource):

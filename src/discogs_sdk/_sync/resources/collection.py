@@ -28,11 +28,10 @@ class InstanceFields(SyncAPIResource):
         self._instance_id = instance_id
 
     def update(self, field_id: int, *, value: str) -> None:
-        response = self._post(
+        self._post(
             f"/users/{self._username}/collection/folders/{self._folder_id}/releases/{self._release_id}/instances/{self._instance_id}/fields/{field_id}",
             json={"value": value},
         )
-        self._raise_for_error(response)
 
 
 class InstanceRef:
@@ -66,12 +65,10 @@ class CollectionInstances(SyncAPIResource):
         return InstanceRef(self._client, self._username, self._folder_id, self._release_id, instance_id)
 
     def delete(self, instance_id: int) -> None:
-        response = self._delete(f"{self._base_path()}/{instance_id}")
-        self._raise_for_error(response)
+        self._delete(f"{self._base_path()}/{instance_id}")
 
     def update(self, instance_id: int, **kwargs: Any) -> None:
-        response = self._post(f"{self._base_path()}/{instance_id}", json=kwargs)
-        self._raise_for_error(response)
+        self._post(f"{self._base_path()}/{instance_id}", json=kwargs)
 
 
 class FolderReleaseRef:
@@ -118,8 +115,7 @@ class FolderReleases(SyncAPIResource):
         )
 
     def create(self, *, release_id: int) -> None:
-        response = self._post(f"{self._base_path()}/{release_id}")
-        self._raise_for_error(response)
+        self._post(f"{self._base_path()}/{release_id}")
 
 
 # --- Collection Folders ---
@@ -150,8 +146,7 @@ class CollectionFolders(SyncAPIResource):
         return self._parse_response(response, CollectionFolder)
 
     def delete(self, folder_id: int) -> None:
-        response = self._delete(f"{self._base_path()}/{folder_id}")
-        self._raise_for_error(response)
+        self._delete(f"{self._base_path()}/{folder_id}")
 
     def update(self, folder_id: int, *, name: str) -> CollectionFolder:
         response = self._post(f"{self._base_path()}/{folder_id}", json={"name": name})

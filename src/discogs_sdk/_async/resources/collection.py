@@ -32,12 +32,11 @@ class InstanceFields(AsyncAPIResource):
         self._instance_id = instance_id
 
     async def update(self, field_id: int, *, value: str) -> None:
-        response = await self._post(
+        await self._post(
             f"/users/{self._username}/collection/folders/{self._folder_id}"
             f"/releases/{self._release_id}/instances/{self._instance_id}/fields/{field_id}",
             json={"value": value},
         )
-        self._raise_for_error(response)
 
 
 class InstanceRef:
@@ -71,12 +70,10 @@ class CollectionInstances(AsyncAPIResource):
         return InstanceRef(self._client, self._username, self._folder_id, self._release_id, instance_id)
 
     async def delete(self, instance_id: int) -> None:
-        response = await self._delete(f"{self._base_path()}/{instance_id}")
-        self._raise_for_error(response)
+        await self._delete(f"{self._base_path()}/{instance_id}")
 
     async def update(self, instance_id: int, **kwargs: Any) -> None:
-        response = await self._post(f"{self._base_path()}/{instance_id}", json=kwargs)
-        self._raise_for_error(response)
+        await self._post(f"{self._base_path()}/{instance_id}", json=kwargs)
 
 
 class FolderReleaseRef:
@@ -127,8 +124,7 @@ class FolderReleases(AsyncAPIResource):
         )
 
     async def create(self, *, release_id: int) -> None:
-        response = await self._post(f"{self._base_path()}/{release_id}")
-        self._raise_for_error(response)
+        await self._post(f"{self._base_path()}/{release_id}")
 
 
 # --- Collection Folders ---
@@ -161,8 +157,7 @@ class CollectionFolders(AsyncAPIResource):
         return self._parse_response(response, CollectionFolder)
 
     async def delete(self, folder_id: int) -> None:
-        response = await self._delete(f"{self._base_path()}/{folder_id}")
-        self._raise_for_error(response)
+        await self._delete(f"{self._base_path()}/{folder_id}")
 
     async def update(self, folder_id: int, *, name: str) -> CollectionFolder:
         response = await self._post(f"{self._base_path()}/{folder_id}", json={"name": name})

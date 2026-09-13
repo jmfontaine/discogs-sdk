@@ -205,6 +205,9 @@ class Discogs(BaseClient):
                         if k.lower() not in ("content-encoding", "content-length", "transfer-encoding")
                     }
                     self._cache.set(cache_key, response.status_code, cache_headers, response.content)
+                # The retry policy is done deciding: this is the final response,
+                # so map failures here, before any endpoint parses the body.
+                self._raise_for_response(response)
                 return response
             delay = self._retry_delay(attempt, retry_after=response.headers.get("Retry-After"))
             logger.info(

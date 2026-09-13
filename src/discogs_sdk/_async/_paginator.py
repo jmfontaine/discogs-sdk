@@ -67,7 +67,6 @@ class AsyncPage(Generic[T]):
             )
 
         body = response.json()
-        self._client._maybe_raise(response.status_code, body, retry_after=response.headers.get("Retry-After"))
 
         pagination = body.get("pagination", {})
         self._page_number = pagination.get("page")

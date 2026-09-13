@@ -166,9 +166,7 @@ class UserNamespace:
 
     def identity(self) -> Identity:
         response = self._client._send("GET", self._client._build_url("/oauth/identity"))
-        body = response.json()
-        self._client._maybe_raise(response.status_code, body, retry_after=response.headers.get("Retry-After"))
-        return Identity.model_validate(body)
+        return Identity.model_validate(response.json())
 
 
 class Users(SyncAPIResource):

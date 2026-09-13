@@ -27,8 +27,7 @@ class Wantlist(SyncAPIResource):
         return self._parse_response(response, Want)
 
     def delete(self, release_id: int) -> None:
-        response = self._delete(f"/users/{self._username}/wants/{release_id}")
-        self._raise_for_error(response)
+        self._delete(f"/users/{self._username}/wants/{release_id}")
 
     def update(self, release_id: int, **kwargs: Any) -> Want:
         response = self._post(f"/users/{self._username}/wants/{release_id}", json=kwargs)
