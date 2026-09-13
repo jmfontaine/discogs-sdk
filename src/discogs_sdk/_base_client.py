@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.metadata
+import json
 import logging
 import os
 import random
@@ -73,9 +74,13 @@ _KEY_SEPARATOR = "\x1f"
 
 
 def _digest(*parts: str | None) -> str:
-    """Non-reversible fingerprint of credential material, safe to store in a key."""
-    joined = _KEY_SEPARATOR.join(part or "" for part in parts)
-    return hashlib.sha256(joined.encode()).hexdigest()[:32]
+    """Non-reversible fingerprint of credential material, safe to store in a key.
+
+    The preimage is a JSON array, so no credential can forge the boundary between
+    two parts: nothing a caller passes can make distinct tuples share a digest.
+    """
+    preimage = json.dumps([part or "" for part in parts], separators=(",", ":"))
+    return hashlib.sha256(preimage.encode()).hexdigest()[:32]
 
 
 def _raise_incomplete_credentials(mode: str, **credentials: str | None) -> NoReturn:

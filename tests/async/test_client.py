@@ -113,16 +113,35 @@ class TestCacheIsolation:
                 side_effect=[
                     httpx.Response(200, json=make_release(title="Discogs markup")),
                     httpx.Response(200, json=make_release(title="<b>HTML</b>")),
+                    httpx.Response(200, json=make_release(title="plain text")),
                 ]
             )
             cache = MemoryCache(ttl=600)
-            discogs_markup = AsyncDiscogs(token="t", cache=cache)
-            html = AsyncDiscogs(token="t", cache=cache, media_type="html")
-            assert (await discogs_markup.releases.get(352665)).title == "Discogs markup"
-            assert (await html.releases.get(352665)).title == "<b>HTML</b>"
+            clients = {
+                "discogs": AsyncDiscogs(token="t", cache=cache),
+                "html": AsyncDiscogs(token="t", cache=cache, media_type="html"),
+                "plaintext": AsyncDiscogs(token="t", cache=cache, media_type="plaintext"),
+            }
+            titles = [(await client.releases.get(352665)).title for client in clients.values()]
+
+            assert titles == ["Discogs markup", "<b>HTML</b>", "plain text"]
+            assert route.call_count == 3
+            for client in clients.values():
+                await client.close()
+
+    async def test_unidentifiable_transport_is_never_cached(self):
+        """An injected client's own auth is opaque, so its responses must not be shared."""
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            custom = httpx.AsyncClient(auth=httpx.BasicAuth("user", "pass"))
+            client = AsyncDiscogs(http_client=custom, cache=True)
+
+            await client.releases.get(352665)
+            await client.releases.get(352665)
+
             assert route.call_count == 2
-            await discogs_markup.close()
-            await html.close()
+            await client.close()
+            await custom.aclose()
 
     async def test_oauth_requests_hit_cache_despite_fresh_signing_values(self):
         with respx.mock(base_url=BASE_URL) as router:

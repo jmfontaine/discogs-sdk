@@ -111,16 +111,35 @@ class TestCacheIsolation:
                 side_effect=[
                     httpx.Response(200, json=make_release(title="Discogs markup")),
                     httpx.Response(200, json=make_release(title="<b>HTML</b>")),
+                    httpx.Response(200, json=make_release(title="plain text")),
                 ]
             )
             cache = MemoryCache(ttl=600)
-            discogs_markup = Discogs(token="t", cache=cache)
-            html = Discogs(token="t", cache=cache, media_type="html")
-            assert discogs_markup.releases.get(352665).title == "Discogs markup"
-            assert html.releases.get(352665).title == "<b>HTML</b>"
+            clients = {
+                "discogs": Discogs(token="t", cache=cache),
+                "html": Discogs(token="t", cache=cache, media_type="html"),
+                "plaintext": Discogs(token="t", cache=cache, media_type="plaintext"),
+            }
+            titles = [client.releases.get(352665).title for client in clients.values()]
+
+            assert titles == ["Discogs markup", "<b>HTML</b>", "plain text"]
+            assert route.call_count == 3
+            for client in clients.values():
+                client.close()
+
+    def test_unidentifiable_transport_is_never_cached(self):
+        """An injected client's own auth is opaque, so its responses must not be shared."""
+        with respx.mock(base_url=BASE_URL) as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            custom = httpx.Client(auth=httpx.BasicAuth("user", "pass"))
+            client = Discogs(http_client=custom, cache=True)
+
+            _ = client.releases.get(352665).title
+            _ = client.releases.get(352665).title
+
             assert route.call_count == 2
-            discogs_markup.close()
-            html.close()
+            client.close()
+            custom.close()
 
     def test_oauth_requests_hit_cache_despite_fresh_signing_values(self):
         with respx.mock(base_url=BASE_URL) as router:
