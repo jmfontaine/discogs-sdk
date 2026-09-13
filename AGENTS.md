@@ -159,7 +159,14 @@ Publishing is fully automated via CI. The `publish.yml` workflow triggers on `v*
 2. Commit the version bump
 3. Run `just release` — creates a signed tag, pushes, and monitors the workflow
 
-The workflow runs QA + tests, publishes to PyPI via Trusted Publishers (OIDC), and creates a GitHub release with auto-generated notes. The `pypi` GitHub environment must exist on the repo.
+The workflow builds the distributions once and publishes those exact files. Before upload it runs QA,
+the test matrix, `scripts/check_distributions.py` (archive contents) and `twine check --strict`
+(metadata), then installs the built wheel into a clean environment on the oldest and newest supported
+Python and runs the whole test suite against it, and installs the sdist on the newest. Publishing uses
+PyPI Trusted Publishers (OIDC); the `pypi` GitHub environment must exist on the repo.
+
+A release cannot be replaced once uploaded. If a broken version reaches PyPI, yank it there (project
+page or the upload API — there is no `pip yank`), then bump the patch version and release again.
 
 ## Key Conventions
 
