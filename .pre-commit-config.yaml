@@ -11,19 +11,19 @@ repos:
       - id: trailing-whitespace
 
   - repo: https://github.com/rhysd/actionlint
-    rev: 393031adb9afb225ee52ae2ccd7a5af5525e03e8  # frozen: v1.7.11
+    rev: 914e7df21a07ef503a81201c76d2b11c789d3fca  # frozen: v1.7.12
     hooks:
       - id: actionlint
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: 0839f92796ae388643a08a21640a029b322be5c2  # frozen: v0.15.2
+    rev: e8f7d69b957a30acb2c875078d5fd012de24b64c  # frozen: v0.16.7
     hooks:
       - id: ruff-format
       - id: ruff-check
         args: [--fix]
 
   - repo: https://github.com/tox-dev/pyproject-fmt
-    rev: b7fa7c655ce7b89804034228e1677f8cc1dca92a  # frozen: v2.16.1
+    rev: 59e7b26529dc6f15c43063064b8b06ded60d0910  # frozen: v2.29.4
     hooks:
       - id: pyproject-fmt
 
