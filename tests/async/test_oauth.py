@@ -7,7 +7,6 @@ import respx
 
 from discogs_sdk._async._oauth import AccessToken, RequestToken, get_access_token, get_request_token
 
-
 BASE_URL = "https://api.discogs.com"
 
 

@@ -7,7 +7,6 @@ import pytest
 
 from discogs_sdk._exceptions import NotFoundError
 from discogs_sdk.models.wantlist import Want
-
 from tests.conftest import make_paginated_response, make_want
 
 

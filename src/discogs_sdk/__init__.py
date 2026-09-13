@@ -1,8 +1,6 @@
 from discogs_sdk._async._client import AsyncDiscogs
 from discogs_sdk._async._paginator import AsyncPage
 from discogs_sdk._base_client import MediaType
-from discogs_sdk._sync._client import Discogs
-from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk._exceptions import (
     AuthenticationError,
     DiscogsAPIError,
@@ -13,6 +11,8 @@ from discogs_sdk._exceptions import (
     RateLimitError,
     ValidationError,
 )
+from discogs_sdk._sync._client import Discogs
+from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk.models import (
     Artist,
     ArtistCredit,
@@ -38,10 +38,10 @@ from discogs_sdk.models import (
     LabelCredit,
     LabelRelease,
     List_,
-    ListItem,
-    ListSummary,
     Listing,
     ListingRelease,
+    ListItem,
+    ListSummary,
     MarketplaceReleaseStats,
     Master,
     MasterVersion,
@@ -52,9 +52,9 @@ from discogs_sdk.models import (
     OriginalPrice,
     Price,
     PriceSuggestions,
-    SDKModel,
     Release,
     ReleaseStats,
+    SDKModel,
     SearchResult,
     ShippingInfo,
     SleeveCondition,

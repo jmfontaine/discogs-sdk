@@ -14,20 +14,9 @@ from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import httpx
 from typing_extensions import Self
 
-import httpx
-
-from discogs_sdk._base_client import (
-    DEFAULT_BASE_URL,
-    DEFAULT_CACHE_TTL,
-    DEFAULT_TIMEOUT,
-    BaseClient,
-    MediaType,
-    _RETRY_STATUSES,
-)
-from discogs_sdk._cache import MemoryCache, ResponseCache, SQLiteCache
-from discogs_sdk._exceptions import DiscogsConnectionError
 from discogs_sdk._async.resources.artists import Artists
 from discogs_sdk._async.resources.exports import Exports
 from discogs_sdk._async.resources.labels import Labels
@@ -38,6 +27,16 @@ from discogs_sdk._async.resources.releases import Releases
 from discogs_sdk._async.resources.search import SearchResource
 from discogs_sdk._async.resources.uploads import Uploads
 from discogs_sdk._async.resources.users import UserNamespace, Users
+from discogs_sdk._base_client import (
+    _RETRY_STATUSES,
+    DEFAULT_BASE_URL,
+    DEFAULT_CACHE_TTL,
+    DEFAULT_TIMEOUT,
+    BaseClient,
+    MediaType,
+)
+from discogs_sdk._cache import MemoryCache, ResponseCache, SQLiteCache
+from discogs_sdk._exceptions import DiscogsConnectionError
 
 if TYPE_CHECKING:
     from discogs_sdk._async._paginator import AsyncPage

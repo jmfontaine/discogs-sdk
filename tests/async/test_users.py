@@ -9,7 +9,6 @@ from discogs_sdk.models.label import Label
 from discogs_sdk.models.marketplace import Listing
 from discogs_sdk.models.release import Release
 from discogs_sdk.models.user import Identity, User
-
 from tests.conftest import (
     make_artist,
     make_identity,

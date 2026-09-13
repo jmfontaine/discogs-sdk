@@ -15,7 +15,6 @@ from discogs_sdk.oauth import (
     get_request_token,
 )
 
-
 # ━━ 1. Personal access token ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Generate at https://www.discogs.com/settings/developers
 # Simplest option.  Good for scripts and personal tools.

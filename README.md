@@ -133,6 +133,7 @@ for v in client.masters.get(3719).versions.list(format="Vinyl", country="US"):
 import asyncio
 from discogs_sdk import AsyncDiscogs
 
+
 async def main():
     async with AsyncDiscogs() as client:  # reads DISCOGS_TOKEN from environment
         # Must await lazy resources in async mode
@@ -142,6 +143,7 @@ async def main():
         # Async iteration for paginated results
         async for result in client.search(query="Nine Inch Nails"):
             print(result.title)
+
 
 asyncio.run(main())
 ```
@@ -163,9 +165,7 @@ for item in user.collection.folders.get(0).releases.list(sort="added"):
 user.collection.folders.get(1).releases.create(release_id=352665)
 
 # Deep chaining: folder -> release -> instance -> fields
-user.collection.folders.get(1).releases.get(352665).instances.get(
-    98765
-).fields.update(field_id=1, value="Signed copy")
+user.collection.folders.get(1).releases.get(352665).instances.get(98765).fields.update(field_id=1, value="Signed copy")
 
 # Collection value
 value = user.collection.value.get()
@@ -183,7 +183,9 @@ for want in user.wantlist.list():
 # Listings
 listing = client.marketplace.listings.get(123456789)
 new = client.marketplace.listings.create(
-    release_id=352665, condition="Very Good Plus (VG+)", price=25.00,
+    release_id=352665,
+    condition="Very Good Plus (VG+)",
+    price=25.00,
 )
 client.marketplace.listings.update(new.id, price=22.50)
 client.marketplace.listings.delete(new.id)
@@ -280,7 +282,7 @@ Both names work as attributes, so you can use whichever you prefer:
 ```python
 release = client.releases.get(352665)  # The Downward Spiral
 print(release.extra_artists)  # Python name
-print(release.extraartists)   # API name — same value
+print(release.extraartists)  # API name — same value
 ```
 
 ## Contributing

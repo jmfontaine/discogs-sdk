@@ -236,14 +236,24 @@ def _generate(dst: Path) -> int:
 
 
 def _ruff_format(target: Path) -> None:
-    result = subprocess.run(
-        [sys.executable, "-m", "ruff", "format", str(target)],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        print(f"ruff format failed:\n{result.stderr}", file=sys.stderr)
-        sys.exit(1)
+    # `format` runs first: ast_comments.unparse emits f-strings that reuse the outer
+    # quote (3.12+ syntax only), and formatting normalizes them. `check` then sorts the
+    # single unseparated import block unparse produces (I001), and `format` runs again
+    # to tidy what the import fixes moved.
+    for args, label in (
+        (["format"], "ruff format"),
+        (["check", "--select", "I", "--fix", "--quiet"], "ruff check"),
+        (["format"], "ruff format"),
+    ):
+        result = subprocess.run(
+            [sys.executable, "-m", "ruff", *args, str(target)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            print(f"{label} failed:\n{result.stderr}", file=sys.stderr)
+            sys.exit(1)
 
 
 def transform(source: str) -> str:

@@ -2,12 +2,14 @@
 # Do not edit directly — edit the corresponding file in _async/ instead.
 
 from __future__ import annotations
+
 from functools import cached_property
 from typing import TYPE_CHECKING, Any
-from discogs_sdk.models._common import Condition, CurrencyCode
+
 from discogs_sdk._sync._lazy import LazyResource
 from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk._sync._resource import SyncAPIResource
+from discogs_sdk.models._common import Condition, CurrencyCode
 from discogs_sdk.models.marketplace import Fee, Listing, Order, OrderMessage
 
 if TYPE_CHECKING:

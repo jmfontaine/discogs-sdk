@@ -5,7 +5,6 @@ from __future__ import annotations
 import httpx
 
 from discogs_sdk.models.list_ import List_, ListSummary
-
 from tests.conftest import make_list, make_list_summary, make_paginated_response
 
 

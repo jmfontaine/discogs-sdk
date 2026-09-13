@@ -5,7 +5,6 @@ from __future__ import annotations
 import httpx
 
 from discogs_sdk.models.artist import ArtistRelease
-
 from tests.conftest import make_artist, make_artist_release, make_paginated_response
 
 

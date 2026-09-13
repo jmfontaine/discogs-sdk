@@ -3,11 +3,10 @@ from __future__ import annotations
 from functools import cached_property
 from typing import TYPE_CHECKING, Any
 
-from discogs_sdk.models._common import Condition, CurrencyCode
-
 from discogs_sdk._async._lazy import AsyncLazyResource
 from discogs_sdk._async._paginator import AsyncPage
 from discogs_sdk._async._resource import AsyncAPIResource
+from discogs_sdk.models._common import Condition, CurrencyCode
 from discogs_sdk.models.marketplace import Fee, Listing, Order, OrderMessage
 
 if TYPE_CHECKING:

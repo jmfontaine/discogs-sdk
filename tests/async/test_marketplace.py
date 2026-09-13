@@ -7,7 +7,6 @@ import pytest
 
 from discogs_sdk._exceptions import NotFoundError
 from discogs_sdk.models.marketplace import Fee, Listing, Order, OrderMessage
-
 from tests.conftest import (
     make_fee,
     make_listing,

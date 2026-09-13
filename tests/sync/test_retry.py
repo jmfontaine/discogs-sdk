@@ -9,11 +9,10 @@ import pytest
 import respx
 
 from discogs_sdk import Discogs
+from discogs_sdk._exceptions import DiscogsAPIError, DiscogsConnectionError, RateLimitError
 from discogs_sdk._sync._lazy import LazyResource
 from discogs_sdk._sync._paginator import SyncPage
-from discogs_sdk._exceptions import DiscogsAPIError, DiscogsConnectionError, RateLimitError
 from discogs_sdk.models.release import Release
-
 from tests.conftest import BASE_URL, make_paginated_response, make_release
 
 

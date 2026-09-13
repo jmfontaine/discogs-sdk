@@ -9,7 +9,6 @@ from discogs_sdk._exceptions import NotFoundError
 from discogs_sdk.models.release import (
     UserReleaseRating,
 )
-
 from tests.conftest import (
     make_community_rating,
     make_release,
