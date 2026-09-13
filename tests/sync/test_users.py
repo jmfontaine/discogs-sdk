@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 
 from discogs_sdk.models.artist import Artist
@@ -51,21 +53,35 @@ class TestUserUpdate:
         result = lazy.update(name="New Name", location="NYC")
         assert isinstance(result, User)
 
-    def test_update_only_non_none(self, client, respx_mock):
+    def test_omitted_fields_are_not_sent(self, client, respx_mock):
         respx_mock.post("/users/trent_reznor").mock(return_value=httpx.Response(200, json=make_user()))
-        lazy = client.users.get("trent_reznor")
-        lazy.update(name="X")
-        body = respx_mock.calls[0].request.content
-        assert b"name" in body
-        assert b"home_page" not in body
+        client.users.get("trent_reznor").update(name="X")
+        payload = json.loads(respx_mock.calls[0].request.content)
+        assert payload == {"name": "X"}
 
-    def test_update_all_fields(self, client, respx_mock):
+    def test_every_documented_field_is_sent(self, client, respx_mock):
         respx_mock.post("/users/trent_reznor").mock(return_value=httpx.Response(200, json=make_user()))
-        lazy = client.users.get("trent_reznor")
-        lazy.update(name="NIN", home_page="https://nin.com", location="LA", curr_abbr="USD")
-        body = respx_mock.calls[0].request.content
-        assert b"home_page" in body
-        assert b"curr_abbr" in body
+        client.users.get("trent_reznor").update(
+            name="Trent Reznor",
+            home_page="https://www.nin.com",
+            location="Cleveland",
+            profile="Founder of Nine Inch Nails.",
+            curr_abbr="USD",
+        )
+        payload = json.loads(respx_mock.calls[0].request.content)
+        assert payload == {
+            "name": "Trent Reznor",
+            "home_page": "https://www.nin.com",
+            "location": "Cleveland",
+            "profile": "Founder of Nine Inch Nails.",
+            "curr_abbr": "USD",
+        }
+
+    def test_empty_profile_clears_the_biography(self, client, respx_mock):
+        respx_mock.post("/users/trent_reznor").mock(return_value=httpx.Response(200, json=make_user()))
+        client.users.get("trent_reznor").update(profile="")
+        payload = json.loads(respx_mock.calls[0].request.content)
+        assert payload == {"profile": ""}
 
 
 class TestUserSubmissions:
