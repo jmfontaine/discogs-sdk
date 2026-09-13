@@ -77,6 +77,12 @@ class Discogs(BaseClient):
     ) -> None:
         """Create an async Discogs client.
 
+        Exactly one authentication mode is selected here and used for every
+        request: an explicit *token* wins, then explicit OAuth access-token
+        credentials, then explicit consumer credentials, then the ``DISCOGS_*``
+        environment variables. An explicitly selected but incomplete credential
+        set raises ``ValueError`` rather than falling back to another identity.
+
         Args:
             token: Personal access token from https://www.discogs.com/settings/developers.
             consumer_key: OAuth consumer key for app-level auth.
@@ -85,15 +91,26 @@ class Discogs(BaseClient):
             access_token_secret: OAuth access token secret for user-level auth.
             base_url: API base URL.
             timeout: Request timeout in seconds.
-            max_retries: Max retries on 429/5xx/connection errors.
+            max_retries: Max retry attempts. Reads retry on 429/5xx and on any
+                transport failure. Mutations retry only failures that prove the
+                request never reached the server, never after an HTTP status, so
+                a possibly committed change is never sent twice.
             cache: Enable response caching. Pass ``True`` for the built-in
                 backend, or a ``ResponseCache`` instance for a custom one.
+                Entries are partitioned by credential identity and response
+                representation, so clients sharing a cache stay isolated.
             cache_ttl: Cache time-to-live in seconds (default 1 hour).
                 Ignored when *cache* is a ``ResponseCache`` instance or ``False``.
             cache_dir: Directory for the cache database. When provided, uses
                 SQLite for persistence; otherwise caches in memory only.
                 Ignored when *cache* is a ``ResponseCache`` instance or ``False``.
-            http_client: Custom ``httpx.Client`` to use instead of creating one.
+            http_client: Custom ``httpx.Client`` to use instead of creating
+                one. It keeps its transport configuration and its lifecycle:
+                ``close()`` never closes it. SDK credentials, User-Agent and
+                media type are applied per request without mutating its defaults,
+                and its own auth cannot replace them. With no SDK credentials its
+                authentication is preserved and its responses are not cached,
+                because the SDK cannot tell whose account they belong to.
             user_agent: Custom User-Agent string. Replaces the default entirely.
                 Should follow RFC 1945 product token format for best compatibility with Discogs.
             media_type: Response text format. ``"discogs"`` returns Discogs markup,
