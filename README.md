@@ -37,7 +37,7 @@ Requires Python 3.10+.
 - **Fluent API** — Chain sub-resources naturally: `client.releases.get(id).rating.get()`
 - **Lazy Loading** — No HTTP calls until you actually need the data
 - **Effortless Pagination** — Browse results without managing pages or offsets
-- **Rate Limit Friendly** — Automatically stay within API limits
+- **Rate Limit Aware** — Bounded retries with `Retry-After` support
 - **Built-in Caching** — Optional TTL-based caching reduces API calls
 - **Flexible Auth** — Supports personal tokens, consumer key/secret, or full OAuth 1.0a
 - **Type Safe** — Get autocomplete and IDE support
@@ -86,8 +86,16 @@ The SDK supports three auth modes: personal token, consumer key/secret, and OAut
 > [direnv](https://direnv.net/) to avoid exporting tokens manually in every shell.
 
 > [!NOTE]
-> Discogs enforces a 60 requests/minute rate limit. The SDK handles this automatically
-> with exponential backoff and `Retry-After` support — no manual throttling needed.
+> Discogs allows 60 requests/minute authenticated and 25/minute unauthenticated, measured as a moving average over
+> the last 60 seconds. The SDK does not pace your requests: it retries a rate-limited **read** a bounded number of
+> times (`max_retries`, default 3), honouring `Retry-After`. Sustained traffic above the limit still needs pacing on
+> your side, and you can still receive `RateLimitError` once the retries are exhausted.
+
+> [!WARNING]
+> Mutations are not replayed. A `POST`, `PUT` or `DELETE` is retried only when the failure proves the request never
+> reached the server, such as a refused connection. After a read timeout or a 5xx the change may already have been
+> committed, so the SDK raises instead of sending it again — the remote outcome is genuinely unknown and only you
+> can decide how to reconcile it.
 
 ### Fetching resources
 
@@ -252,7 +260,7 @@ The [`examples/`](examples/) directory has runnable scripts for every feature:
 | `consumer_key` | `None` | OAuth consumer key |
 | `consumer_secret` | `None` | OAuth consumer secret |
 | `http_client` | `None` | Custom `httpx.Client` or `httpx.AsyncClient` |
-| `max_retries` | `3` | Max retries on 429/5xx/connection errors |
+| `max_retries` | `3` | Max retries; reads retry on 429/5xx/transport failures, mutations only on pre-send failures |
 | `timeout` | `30.0` | Request timeout in seconds |
 | `token` | `None` | Personal access token |
 
