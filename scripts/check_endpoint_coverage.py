@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Re-verify the API-coverage claims in README.md.
+"""Re-verify the endpoint-coverage claims in README.md.
 
 Two independent checks:
 
@@ -8,15 +8,18 @@ Two independent checks:
    lives in ``docs/discogs_api/`` and is git-ignored, so this runs only where
    that copy is present.
 
-   Routes, not operations: the reference puts several methods on one route, so
-   a route count would say nothing about which operations a client supports.
-   This check is a drift alarm for our own surface, not a coverage score.
+   Scope: routes only. The reference puts several operations on one route and
+   documents their parameters in prose, neither of which this extracts, so a
+   pass means no route has drifted -- not that every operation and parameter is
+   implemented.
 
-2. With ``--compare-upstream``, the README's comparison against
-   python3-discogs-client. Each claim is recorded below as a marker that must
-   still be present, or a substring that must still be absent, in the current
-   upstream source, so an upstream change fails this check instead of quietly
-   making the README wrong.
+2. With ``--compare-upstream``, the probes behind the comparison table in
+   README.md: markers that must stay present, or substrings that must stay
+   absent, in the current upstream source.
+
+   These are drift signals, not proof. A probe fires when upstream changes in a
+   way that likely makes a row wrong, which is the cue to re-read its sources
+   and update the table. A clean run means nothing obvious has moved.
 """
 
 from __future__ import annotations
@@ -34,46 +37,42 @@ ASYNC_SRC = ROOT / "src" / "discogs_sdk" / "_async"
 API_DOCS = ROOT / "docs" / "discogs_api"
 
 UPSTREAM_REPO = "https://github.com/joalla/discogs_client.git"
-UPSTREAM_SOURCES = ("discogs_client/client.py", "discogs_client/models.py")
+UPSTREAM_SOURCES = (
+    "discogs_client/client.py",
+    "discogs_client/models.py",
+    "discogs_client/fetchers.py",
+)
+# Where a response cache would have to live: every request goes through these.
+UPSTREAM_REQUEST_PATH = ("discogs_client/client.py", "discogs_client/fetchers.py")
 
-# "reaches none of: ..." — each gap, keyed by the substring whose absence from
-# the upstream client and model sources proves it.
+# README: the documented v2 endpoints upstream does not reach. Each gap is keyed
+# by the substring whose absence from the upstream sources proves it.
 UPSTREAM_ABSENT: dict[str, str] = {
     "inventory/export": "inventory export",
     "inventory/upload": "inventory upload",
-    "/rating": "community and per-user release ratings",
+    "/rating": "release ratings",
     "releases/{0}/stats": "release have/want stats",
     "collection/fields": "collection field definitions",
-    "/fields/": "per-instance collection field values",
+    "/fields/": "collection field values",
+    "def create_folder(": "folder creation",
     "contributions": "user contributions",
     "submissions": "user submissions",
-    "def create_folder(": "folder create",
 }
 
-# Capabilities the README credits upstream with, keyed by the marker that
-# implements them. A missing marker means the README understates it.
+# README: "Both load data lazily, paginate automatically, support OAuth 1.0a and
+# back off on HTTP 429". Keyed by the marker that implements each.
 UPSTREAM_PRESENT: dict[str, str] = {
-    "def search(": "database search",
-    "marketplace/price_suggestions": "price suggestions",
-    "marketplace/stats": "marketplace release stats",
-    "def fee_for(": "marketplace fee",
-    "marketplace/listings": "marketplace listings",
-    "marketplace/orders": "marketplace orders",
-    "collection/releases/": "cross-folder collection lookup",
-    "collection/value": "collection value",
-    "collection_folders_url": "collection folder listing",
-    "def add_release(": "adding a release to a folder",
-    "def delete(": "folder delete via PrimaryAPIObject.delete()",
     "def fetch(": "lazy field loading",
-    "backoff_enabled": "429 backoff enabled by default",
-    "def releases(": "sub-resource chaining off a fetched object",
+    "class BasePaginatedResponse": "automatic pagination",
+    "class OAuth2Fetcher": "OAuth 1.0a",
+    "backoff_enabled": "429 backoff",
 }
 
-# Differentiators the README claims, keyed by a marker that must stay absent
-# from the whole upstream repository.
+# README: what this SDK has and upstream does not. Keyed by a marker that must
+# stay absent from the whole upstream repository.
 UPSTREAM_MISSING_FEATURES: dict[str, str] = {
     "async def": "async support",
-    "pydantic": "pydantic response models",
+    "pydantic": "typed Pydantic response models",
 }
 
 
@@ -173,23 +172,15 @@ def _check_sdk() -> bool:
     return not missing and not unknown
 
 
-def _folder_name_is_writable(models_path: Path) -> bool:
-    """Whether upstream's ``CollectionFolder.name`` accepts writes, i.e. renaming.
+def _mentions_caching_in_request_path(repo: Path) -> bool:
+    """Whether the word appears in the modules every request goes through.
 
-    Checked structurally: a substring search would match ``User.name``, which is
-    writable, and wrongly report the claim as stale.
+    A heuristic, like every probe here: a cache named ``responses = {}`` would
+    slip past it. It catches the ordinary case and flags drift worth a look.
     """
-    for node in ast.walk(ast.parse(models_path.read_text())):
-        if not (isinstance(node, ast.ClassDef) and node.name == "CollectionFolder"):
-            continue
-        for item in node.body:
-            if not (isinstance(item, ast.Assign) and isinstance(item.value, ast.Call)):
-                continue
-            if any(isinstance(t, ast.Name) and t.id == "name" for t in item.targets):
-                return any(
-                    kw.arg == "writable" and kw.value is not None and getattr(kw.value, "value", False) is True
-                    for kw in item.value.keywords
-                )
+    for name in UPSTREAM_REQUEST_PATH:
+        if "cache" in (repo / name).read_text().lower():
+            return True
     return False
 
 
@@ -202,8 +193,10 @@ def _check_upstream() -> bool:
             check=False,
         )
         if clone.returncode != 0:
-            print(f"\nSKIPPED upstream comparison: {clone.stderr.strip() or 'clone failed'}")
-            return True
+            # Requested explicitly, so a clone failure is a failure to verify,
+            # not a reason to certify the claims unchecked.
+            print(f"\nERROR: could not clone {UPSTREAM_REPO}: {clone.stderr.strip() or 'clone failed'}")
+            return False
 
         revision = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],
@@ -220,21 +213,21 @@ def _check_upstream() -> bool:
         for marker, claim in UPSTREAM_ABSENT.items():
             if marker in api_source:
                 stale.append(f"README says it lacks {claim}, but {marker!r} is now present")
-        if _folder_name_is_writable(Path(tmp) / "discogs_client" / "models.py"):
-            stale.append("README says folder rename is missing, but CollectionFolder.name is now writable")
         for marker, claim in UPSTREAM_PRESENT.items():
             if marker not in api_source:
                 stale.append(f"README credits it with {claim}, but {marker!r} is gone")
         for marker, claim in UPSTREAM_MISSING_FEATURES.items():
             if marker in whole_repo:
                 stale.append(f"README claims it lacks {claim}, but {marker!r} is now present")
+        if _mentions_caching_in_request_path(Path(tmp)):
+            stale.append("README says it has no response cache, but its request path now mentions caching")
 
-        checked = len(UPSTREAM_ABSENT) + len(UPSTREAM_PRESENT) + len(UPSTREAM_MISSING_FEATURES) + 1
-        print(f"Claims checked: {checked}")
+        probes = len(UPSTREAM_ABSENT) + len(UPSTREAM_PRESENT) + len(UPSTREAM_MISSING_FEATURES) + 1
+        print(f"Drift probes run: {probes}")
         for line in stale:
             print(f"  STALE  {line}")
         if not stale:
-            print("OK: every README claim about upstream still holds.")
+            print("OK: nothing upstream has drifted away from the README.")
         return not stale
 
 

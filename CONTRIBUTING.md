@@ -55,9 +55,12 @@ Run `just --list` to see all available commands.
 
 `just check-endpoints` compares the routes the SDK calls against the local API reference in `docs/discogs_api/`,
 failing on a documented route the SDK never reaches and on a route the SDK calls that the reference does not
-document. It is not part of `just qa`, because that reference copy is git-ignored and so is absent in CI. Adding
-`--compare-upstream` also re-checks every claim the README makes about `python3-discogs-client`, against a fresh
-clone of it; run that before editing the comparison table.
+document. It checks routes only — not per-route operations, and not query or body parameters, which the reference
+describes in prose. It is not part of `just qa`, because that reference copy is git-ignored and so is absent in CI.
+
+Adding `--compare-upstream` runs drift probes against a fresh clone of `python3-discogs-client`: markers that must
+stay present, or substrings that must stay absent, in its sources. They are signals, not proof — a firing probe
+means re-read its sources before trusting the comparison table. Run it before editing that table.
 
 ### Async-first architecture
 
