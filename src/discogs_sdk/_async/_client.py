@@ -159,20 +159,26 @@ class AsyncDiscogs(BaseClient):
             # Stop a custom client's own httpx.Auth from overwriting our header.
             kwargs["auth"] = SDK_AUTH_GUARD
 
-        # Build the full URL for cache key before httpx resolves params.
-        use_cache = self._cache is not None and self._cache_enabled and method.upper() in _CACHEABLE_METHODS
+        use_cache = (
+            self._cache is not None
+            and self._cache_enabled
+            and method.upper() in _CACHEABLE_METHODS
+            # An injected client may carry its own authentication that the SDK
+            # cannot identify, so its responses must not be shared across clients.
+            and (self._owns_client or self._auth_mode != "none")
+        )
         cache_key = ""
         if use_cache:
-            # httpx merges params into the URL, so we need to build the key
-            # the same way to get consistent cache hits.
+            # httpx merges params into the URL, so build the request first to key
+            # on the fully resolved URL.
             req = self._http_client.build_request(method, url, **build_kwargs)
-            cache_key = f"{method.upper()}:{req.url}"
+            cache_key = self._build_cache_key(method, str(req.url), headers["Accept"])
 
             cached = self._cache.get(cache_key)  # type: ignore[union-attr]
             if cached is not None:
-                status, headers, body = cached
+                status, cached_headers, body = cached
                 logger.debug("Cache hit: %s %s", method, url)
-                return httpx.Response(status_code=status, headers=headers, content=body)
+                return httpx.Response(status_code=status, headers=cached_headers, content=body)
 
         for attempt in range(self.max_retries + 1):
             logger.debug("HTTP request: %s %s", method, url)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.metadata
 import logging
 import os
@@ -41,6 +42,15 @@ _AUTH_MODE_LABELS: dict[str, str] = {
     "oauth": "OAuth 1.0a",
     "consumer": "consumer key/secret",
 }
+
+_CACHE_KEY_VERSION = "v1"
+_KEY_SEPARATOR = "\x1f"
+
+
+def _digest(*parts: str | None) -> str:
+    """Non-reversible fingerprint of credential material, safe to store in a key."""
+    joined = _KEY_SEPARATOR.join(part or "" for part in parts)
+    return hashlib.sha256(joined.encode()).hexdigest()[:32]
 
 
 # httpx.Auth's default flow yields the request unchanged. Passing it per request
@@ -117,6 +127,32 @@ class BaseClient:
             access_token_secret=access_token_secret,
         )
         logger.debug("Auth: %s", _AUTH_MODE_LABELS[self._auth_mode])
+        self._auth_namespace: str = self._build_auth_namespace()
+
+    def _build_auth_namespace(self) -> str:
+        """Stable, non-reversible identity for cache partitioning.
+
+        Derived only from the selected mode's long-lived credentials, so it stays
+        identical across OAuth requests with fresh nonces and across restarts.
+        """
+        match self._auth_mode:
+            case "token":
+                return f"token:{_digest(self._token)}"
+            case "consumer":
+                return f"consumer:{_digest(self._consumer_key, self._consumer_secret)}"
+            case "oauth":
+                return f"oauth:{_digest(*(self._oauth_credentials or ()))}"
+            case _:
+                return "anonymous"
+
+    def _build_cache_key(self, method: str, url: str, accept: str) -> str:
+        """Version-tagged key partitioned by identity and response representation.
+
+        The unit separator cannot appear in any component, so distinct inputs can
+        never produce the same key. Bumping the version retires older entries
+        instead of letting them serve as fallback hits.
+        """
+        return _KEY_SEPARATOR.join((_CACHE_KEY_VERSION, method.upper(), url, accept, self._auth_namespace))
 
     def _select_auth_mode(
         self,
