@@ -25,6 +25,7 @@ from discogs_sdk.models.collection import (
     CollectionFolder,
     CollectionInstanceCreated,
     CollectionItem,
+    CollectionNote,
     CollectionValue_,
 )
 from discogs_sdk.models.export import Export
@@ -34,13 +35,19 @@ from discogs_sdk.models.marketplace import (
     Fee,
     Listing,
     ListingRelease,
+    MessageRefund,
     Order,
     OrderItem,
     OrderMessage,
+    OrderRef,
+    OrderTracking,
     OriginalPrice,
+    Seller,
+    SellerStats,
     ShippingInfo,
+    TrackingCarrier,
 )
-from discogs_sdk.models.master import Master, MasterVersion
+from discogs_sdk.models.master import Master, MasterVersion, VersionCounts, VersionStats
 from discogs_sdk.models.release import (
     CommunityRating,
     MarketplaceReleaseStats,
@@ -49,7 +56,7 @@ from discogs_sdk.models.release import (
     ReleaseStats,
     UserReleaseRating,
 )
-from discogs_sdk.models.search import SearchResult
+from discogs_sdk.models.search import SearchCommunity, SearchResult
 from discogs_sdk.models.upload import Upload
 from discogs_sdk.models.user import Identity, User
 from discogs_sdk.models.wantlist import Want
@@ -63,6 +70,7 @@ __all__ = [
     "CollectionFolder",
     "CollectionInstanceCreated",
     "CollectionItem",
+    "CollectionNote",
     "CollectionValue_",
     "Community",
     "CommunityRating",
@@ -88,24 +96,33 @@ __all__ = [
     "Master",
     "MasterVersion",
     "Member",
+    "MessageRefund",
     "Order",
     "OrderItem",
     "OrderMessage",
+    "OrderRef",
+    "OrderTracking",
     "OriginalPrice",
     "Price",
     "PriceSuggestions",
     "Release",
     "ReleaseStats",
     "SDKModel",
+    "SearchCommunity",
     "SearchResult",
+    "Seller",
+    "SellerStats",
     "ShippingInfo",
     "SleeveCondition",
     "SubLabel",
     "Track",
+    "TrackingCarrier",
     "Upload",
     "User",
     "UserReleaseRating",
     "UserSummary",
+    "VersionCounts",
+    "VersionStats",
     "Video",
     "Want",
 ]

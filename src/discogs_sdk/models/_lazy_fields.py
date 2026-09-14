@@ -37,7 +37,9 @@ if TYPE_CHECKING:
     from discogs_sdk.models.marketplace import (
         ListingRelease,
         OrderItem,
+        OrderTracking,
         OriginalPrice,
+        Seller,
         ShippingInfo,
     )
     from discogs_sdk.models.release import RatingInfo
@@ -149,23 +151,31 @@ class ListingFields:
         audio: bool | None
         comments: str | None
         condition: Condition | str | None
+        external_id: str | None
+        format_quantity: int | None
+        in_cart: bool | None
+        location: str | None
         original_price: OriginalPrice | None
+        original_shipping_price: OriginalPrice | None
         posted: str | None
         price: Price | None
+        quantity: int | None
         release: ListingRelease | None
         resource_url: str | None
-        seller: UserSummary | None
+        seller: Seller | None
         shipping_price: Price | None
         ships_from: str | None
         sleeve_condition: SleeveCondition | str | None
         status: str | None
         uri: str | None
+        weight: float | None
 
 
 class MarketplaceReleaseStatsFields:
     """Members of :class:`MarketplaceReleaseStats`."""
 
     if TYPE_CHECKING:
+        blocked_from_sale: bool | None
         lowest_price: Price | None
         num_for_sale: int | None
 
@@ -213,6 +223,7 @@ class OrderFields:
         shipping: ShippingInfo | None
         status: str | None
         total: Price | None
+        tracking: OrderTracking | None
         uri: str | None
 
 
@@ -299,6 +310,7 @@ class UserFields:
         collection_fields_url: str | None
         collection_folders_url: str | None
         currency_code: str | None
+        email: str | None
         home_page: str | None
         inventory_url: str | None
         location: str | None

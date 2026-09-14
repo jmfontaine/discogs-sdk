@@ -1,8 +1,13 @@
 from __future__ import annotations
 
-from typing import Any
-
 from discogs_sdk.models._common import BasicInformation, SDKModel
+
+
+class CollectionNote(SDKModel):
+    """A custom-field value recorded on one collection instance."""
+
+    field_id: int | None = None
+    value: str | None = None
 
 
 class CollectionFolder(SDKModel):
@@ -18,7 +23,7 @@ class CollectionItem(SDKModel):
     date_added: str | None = None
     folder_id: int | None = None
     instance_id: int | None = None
-    notes: list[dict[str, Any]] | None = None
+    notes: list[CollectionNote] | None = None
     rating: int | None = None
 
 

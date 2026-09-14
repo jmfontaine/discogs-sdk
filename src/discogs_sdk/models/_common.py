@@ -151,6 +151,8 @@ class Identifier(SDKModel):
 
 
 class UserSummary(SDKModel):
+    id: int | None = None
+    avatar_url: str | None = None
     resource_url: str | None = None
     username: str | None = None
 

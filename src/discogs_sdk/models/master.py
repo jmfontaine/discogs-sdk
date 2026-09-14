@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from pydantic import Field
 
 from discogs_sdk.models._common import ArtistCredit, Image, SDKModel, Track, Video
 
@@ -25,16 +25,26 @@ class Master(SDKModel):
     year: int | None = None
 
 
+class VersionCounts(SDKModel):
+    in_collection: int | None = None
+    in_wantlist: int | None = None
+
+
+class VersionStats(SDKModel):
+    community: VersionCounts | None = None
+    user: VersionCounts | None = None
+
+
 class MasterVersion(SDKModel):
     id: int
-    catno: str | None = None
+    catalog_number: str | None = Field(default=None, validation_alias="catno")
     country: str | None = None
     format: str | None = None
     label: str | None = None
     major_formats: list[str] | None = None
     released: str | None = None
     resource_url: str | None = None
-    stats: dict[str, Any] | None = None
+    stats: VersionStats | None = None
     status: str | None = None
     thumb: str | None = None
     title: str

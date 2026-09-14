@@ -311,7 +311,7 @@ Model fields use clean Python names. Where the Discogs API uses inconsistent or 
 | API field | Python attribute | Models |
 |---|---|---|
 | `anv` | `name_variation` | `ArtistCredit` |
-| `catno` | `catalog_number` | `LabelCredit`, `Company`, `LabelRelease`, `SearchResult` |
+| `catno` | `catalog_number` | `LabelCredit`, `Company`, `LabelRelease`, `MasterVersion`, `SearchResult` |
 | `created_ts` | `created_at` | `Export`, `Upload`, `List_` |
 | `curr_abbr` | `currency_code` | `OriginalPrice`, `User` |
 | `curr_id` | `currency_id` | `OriginalPrice` |

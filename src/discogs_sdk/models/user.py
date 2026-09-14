@@ -22,6 +22,8 @@ class User(SDKModel):
     collection_fields_url: str | None = None
     collection_folders_url: str | None = None
     currency_code: str | None = Field(default=None, validation_alias="curr_abbr")
+    # Only present when authenticated as the requested user.
+    email: str | None = None
     home_page: str | None = None
     inventory_url: str | None = None
     location: str | None = None
