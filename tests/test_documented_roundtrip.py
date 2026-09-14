@@ -489,7 +489,7 @@ class TestUserRoundTrip:
             return_value=respx.MockResponse(201, json=ADDED_WANT)
         )
         lazy = client.users.get("trent_reznor")
-        result = await lazy.wantlist.create(release_id=352665, rating=5)
+        result = await lazy.wantlist.create(release_id=352665)
         assert isinstance(result, Want)
         assert result.basic_information.labels[0].entity_type_name == "Label"
 

@@ -24,8 +24,12 @@ class TestWantlistList:
 
 
 class TestWantlistCreate:
-    def test_create_uses_put(self, client, respx_mock):
-        """Wantlist create uses PUT, not POST — critical edge case."""
+    def test_create_uses_put_with_no_body(self, client, respx_mock):
+        """Wantlist create uses PUT, not POST — critical edge case.
+
+        The endpoint takes nothing but the release id: Discogs discards `notes`
+        and `rating` sent here, so the SDK does not offer them.
+        """
         respx_mock.put("/users/trent_reznor/wants/400027").mock(
             return_value=respx.MockResponse(201, json=make_want())
         )
@@ -33,27 +37,7 @@ class TestWantlistCreate:
         result = lazy.wantlist.create(release_id=400027)
         assert isinstance(result, Want)
         assert respx_mock.calls[0].request.method == "PUT"
-
-    def test_create_with_notes_and_rating(self, client, respx_mock):
-        respx_mock.put("/users/trent_reznor/wants/400027").mock(
-            return_value=respx.MockResponse(
-                201, json=make_want(notes="Masterpiece", rating=5)
-            )
-        )
-        lazy = client.users.get("trent_reznor")
-        result = lazy.wantlist.create(release_id=400027, notes="Masterpiece", rating=5)
-        assert result.notes == "Masterpiece"
-        assert result.rating == 5
-
-    def test_create_without_optional_fields(self, client, respx_mock):
-        respx_mock.put("/users/trent_reznor/wants/400027").mock(
-            return_value=respx.MockResponse(201, json=make_want())
-        )
-        lazy = client.users.get("trent_reznor")
-        lazy.wantlist.create(release_id=400027)
-        body = respx_mock.calls[0].request.content
-        assert b"notes" not in body
-        assert b"rating" not in body
+        assert not respx_mock.calls[0].request.content
 
 
 class TestWantlistUpdate:

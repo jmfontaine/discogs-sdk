@@ -131,16 +131,13 @@ for want in user.wantlist.list():
     if want.basic_information:
         print(f"  {want.basic_information.title} (rating: {want.rating})")
 
-# Add to wantlist.
-want = user.wantlist.create(
-    release_id=352665,
-    notes="Looking for original US pressing",
-    rating=4,
-)
+# Add to wantlist. The endpoint takes the release id and nothing else: Discogs
+# discards notes and ratings sent here.
+want = user.wantlist.create(release_id=352665)
 print(f"Added want #{want.id}")
 
-# Update notes/rating.
-user.wantlist.update(352665, notes="Found one, negotiating price")
+# Notes and rating are set by the update call.
+user.wantlist.update(352665, notes="Looking for original US pressing", rating=4)
 
 # Remove from wantlist.
 user.wantlist.delete(352665)

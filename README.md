@@ -193,8 +193,10 @@ instances.get(created.instance_id).fields.update(field_id=1, value="Signed copy"
 value = user.collection.value.get()
 print(f"Median: {value.median}, Maximum: {value.maximum}")
 
-# Wantlist
-user.wantlist.create(release_id=352665, notes="Original pressing", rating=4)
+# Wantlist — the add takes only the release id; Discogs drops notes and ratings
+# sent to it, so they go in the update call
+user.wantlist.create(release_id=352665)
+user.wantlist.update(352665, notes="Original pressing", rating=4)
 for want in user.wantlist.list():
     print(want.basic_information.title)
 ```
