@@ -122,7 +122,8 @@ rules.unused-ignore-comment = "ignore"
 ini_options.testpaths = [ "tests" ]
 ini_options.addopts = "-m 'not integration'"
 ini_options.markers = [
-  "integration: hits the real Discogs API (requires DISCOGS_TOKEN)",
+  "integration: hits the real Discogs API",
+  "unauthenticated: hits the real Discogs API with no credentials",
 ]
 ini_options.asyncio_default_fixture_loop_scope = "function"
 ini_options.asyncio_mode = "auto"
