@@ -249,6 +249,49 @@ class TestPaginationMetadata:
         assert page.total_items == 75
         assert page.per_page == 25
 
+    async def test_exposes_every_documented_url(self, client, respx_mock):
+        body = make_paginated_response("releases", [make_release()])
+        body["pagination"]["urls"] = {
+            "first": f"{BASE_URL}/releases?page=1",
+            "prev": f"{BASE_URL}/releases?page=1",
+            "next": f"{BASE_URL}/releases?page=3",
+            "last": f"{BASE_URL}/releases?page=30",
+        }
+        respx_mock.get("/releases").mock(
+            return_value=respx.MockResponse(200, json=body)
+        )
+        page = AsyncPage(
+            client=client,
+            path="/releases",
+            params={},
+            model_cls=Release,
+            items_key="releases",
+        )
+        await anext(aiter(page))
+        assert page.first_url == f"{BASE_URL}/releases?page=1"
+        assert page.prev_url == f"{BASE_URL}/releases?page=1"
+        assert page.next_url == f"{BASE_URL}/releases?page=3"
+        assert page.last_url == f"{BASE_URL}/releases?page=30"
+
+    async def test_urls_are_none_on_a_single_page(self, client, respx_mock):
+        respx_mock.get("/releases").mock(
+            return_value=respx.MockResponse(
+                200, json=make_paginated_response("releases", [make_release()])
+            )
+        )
+        page = AsyncPage(
+            client=client,
+            path="/releases",
+            params={},
+            model_cls=Release,
+            items_key="releases",
+        )
+        await anext(aiter(page))
+        assert page.first_url is None
+        assert page.prev_url is None
+        assert page.next_url is None
+        assert page.last_url is None
+
     async def test_updates_across_pages(self, client, respx_mock):
         page1 = make_paginated_response(
             "releases",
