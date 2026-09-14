@@ -48,6 +48,7 @@ class SyncPage(Generic[T]):
         self._items_path = items_path
         self._items: list[T] = []
         self._index = 0
+        self._urls: dict[str, str] = {}
         self._next_url: str | None = None
         self._exhausted = False
         self._first_page_fetched = False
@@ -69,8 +70,10 @@ class SyncPage(Generic[T]):
         self._per_page = pagination.get("per_page")
         self._total_items = pagination.get("items")
         self._total_pages = pagination.get("pages")
-        urls = pagination.get("urls", {})
-        self._next_url = urls.get("next")
+        # The reference documents first/prev/next/last; only "next" drives the
+        # iterator, but all four are worth surfacing.
+        self._urls = pagination.get("urls", {}) or {}
+        self._next_url = self._urls.get("next")
         if not self._next_url:
             self._exhausted = True
         if self._items_path:
@@ -103,6 +106,26 @@ class SyncPage(Generic[T]):
     def total_pages(self) -> int | None:
         """Total number of pages, or ``None`` if no page has been fetched yet."""
         return self._total_pages
+
+    @property
+    def first_url(self) -> str | None:
+        """URL of the first page, or ``None`` when the response omits it."""
+        return self._urls.get("first")
+
+    @property
+    def prev_url(self) -> str | None:
+        """URL of the previous page, or ``None`` when the response omits it."""
+        return self._urls.get("prev")
+
+    @property
+    def next_url(self) -> str | None:
+        """URL of the next page, or ``None`` on the last page."""
+        return self._urls.get("next")
+
+    @property
+    def last_url(self) -> str | None:
+        """URL of the last page, or ``None`` when the response omits it."""
+        return self._urls.get("last")
 
     def __iter__(self) -> Iterator[T]:
         return self
