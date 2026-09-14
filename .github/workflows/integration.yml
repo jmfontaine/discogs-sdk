@@ -1,0 +1,122 @@
+name: Integration
+
+# The unit suite runs entirely against mocks, so nothing in CI notices when
+# Discogs changes what it serves. This runs the live suite on a schedule, in
+# both credential states, because several documented behaviours (image URLs,
+# which endpoints demand authentication) differ between them and have changed
+# before.
+
+on:
+  schedule:
+    # Weekly. Daily buys little: the API moves slowly and every authenticated
+    # run writes to a real account. Off the hour, since scheduled runs pile up
+    # at :00 and get delayed.
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Never cancel a run in flight: the authenticated suite creates a wantlist
+  # entry and a collection instance, and removes them in a `finally` block that
+  # a cancelled job would skip, leaving debris in a real account.
+  group: integration
+  cancel-in-progress: false
+
+jobs:
+  authenticated:
+    name: Authenticated
+    runs-on: ubuntu-latest
+    # Only the upstream repository holds the secrets; a fork that enables
+    # scheduled workflows would otherwise fail every week for no reason.
+    if: github.repository == 'jmfontaine/discogs-sdk'
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: uv sync --all-extras --all-groups
+      - name: Check the token is configured
+        # Every authenticated fixture skips without it, so a missing secret
+        # would produce a green run that tested nothing.
+        env:
+          DISCOGS_TOKEN: ${{ secrets.DISCOGS_TOKEN }}
+        run: |
+          if [ -z "$DISCOGS_TOKEN" ]; then
+            echo "::error::DISCOGS_TOKEN is not set; the integration suite would skip silently"
+            exit 1
+          fi
+      - name: Run the authenticated suite
+        # OAuth credentials are optional: tests/integration/test_oauth.py skips
+        # when they are absent, and the rest of the suite still runs.
+        env:
+          DISCOGS_TOKEN: ${{ secrets.DISCOGS_TOKEN }}
+          DISCOGS_CONSUMER_KEY: ${{ secrets.DISCOGS_CONSUMER_KEY }}
+          DISCOGS_CONSUMER_SECRET: ${{ secrets.DISCOGS_CONSUMER_SECRET }}
+          DISCOGS_ACCESS_TOKEN: ${{ secrets.DISCOGS_ACCESS_TOKEN }}
+          DISCOGS_ACCESS_TOKEN_SECRET: ${{ secrets.DISCOGS_ACCESS_TOKEN_SECRET }}
+        # The anonymous tests are excluded deliberately: the 25/min anonymous
+        # limit is per IP and this job's authenticated calls consume it, so
+        # sharing a runner earns a 429. They get their own job below.
+        run: uv run pytest -m 'integration and not unauthenticated' -rs
+
+  anonymous:
+    name: Anonymous
+    runs-on: ubuntu-latest
+    if: github.repository == 'jmfontaine/discogs-sdk'
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: uv sync --all-extras --all-groups
+      - name: Run the anonymous tests
+        # No credentials in this job's environment at all, so there is nothing
+        # to leak into the client, and this runner's IP budget is untouched.
+        run: uv run pytest -m 'integration and unauthenticated' -rs
+
+  report:
+    name: Report
+    runs-on: ubuntu-latest
+    needs: [authenticated, anonymous]
+    # Scheduled failures are only emailed to the repository owner and are easy
+    # to miss; a manual dispatch is already being watched by whoever ran it.
+    if: failure() && github.event_name == 'schedule'
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Open or update the failure issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          label=integration-failure
+          gh label create "$label" \
+            --repo "$GITHUB_REPOSITORY" \
+            --color b60205 \
+            --description "A scheduled run against the live Discogs API failed" \
+            2>/dev/null || true
+          issue=$(gh issue list --repo "$GITHUB_REPOSITORY" --label "$label" --state open \
+            --limit 1 --json number --jq '.[0].number // empty')
+          if [ -n "$issue" ]; then
+            gh issue comment "$issue" --repo "$GITHUB_REPOSITORY" \
+              --body "Failed again on $(date -u +%Y-%m-%d): $RUN_URL"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --label "$label" \
+              --title "Scheduled integration run failed" \
+              --body "$(printf '%s\n\n%s\n\n%s' \
+                "The weekly run against the live Discogs API failed: $RUN_URL" \
+                "Either the API changed or the run hit a transient fault. Re-run the workflow manually to tell them apart." \
+                "Later failures are added as comments here, so close this issue once it is resolved.")"
+          fi

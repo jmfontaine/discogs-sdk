@@ -24,7 +24,8 @@ just sync-check         # Check _sync/ is up to date with _async/
 just dead-code          # deadcode src tests examples (run via uvx under Python 3.13)
 just deps-unused        # deptry src
 just deps-update        # Update deps to latest versions
-just test-integration   # Run integration tests (requires DISCOGS_TOKEN)
+just test-integration   # Run authenticated integration tests (requires DISCOGS_TOKEN)
+just test-unauthenticated # Run credential-free integration tests
 just verify-types       # Audit public API type annotation coverage (informational, not a gate)
 just verify-oauth       # Verify OAuth flow interactively
 just update-api-docs    # Compare docs/discogs_api/ with the official reference (writes only with --write)
@@ -39,7 +40,9 @@ Run a single test: `uv run pytest tests/async/test_releases.py -k test_get_relea
 Generate sync code from async sources: `uv run python scripts/generate_sync.py`
 Check sync staleness: `uv run python scripts/generate_sync.py --check`
 
-Integration tests require `DISCOGS_TOKEN`: `just test-integration`
+`just test-integration` needs `DISCOGS_TOKEN`; `just test-unauthenticated` needs nothing.
+Keep them apart: the anonymous 25/min limit is per IP and the authenticated calls
+consume it, so running both within a minute makes the anonymous ones fail with 429.
 
 ## Architecture
 
@@ -103,6 +106,22 @@ Env vars: `DISCOGS_TOKEN`, `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `D
 - Async tests in `tests/async/`, sync tests in `tests/sync/` (both hand-maintained)
 - `pytest-asyncio` with `asyncio_mode="auto"` — no need for `@pytest.mark.asyncio`
 - Integration tests marked with `@pytest.mark.integration`, excluded by default
+- `.github/workflows/integration.yml` runs the live suite weekly (and on manual dispatch) in two
+  jobs: one authenticated with the repository secrets, one with no credentials at all. A scheduled
+  failure opens (or comments on) an issue labelled `integration-failure`. GitHub disables cron
+  workflows after 60 days without repository activity, so re-enable it if the repo goes quiet
+- The live suite never resets the account. Each writing test removes what it created in a `finally`
+  block, and everything it creates is tagged so the *next* run can reclaim what a killed run left:
+  collection folders are named with `TEST_FOLDER_PREFIX` and swept by the `scratch_folder` fixture,
+  and the wantlist entry carries `WANT_MARKER` in its notes, applied by a follow-up `update()` since
+  the create endpoint discards notes. An untagged want is treated as the owner's: `unavailable()`
+  skips locally and *fails* under `GITHUB_ACTIONS`, so the scheduled job cannot go green on a test
+  that never ran. (`CI` is unusable for that check — dev shells set it.) Writes stay inside the
+  suite's own scratch folder, never folder 1 (Uncategorized), so a leftover is always
+  distinguishable from a real copy. One window is not covered: a run killed between the want's
+  create and its tagging `update()` leaves an untagged entry that no later run will claim.
+  `tests/test_integration_safety.py` runs those flows and the sweep against mocks to prove nothing
+  else is deleted
 
 ## Design Decisions
 
@@ -140,16 +159,18 @@ The Discogs API silently returns empty responses if no `User-Agent` header is se
 
 | Credentials | Rate limit | Image URLs | User-scoped access |
 |---|---|---|---|
-| None | 25/min | No | No |
+| None | 25/min | Resource reads only | No |
 | Consumer key/secret only | 60/min | Yes | No |
 | Personal token | 60/min | Yes | Yes (token holder only) |
 | Full OAuth | 60/min | Yes | Yes (any authorized user) |
 
 Consumer key/secret alone does **not** grant access to user-specific resources (marketplace orders, private collections, wantlists). Only a token or full OAuth does.
 
-### Search Requires Authentication
+Image URLs used to require credentials everywhere. As of 2026-09 an anonymous `GET /releases/{id}` returns the full `images` array; only search results are stripped, coming back with empty `cover_image` and `thumb` strings. `tests/integration/test_unauthenticated.py` pins the current behaviour on both sides.
 
-`/database/search` requires authentication (any mode). Unauthenticated search returns 401.
+### Search Is Open to Anonymous Clients
+
+`/database/search` used to return 401 without credentials. As of 2026-09 it answers anonymous requests normally, minus the image fields above. Both halves are covered by the scheduled integration workflow.
 
 ### Collection Folder Semantics
 
@@ -157,6 +178,20 @@ Consumer key/secret alone does **not** grant access to user-specific resources (
 - Folder 1 = "Uncategorized" (default destination)
 - Folders 0 and 1 cannot be renamed or deleted
 - Custom folders must be empty before deletion
+
+### Adding a Want Takes Nothing but the Release ID
+
+`PUT /users/{u}/wants/{release_id}` documents `notes` and `rating` and discards both — verified
+2026-09-13 as a JSON body and as query parameters; the response and every later read return `""`
+and `0`, and the reference's own PUT example shows `"notes": ""`. `POST` on the same path (i.e.
+`wantlist.update()`) stores them. `Wantlist.create()` therefore takes only `release_id`.
+
+### Writes Are Not Read-Your-Own
+
+A successful write is not immediately visible to the next read. Measured 2026-09-13: a want that
+`PUT` had acknowledged was still missing from `GET /users/{u}/wants` after 17s and present after
+37s; deletes lag the same way. Anything that reads back a write has to poll (see `eventually()` in
+`tests/integration/conftest.py`).
 
 ### Marketplace Listing Edit Restrictions
 
