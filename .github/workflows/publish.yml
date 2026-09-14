@@ -19,6 +19,9 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.13"
+          # Jobs on the same Python otherwise compute the same cache key and
+          # race to reserve it, which logs a warning in whichever loses.
+          cache-suffix: ${{ github.job }}
       - name: Install dependencies
         run: uv sync --all-extras --all-groups
       - name: Check sync codegen
@@ -52,6 +55,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           python-version: ${{ matrix.python-version }}
+          cache-suffix: ${{ github.job }}
       - name: Install dependencies
         run: uv sync --all-extras --all-groups
       - name: Run tests
@@ -67,6 +71,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.13"
+          cache-suffix: ${{ github.job }}
       - name: Build distributions
         run: uv build
       - name: Check distribution contents
@@ -74,7 +79,7 @@ jobs:
       - name: Check distribution metadata
         run: uvx twine check --strict dist/*
       - name: Upload distributions
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
@@ -98,8 +103,9 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           python-version: ${{ matrix.python-version }}
+          cache-suffix: ${{ github.job }}
       - name: Download distributions
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
@@ -150,8 +156,9 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.15"
+          cache-suffix: ${{ github.job }}
       - name: Download distributions
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
@@ -173,7 +180,7 @@ jobs:
       - name: Download distributions
         # The exact artifacts the wheel and sdist jobs installed — never rebuilt
         # here, so what PyPI receives is what was tested.
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/

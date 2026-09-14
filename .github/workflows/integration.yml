@@ -39,6 +39,9 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.13"
+          # Jobs on the same Python otherwise compute the same cache key and
+          # race to reserve it, which logs a warning in whichever loses.
+          cache-suffix: ${{ github.job }}
       - name: Install dependencies
         run: uv sync --all-extras --all-groups
       - name: Check the token is configured
@@ -77,6 +80,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.13"
+          cache-suffix: ${{ github.job }}
       - name: Install dependencies
         run: uv sync --all-extras --all-groups
       - name: Run the anonymous tests
