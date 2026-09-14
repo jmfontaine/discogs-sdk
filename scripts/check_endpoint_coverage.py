@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Re-verify the endpoint-coverage claims in README.md.
 
-Two independent checks:
+Three independent checks:
 
 1. Every route in the local Discogs API reference is reachable through the SDK,
    and the SDK calls no route the reference does not document. The reference
@@ -13,7 +13,17 @@ Two independent checks:
    pass means no route has drifted -- not that every operation and parameter is
    implemented.
 
-2. With ``--compare-upstream``, the probes behind the comparison table in
+2. Every ```json``` example block in the reference is claimed by exactly one
+   ``Example`` in ``tests/documented_payloads.py``, and every claimed body
+   matches its example(s) key-for-key. Runs only where the reference is
+   present, for the same reason as check 1.
+
+   Scope: shape, not values. This re-derives key sets from the reference and
+   from the registered payloads/envelopes/errors and diffs them; it does not
+   check that a field's example value is sensible, only that the same keys
+   exist on both sides (modulo declared ``extra_keys``).
+
+3. With ``--compare-upstream``, the probes behind the comparison table in
    README.md: markers that must stay present, or substrings that must stay
    absent, in the current upstream source.
 
@@ -26,15 +36,23 @@ from __future__ import annotations
 
 import argparse
 import ast
+import json
 import re
 import subprocess
 import sys
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 ASYNC_SRC = ROOT / "src" / "discogs_sdk" / "_async"
 API_DOCS = ROOT / "docs" / "discogs_api"
+
+# ``tests`` is a package at the repo root; make it importable regardless of the
+# working directory this script is invoked from.
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 UPSTREAM_REPO = "https://github.com/joalla/discogs_client.git"
 UPSTREAM_SOURCES = (
@@ -191,6 +209,292 @@ def _check_sdk() -> bool:
     return not missing and not unknown
 
 
+# --- Check 2: every ```json``` example in the reference, cross-checked ------
+
+_HEADING_RE = re.compile(r"^#{2,3}\s+(.+?)\s*$")
+_REQUEST_MARKER_RE = re.compile(r"^-\s+\*\*Request\*\*\s*$")
+_RESPONSE_MARKER_RE = re.compile(r"^-\s+\*\*Response\s+`(\d+)`\*\*\s*$")
+_JSON_FENCE_OPEN_RE = re.compile(r"^\s*```json\s*$")
+_FENCE_CLOSE_RE = re.compile(r"^\s*```\s*$")
+
+# The reference has two recurring typos: a trailing comma before a closing
+# brace/bracket, and (in a few spots) a missing comma between two sibling
+# keys. Both are safe to repair with regexes: JSON object keys are always
+# quoted identifiers, so "value-ending character, newline, quoted key" only
+# ever occurs at the boundary between two keys, never inside a string value.
+_TRAILING_COMMA_RE = re.compile(r",(\s*[}\]])")
+_MISSING_COMMA_RE = re.compile(
+    r'([}\]"0-9A-Za-z])(\n\s*)"([A-Za-z_][A-Za-z0-9_]*)"\s*:'
+)
+
+
+class _UnparseableBlock(Exception):
+    """A ```json``` block that is still invalid after both repairs."""
+
+
+@dataclass(frozen=True)
+class DocExample:
+    """One parsed ```json``` block, identified the same way as ``Example`` in
+    ``tests/documented_payloads.py`` so the two can be compared by id."""
+
+    doc: str
+    section: str
+    status: str
+    ordinal: int
+    body: Any
+
+    @property
+    def id(self) -> str:
+        return f"{self.doc}::{self.section}::{self.status}#{self.ordinal}"
+
+
+def _repair_json(raw: str) -> str:
+    raw = _MISSING_COMMA_RE.sub(r'\1,\2"\3":', raw)
+    raw = _TRAILING_COMMA_RE.sub(r"\1", raw)
+    return raw
+
+
+def _doc_examples(path: Path) -> list[DocExample]:
+    """Every ```json``` block in *path*, in file order.
+
+    ``status`` follows the nearest preceding ``- **Request**`` or
+    ``- **Response `NNN`**`` marker, both of which reset at every ``##``/``###``
+    heading. ``ordinal`` counts repeats of the same (section, status) pair.
+    """
+    section = ""
+    status = "request"
+    counters: dict[tuple[str, str], int] = {}
+    examples: list[DocExample] = []
+    in_json = False
+    buf: list[str] = []
+    for line in path.read_text().split("\n"):
+        heading = _HEADING_RE.match(line)
+        if heading:
+            section = heading.group(1)
+            status = "request"
+            continue
+        if _REQUEST_MARKER_RE.match(line):
+            status = "request"
+            continue
+        response = _RESPONSE_MARKER_RE.match(line)
+        if response:
+            status = response.group(1)
+            continue
+        if not in_json:
+            if _JSON_FENCE_OPEN_RE.match(line):
+                in_json = True
+                buf = []
+            continue
+        if not _FENCE_CLOSE_RE.match(line):
+            buf.append(line)
+            continue
+        in_json = False
+        raw = "\n".join(buf)
+        try:
+            body = json.loads(raw)
+        except json.JSONDecodeError:
+            try:
+                body = json.loads(_repair_json(raw))
+            except json.JSONDecodeError as exc:
+                raise _UnparseableBlock(
+                    f"{path.name}, section {section!r} ({status}): {exc}"
+                ) from exc
+        key = (section, status)
+        ordinal = counters.get(key, 0)
+        counters[key] = ordinal + 1
+        examples.append(DocExample(path.name, section, status, ordinal, body))
+    return examples
+
+
+def _documented_examples() -> dict[str, DocExample]:
+    return {
+        example.id: example
+        for doc in sorted(API_DOCS.glob("*.md"))
+        for example in _doc_examples(doc)
+    }
+
+
+def _walk_path(value: Any, segments: tuple[str, ...]) -> list[Any]:
+    """Every value reachable from *value* by following *segments*, descending
+    through lists at every step -- a segment names a dict key, never a list
+    index, so a list in the way is expanded rather than consumed."""
+    if isinstance(value, list):
+        result: list[Any] = []
+        for item in value:
+            result.extend(_walk_path(item, segments))
+        return result
+    if not segments:
+        return [value]
+    if isinstance(value, dict) and segments[0] in value:
+        return _walk_path(value[segments[0]], segments[1:])
+    return []
+
+
+def _key_tree(value: Any, prefix: str = "") -> set[str]:
+    """Dotted paths to every key reachable in *value*.
+
+    List-aware: a list contributes the union of its elements' key trees under
+    its own path, exactly how ``extra_keys`` and ``items_path`` address it
+    (``items.release.id``, never ``items.0.release.id``).
+    """
+    keys: set[str] = set()
+    if isinstance(value, dict):
+        for k, v in value.items():
+            child = f"{prefix}.{k}" if prefix else k
+            keys.add(child)
+            keys |= _key_tree(v, child)
+    elif isinstance(value, list):
+        for item in value:
+            keys |= _key_tree(item, prefix)
+    return keys
+
+
+def _empty_container_prefixes(value: Any, prefix: str = "") -> set[str]:
+    """Dotted paths of keys documented as an empty list or dict.
+
+    Deliberate, not an oversight: an empty container carries no key-shape
+    information (unioning across zero elements yields no nested keys for it),
+    so its children must not be flagged as an undocumented payload key --
+    "no assertion possible" is not the same as "absent from the reference".
+    """
+    prefixes: set[str] = set()
+    if isinstance(value, dict):
+        for k, v in value.items():
+            child = f"{prefix}.{k}" if prefix else k
+            if isinstance(v, (list, dict)) and not v:
+                prefixes.add(child)
+            else:
+                prefixes |= _empty_container_prefixes(v, child)
+    elif isinstance(value, list):
+        for item in value:
+            prefixes |= _empty_container_prefixes(item, prefix)
+    return prefixes
+
+
+def _under_empty_container(key: str, empty_prefixes: set[str]) -> bool:
+    return any(key == p or key.startswith(f"{p}.") for p in empty_prefixes)
+
+
+def _resolved_key_tree(
+    examples: tuple[Any, ...], found: dict[str, DocExample]
+) -> tuple[set[str], set[str]]:
+    """The unioned, recursive key tree of every claimed ``Example``, plus the
+    dotted paths of any containers documented as empty."""
+    resolved: list[Any] = []
+    for example in examples:
+        segments = tuple(p for p in example.path.split(".") if p)
+        resolved.extend(_walk_path(found[example.id].body, segments))
+    return _key_tree(resolved, ""), _empty_container_prefixes(resolved, "")
+
+
+def _check_examples() -> bool:
+    """Cross-check ``tests/documented_payloads.py`` against the reference.
+
+    Every ```json``` block in the reference must be claimed by exactly one
+    Example across DOCUMENTED_PAYLOADS, DOCUMENTED_ENVELOPES and
+    DOCUMENTED_ERRORS, and every claimed payload/envelope/error body must
+    match its example(s) key-for-key (payloads only; dynamic payloads and
+    envelope/error bodies are checked structurally, not key-for-key).
+    """
+    from tests import documented_payloads as docs
+
+    try:
+        found = _documented_examples()
+    except _UnparseableBlock as exc:
+        print(f"\nERROR: unparseable example block in {exc}")
+        return False
+
+    # Two payloads may claim the same block at different paths — an item and the
+    # object nested inside it — so ownership is keyed by (example id, path).
+    # Record every owner rather than letting the last writer win.
+    claimed: dict[str, list[str]] = {}
+    owners_by_target: dict[tuple[str, str], list[str]] = {}
+    for name, payload in docs.DOCUMENTED_PAYLOADS.items():
+        for example in payload.examples:
+            claimed.setdefault(example.id, []).append(f"payload {name!r}")
+            owners_by_target.setdefault((example.id, example.path), []).append(name)
+    for name, envelope in docs.DOCUMENTED_ENVELOPES.items():
+        claimed.setdefault(envelope.example.id, []).append(f"envelope {name!r}")
+    for name, error in docs.DOCUMENTED_ERRORS.items():
+        claimed.setdefault(error.example.id, []).append(f"error {name!r}")
+
+    unclaimed = sorted(set(found) - set(claimed))
+    orphaned = sorted(set(claimed) - set(found))
+    duplicated = sorted(
+        (target, names) for target, names in owners_by_target.items() if len(names) > 1
+    )
+
+    problems: list[str] = []
+    for example_id in unclaimed:
+        problems.append(f"UNCLAIMED  {example_id} is not claimed by any Example")
+    for example_id in orphaned:
+        owners = ", ".join(claimed[example_id])
+        problems.append(f"MISSING    {example_id}, claimed by {owners}")
+    for (example_id, path), names in duplicated:
+        where = f"{example_id} at {path!r}" if path else example_id
+        problems.append(f"DUPLICATE  {where} is claimed by {', '.join(sorted(names))}")
+
+    for name, payload in sorted(docs.DOCUMENTED_PAYLOADS.items()):
+        if any(example.id not in found for example in payload.examples):
+            continue  # already reported above
+        if payload.dynamic:
+            continue
+        documented_keys, empty_prefixes = _resolved_key_tree(payload.examples, found)
+        payload_keys = _key_tree(payload.payload, "")
+        for key in sorted(documented_keys - payload_keys):
+            problems.append(f"KEY        {name}: documented key {key!r} missing")
+        extra = payload_keys - documented_keys - payload.extra_keys
+        for key in sorted(extra):
+            if _under_empty_container(key, empty_prefixes):
+                continue
+            problems.append(f"KEY        {name}: payload key {key!r} not in reference")
+
+    for name, envelope in sorted(docs.DOCUMENTED_ENVELOPES.items()):
+        doc_example = found.get(envelope.example.id)
+        if doc_example is None:
+            continue  # already reported above
+        body = doc_example.body
+        if "pagination" not in body:
+            problems.append(f"ENVELOPE   {name}: example body has no 'pagination'")
+        if envelope.items_key not in body:
+            problems.append(
+                f"ENVELOPE   {name}: example body has no {envelope.items_key!r}"
+            )
+        elif envelope.items_path is not None and not _walk_path(
+            body, envelope.items_path
+        ):
+            problems.append(
+                f"ENVELOPE   {name}: items_path {envelope.items_path} did not resolve"
+            )
+        if envelope.item not in docs.DOCUMENTED_PAYLOADS:
+            problems.append(
+                f"ENVELOPE   {name}: item {envelope.item!r} is not documented"
+            )
+
+    for name, error in sorted(docs.DOCUMENTED_ERRORS.items()):
+        doc_example = found.get(error.example.id)
+        if doc_example is None:
+            continue  # already reported above
+        body = doc_example.body
+        if set(body) != {"message"}:
+            problems.append(
+                f"ERROR      {name}: body is not {{'message': ...}}: {sorted(body)}"
+            )
+        if error.example.status != str(error.status):
+            problems.append(
+                f"ERROR      {name}: status {error.status} != example status "
+                f"{error.example.status!r}"
+            )
+
+    print(f"\nExample blocks in the reference    : {len(found)}")
+    print(f"Claimed by documented_payloads.py  : {len(claimed)}")
+    for problem in problems:
+        print(f"  {problem}")
+    if not problems:
+        print("OK: every example is claimed, and every body matches it.")
+    return not problems
+
+
 def _mentions_caching_in_request_path(repo: Path) -> bool:
     """Whether the word appears in the modules every request goes through.
 
@@ -290,7 +594,9 @@ def main() -> None:
         )
         sys.exit(1)
 
-    ok = _check_sdk()
+    sdk_ok = _check_sdk()
+    examples_ok = _check_examples()
+    ok = sdk_ok and examples_ok
     if args.compare_upstream:
         ok = _check_upstream() and ok
     sys.exit(0 if ok else 1)
