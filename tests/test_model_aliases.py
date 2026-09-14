@@ -18,6 +18,7 @@ from discogs_sdk.models._common import (
 from discogs_sdk.models.artist import Artist
 from discogs_sdk.models.label import Label, LabelRelease
 from discogs_sdk.models.marketplace import Listing, OrderMessage, OriginalPrice
+from discogs_sdk.models.master import MasterVersion
 from discogs_sdk.models.release import Release
 from discogs_sdk.models.search import SearchResult
 from discogs_sdk.models.user import User
@@ -74,6 +75,13 @@ class TestValidationAliasAccess:
         lr = LabelRelease.model_validate({"id": 1, "title": "Test", "catno": "CAT-1"})
         assert lr.catalog_number == "CAT-1"
         assert lr.catno == "CAT-1"
+
+    def test_master_version_catno(self) -> None:
+        version = MasterVersion.model_validate(
+            {"id": 1, "title": "The Downward Spiral", "catno": "HALO EIGHT"}
+        )
+        assert version.catalog_number == "HALO EIGHT"
+        assert version.catno == "HALO EIGHT"
 
     def test_search_result_catno(self) -> None:
         result = SearchResult.model_validate(

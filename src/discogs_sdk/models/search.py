@@ -1,17 +1,20 @@
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import Field
 
 from discogs_sdk.models._common import SDKModel
+
+
+class SearchCommunity(SDKModel):
+    have: int | None = None
+    want: int | None = None
 
 
 class SearchResult(SDKModel):
     id: int
     barcode: list[str] | None = None
     catalog_number: str | None = Field(default=None, validation_alias="catno")
-    community: dict[str, Any] | None = None
+    community: SearchCommunity | None = None
     country: str | None = None
     cover_image: str | None = None
     format: list[str] | None = None

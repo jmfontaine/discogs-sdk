@@ -92,5 +92,6 @@ class PriceSuggestions(SDKModel):
 
 
 class MarketplaceReleaseStats(SDKModel):
+    blocked_from_sale: bool | None = None
     lowest_price: Price | None = None
     num_for_sale: int | None = None
