@@ -27,15 +27,15 @@ class Wantlist(AsyncAPIResource):
             items_key="wants",
         )
 
-    async def create(
-        self, *, release_id: int, notes: str | None = None, rating: int | None = None
-    ) -> Want:
-        body = {
-            k: v for k, v in {"notes": notes, "rating": rating}.items() if v is not None
-        }
-        response = await self._put(
-            f"/users/{self._username}/wants/{release_id}", json=body
-        )
+    async def create(self, *, release_id: int) -> Want:
+        """Add *release_id* to the wantlist.
+
+        The endpoint takes no other input. Discogs documents ``notes`` and
+        ``rating`` here but discards both — sent as a JSON body or as query
+        parameters they come back empty, and the reference's own example
+        response shows ``"notes": ""``. Set them with :meth:`update`.
+        """
+        response = await self._put(f"/users/{self._username}/wants/{release_id}")
         return self._parse_response(response, Want)
 
     async def delete(self, release_id: int) -> None:
