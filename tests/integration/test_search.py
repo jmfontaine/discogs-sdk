@@ -27,3 +27,13 @@ class TestSearch:
         assert isinstance(first, SearchResult)
         assert page._first_page_fetched
         assert len(page._items) > 0
+
+    def test_search_results_carry_image_urls(self, client):
+        """Authentication is what fills in search thumbnails.
+
+        ``tests/integration/test_unauthenticated.py`` asserts the anonymous
+        half: the same fields come back as empty strings.
+        """
+        first = next(client.search(query="Nine Inch Nails", type="artist"))
+        assert first.cover_image
+        assert first.thumb

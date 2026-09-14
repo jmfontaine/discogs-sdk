@@ -97,9 +97,13 @@ sync-check:
 test *args:
     uv run pytest --cov --cov-report=term-missing {{ args }}
 
-# Run integration tests
+# Run authenticated integration tests
 test-integration *args:
-    uv run pytest -m integration {{ args }}
+    uv run pytest -m 'integration and not unauthenticated' {{ args }}
+
+# Run integration tests that use no credentials (keep them off the same minute as the authenticated ones)
+test-unauthenticated *args:
+    uv run pytest -m 'integration and unauthenticated' {{ args }}
 
 # Compare docs/discogs_api/ with the official API reference (--diff, --check, --write)
 update-api-docs *args:
