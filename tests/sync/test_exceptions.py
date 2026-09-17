@@ -5,6 +5,7 @@ from __future__ import annotations
 from discogs_sdk._events import RateLimit
 from discogs_sdk._exceptions import (
     AuthenticationError,
+    CacheMissError,
     DiscogsAPIError,
     DiscogsConnectionError,
     DiscogsError,
@@ -20,6 +21,10 @@ class TestHierarchy:
 
     def test_connection_error_is_discogs_error(self):
         assert issubclass(DiscogsConnectionError, DiscogsError)
+
+    def test_cache_miss_error_is_discogs_error(self):
+        assert issubclass(CacheMissError, DiscogsError)
+        assert not issubclass(CacheMissError, DiscogsAPIError)
 
     def test_authentication_error(self):
         assert issubclass(AuthenticationError, DiscogsAPIError)
@@ -89,6 +94,14 @@ class TestValidationError:
         )
         assert err.status_code == 422
         assert str(err) == "422: invalid"
+
+
+class TestCacheMissError:
+    def test_message_and_attributes(self):
+        err = CacheMissError("GET", "https://api.discogs.com/releases/352665")
+        assert err.method == "GET"
+        assert err.url == "https://api.discogs.com/releases/352665"
+        assert str(err) == "Not cached: GET https://api.discogs.com/releases/352665"
 
 
 class TestRateLimit:

@@ -89,7 +89,7 @@ Env vars: `DISCOGS_TOKEN`, `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `D
 
 ### Error Hierarchy
 
-`DiscogsError` > `DiscogsConnectionError` | `DiscogsAPIError` > `RateLimitError` | `NotFoundError` | `ForbiddenError` | `AuthenticationError` | `ValidationError`
+`DiscogsError` > `DiscogsConnectionError` | `CacheMissError` | `DiscogsAPIError` > `RateLimitError` | `NotFoundError` | `ForbiddenError` | `AuthenticationError` | `ValidationError`
 
 ## Testing
 

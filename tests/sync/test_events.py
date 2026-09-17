@@ -9,6 +9,7 @@ import pytest
 import respx
 
 from discogs_sdk import (
+    CacheMissError,
     Discogs,
     DiscogsConnectionError,
     RateLimit,
@@ -146,3 +147,91 @@ class TestRequestEvents:
             with pytest.raises(RuntimeError, match="observer failed"):
                 client._send("GET", f"{BASE_URL}/releases/352665")
             client.close()
+
+
+class TestCacheOnly:
+    def test_cache_only_miss_raises_before_network(self):
+        events: list[RequestEvent] = []
+        with respx.mock(
+            base_url=BASE_URL, using="httpcore2", assert_all_called=False
+        ) as router:
+            route = router.get("/releases/352665").mock(return_value=_ok())
+            client = Discogs(token="t", cache=True, on_request=events.append)
+            with client.cache_only(), pytest.raises(CacheMissError) as exc_info:
+                client._send("get", f"{BASE_URL}/releases/352665", params={"x": "1"})
+            client.close()
+
+        assert route.call_count == 0
+        assert events == []
+        assert exc_info.value.method == "GET"
+        assert exc_info.value.url == f"{BASE_URL}/releases/352665?x=1"
+
+    def test_cache_only_hit_serves_from_cache(self):
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/352665").mock(return_value=_ok())
+            client = Discogs(token="t", cache=True)
+            client._send("GET", f"{BASE_URL}/releases/352665")
+            with client.cache_only():
+                response = client._send("GET", f"{BASE_URL}/releases/352665")
+            client.close()
+
+        assert route.call_count == 1
+        assert response.json()["id"] == make_release()["id"]
+
+    def test_cache_only_with_cache_disabled_raises(self):
+        with respx.mock(
+            base_url=BASE_URL, using="httpcore2", assert_all_called=False
+        ) as router:
+            route = router.get("/releases/352665").mock(return_value=_ok())
+            client = Discogs(token="t", cache=False)
+            with client.cache_only(), pytest.raises(CacheMissError):
+                client._send("GET", f"{BASE_URL}/releases/352665")
+            client.close()
+
+        assert route.call_count == 0
+
+    def test_cache_only_inside_no_cache_raises(self):
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/352665").mock(return_value=_ok())
+            client = Discogs(token="t", cache=True)
+            client._send("GET", f"{BASE_URL}/releases/352665")
+            with (
+                client.no_cache(),
+                client.cache_only(),
+                pytest.raises(CacheMissError),
+            ):
+                client._send("GET", f"{BASE_URL}/releases/352665")
+            client.close()
+
+        assert route.call_count == 1
+
+    def test_cache_only_scope_restores(self):
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/352665").mock(return_value=_ok())
+            client = Discogs(token="t", cache=True)
+            with client.cache_only(), pytest.raises(CacheMissError):
+                client._send("GET", f"{BASE_URL}/releases/352665")
+            client._send("GET", f"{BASE_URL}/releases/352665")
+            assert route.call_count == 1
+
+            with pytest.raises(RuntimeError), client.cache_only():
+                raise RuntimeError("boom")
+            with client.no_cache():
+                client._send("GET", f"{BASE_URL}/releases/352665")
+            assert route.call_count == 2
+            client.close()
+
+    def test_cache_only_non_get_raises(self):
+        with respx.mock(
+            base_url=BASE_URL, using="httpcore2", assert_all_called=False
+        ) as router:
+            route = router.post("/users/trent_reznor/wants/352665").mock(
+                return_value=_ok()
+            )
+            client = Discogs(token="t", cache=True)
+            with client.cache_only(), pytest.raises(CacheMissError) as exc_info:
+                client._send("POST", f"{BASE_URL}/users/trent_reznor/wants/352665")
+            client.close()
+
+        assert route.call_count == 0
+        assert exc_info.value.method == "POST"

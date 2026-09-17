@@ -4,6 +4,7 @@ from discogs_sdk._base_client import MediaType
 from discogs_sdk._events import RateLimit, RequestEvent
 from discogs_sdk._exceptions import (
     AuthenticationError,
+    CacheMissError,
     DiscogsAPIError,
     DiscogsConnectionError,
     DiscogsError,
@@ -93,6 +94,7 @@ __all__ = [
     "RequestEvent",
     # Exceptions
     "DiscogsError",
+    "CacheMissError",
     "DiscogsConnectionError",
     "DiscogsAPIError",
     "AuthenticationError",

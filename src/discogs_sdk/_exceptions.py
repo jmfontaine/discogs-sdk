@@ -13,6 +13,20 @@ class DiscogsConnectionError(DiscogsError):
     """Network-level errors (DNS, timeout, connection refused)."""
 
 
+class CacheMissError(DiscogsError):
+    """Raised inside ``cache_only()`` when a request cannot be served from cache.
+
+    Attributes:
+        method: Upper-case HTTP method of the request.
+        url: Fully resolved request URL.
+    """
+
+    def __init__(self, method: str, url: str) -> None:
+        super().__init__(f"Not cached: {method} {url}")
+        self.method = method
+        self.url = url
+
+
 class DiscogsAPIError(DiscogsError):
     """HTTP error returned by the Discogs API."""
 
