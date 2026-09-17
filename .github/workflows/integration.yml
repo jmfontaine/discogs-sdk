@@ -27,7 +27,7 @@ concurrency:
 jobs:
   authenticated:
     name: Authenticated
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # Only the upstream repository holds the secrets; a fork that enables
     # scheduled workflows would otherwise fail every week for no reason.
     if: github.repository == 'jmfontaine/discogs-sdk'
@@ -70,7 +70,7 @@ jobs:
 
   anonymous:
     name: Anonymous
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     if: github.repository == 'jmfontaine/discogs-sdk'
     timeout-minutes: 15
     steps:
@@ -90,7 +90,7 @@ jobs:
 
   report:
     name: Report
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs: [authenticated, anonymous]
     # Scheduled failures are only emailed to the repository owner and are easy
     # to miss; a manual dispatch is already being watched by whoever ran it.
