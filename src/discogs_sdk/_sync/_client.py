@@ -26,7 +26,7 @@ from discogs_sdk._base_client import (
 )
 from discogs_sdk._cache import MemoryCache, ResponseCache, SQLiteCache
 from discogs_sdk._events import RateLimit, RequestEvent
-from discogs_sdk._exceptions import DiscogsConnectionError
+from discogs_sdk._exceptions import CacheMissError, DiscogsConnectionError
 from discogs_sdk._sync.resources.artists import Artists
 from discogs_sdk._sync.resources.exports import Exports
 from discogs_sdk._sync.resources.labels import Labels
@@ -46,6 +46,10 @@ logger = logging.getLogger("discogs_sdk")
 # ContextVar so concurrent tasks and threads cannot clobber each other's state.
 _CACHE_BYPASS: ContextVar[frozenset[int]] = ContextVar(
     "discogs_sdk_cache_bypass", default=frozenset()
+)
+# Clients restricted to the cache in the current execution context; same shape.
+_CACHE_ONLY: ContextVar[frozenset[int]] = ContextVar(
+    "discogs_sdk_cache_only", default=frozenset()
 )
 _CACHEABLE_METHODS = frozenset({"GET", "HEAD"})
 
@@ -194,11 +198,13 @@ class Discogs(BaseClient):
             and (method.upper() in _CACHEABLE_METHODS)
             and (self._owns_client or self._auth_mode != "none")
         )
+        cache_only = id(self) in _CACHE_ONLY.get()
         cache_key = ""
-        if use_cache:
+        if use_cache or cache_only:
             # httpx2 merges params into the URL, so build the request first to key
             # on the fully resolved URL.
             req = self._http_client.build_request(method, url, **build_kwargs)
+        if use_cache:
             cache_key = self._build_cache_key(method, str(req.url), headers["Accept"])
             t0 = time.monotonic()
             cached = self._cache.get(cache_key)  # type: ignore[union-attr]
@@ -222,6 +228,9 @@ class Discogs(BaseClient):
                     )
                 )
                 return response
+        if cache_only:
+            # Nothing below this line may run: the scope forbids network I/O.
+            raise CacheMissError(method.upper(), str(req.url))
         for attempt in range(self.max_retries + 1):
             logger.debug("HTTP request: %s %s", method, url)
             t0 = time.monotonic()  # Unaffected by system clock adjustments (NTP, DST)
@@ -327,6 +336,21 @@ class Discogs(BaseClient):
             yield self
         finally:
             _CACHE_BYPASS.reset(token)
+
+    @contextmanager
+    def cache_only(self) -> Generator[Self, None, None]:
+        """Serve only from the response cache for the current execution context.
+
+        A request the cache cannot serve - a miss, an expired entry, a non-GET,
+        a disabled cache or an enclosing ``no_cache()`` - raises
+        ``CacheMissError`` before any network I/O. Scopes nest and restore
+        exactly like ``no_cache()``.
+        """
+        token = _CACHE_ONLY.set(_CACHE_ONLY.get() | {id(self)})
+        try:
+            yield self
+        finally:
+            _CACHE_ONLY.reset(token)
 
     def clear_cache(self) -> None:
         """Purge all cached responses. No-op when caching is disabled."""

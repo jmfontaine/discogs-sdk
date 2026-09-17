@@ -4,7 +4,7 @@ Covers:
   - Exception hierarchy and catching patterns
   - Rate limit handling
   - Custom User-Agent
-  - Response caching
+  - Response caching and cache-only mode
   - Request events and the rate-limit budget
   - Custom httpx2 client
   - Exports (inventory CSV download)
@@ -18,6 +18,7 @@ import httpx2
 
 from discogs_sdk import (
     AuthenticationError,
+    CacheMissError,
     Discogs,
     DiscogsAPIError,
     DiscogsConnectionError,
@@ -35,6 +36,7 @@ client = Discogs()
 #
 #   DiscogsError (base)
 #   +-- DiscogsConnectionError (network-level: timeout, DNS, etc.)
+#   +-- CacheMissError (cache_only() could not serve the request)
 #   +-- DiscogsAPIError (HTTP error with status code + body)
 #       +-- AuthenticationError (401)
 #       +-- NotFoundError (404)
@@ -98,6 +100,15 @@ _ = r2.title  # served from cache
 with cached_client.no_cache():
     fresh = cached_client.releases.get(352665)
     _ = fresh.title  # always hits the API
+
+# Serve only from the cache: a request the cache cannot answer raises
+# CacheMissError before any network I/O. Try everything for free first.
+with cached_client.cache_only():
+    try:
+        print(cached_client.releases.get(352665).title)  # cached above
+        print(cached_client.masters.get(3719).title)  # never fetched: raises
+    except CacheMissError as exc:
+        print(f"Not cached: {exc.method} {exc.url}")
 
 # Purge all cached responses:
 cached_client.clear_cache()

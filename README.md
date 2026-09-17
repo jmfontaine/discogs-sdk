@@ -245,6 +245,7 @@ The full exception hierarchy:
 ```
 DiscogsError
 ├── DiscogsConnectionError
+├── CacheMissError
 └── DiscogsAPIError
     ├── AuthenticationError  (401)
     ├── ForbiddenError       (403)
@@ -298,6 +299,20 @@ restored even when the block raises, and concurrent tasks or threads each carry 
 ```python
 with client.no_cache():
     fresh = client.releases.get(352665).title  # always hits the API
+```
+
+`client.cache_only()` is the mirror image: inside the scope a request the cache cannot serve — a miss, an expired
+entry, a non-`GET`, a disabled cache or an enclosing `no_cache()` — raises `CacheMissError` before any network I/O.
+It nests and restores exactly like `no_cache()`, so you can try everything for free first:
+
+```python
+from discogs_sdk import CacheMissError
+
+with client.cache_only():
+    try:
+        title = client.releases.get(352665).title  # never hits the API
+    except CacheMissError as exc:
+        print(f"Not cached: {exc.method} {exc.url}")
 ```
 
 ### Observability

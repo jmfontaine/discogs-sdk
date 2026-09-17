@@ -10,6 +10,7 @@ import respx
 
 from discogs_sdk import (
     AsyncDiscogs,
+    CacheMissError,
     DiscogsConnectionError,
     RateLimit,
     RateLimitError,
@@ -146,3 +147,97 @@ class TestRequestEvents:
             with pytest.raises(RuntimeError, match="observer failed"):
                 await client._send("GET", f"{BASE_URL}/releases/352665")
             await client.close()
+
+
+class TestCacheOnly:
+    async def test_cache_only_miss_raises_before_network(self):
+        events: list[RequestEvent] = []
+        with respx.mock(
+            base_url=BASE_URL, using="httpcore2", assert_all_called=False
+        ) as router:
+            route = router.get("/releases/352665").mock(return_value=_ok())
+            client = AsyncDiscogs(token="t", cache=True, on_request=events.append)
+            async with client.cache_only():
+                with pytest.raises(CacheMissError) as exc_info:
+                    await client._send(
+                        "get", f"{BASE_URL}/releases/352665", params={"x": "1"}
+                    )
+            await client.close()
+
+        assert route.call_count == 0
+        assert events == []
+        assert exc_info.value.method == "GET"
+        assert exc_info.value.url == f"{BASE_URL}/releases/352665?x=1"
+
+    async def test_cache_only_hit_serves_from_cache(self):
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/352665").mock(return_value=_ok())
+            client = AsyncDiscogs(token="t", cache=True)
+            await client._send("GET", f"{BASE_URL}/releases/352665")
+            async with client.cache_only():
+                response = await client._send("GET", f"{BASE_URL}/releases/352665")
+            await client.close()
+
+        assert route.call_count == 1
+        assert response.json()["id"] == make_release()["id"]
+
+    async def test_cache_only_with_cache_disabled_raises(self):
+        with respx.mock(
+            base_url=BASE_URL, using="httpcore2", assert_all_called=False
+        ) as router:
+            route = router.get("/releases/352665").mock(return_value=_ok())
+            client = AsyncDiscogs(token="t", cache=False)
+            async with client.cache_only():
+                with pytest.raises(CacheMissError):
+                    await client._send("GET", f"{BASE_URL}/releases/352665")
+            await client.close()
+
+        assert route.call_count == 0
+
+    async def test_cache_only_inside_no_cache_raises(self):
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/352665").mock(return_value=_ok())
+            client = AsyncDiscogs(token="t", cache=True)
+            await client._send("GET", f"{BASE_URL}/releases/352665")
+            async with client.no_cache(), client.cache_only():
+                with pytest.raises(CacheMissError):
+                    await client._send("GET", f"{BASE_URL}/releases/352665")
+            await client.close()
+
+        assert route.call_count == 1
+
+    async def test_cache_only_scope_restores(self):
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/352665").mock(return_value=_ok())
+            client = AsyncDiscogs(token="t", cache=True)
+            async with client.cache_only():
+                with pytest.raises(CacheMissError):
+                    await client._send("GET", f"{BASE_URL}/releases/352665")
+            await client._send("GET", f"{BASE_URL}/releases/352665")
+            assert route.call_count == 1
+
+            with pytest.raises(RuntimeError):
+                async with client.cache_only():
+                    raise RuntimeError("boom")
+            async with client.no_cache():
+                await client._send("GET", f"{BASE_URL}/releases/352665")
+            assert route.call_count == 2
+            await client.close()
+
+    async def test_cache_only_non_get_raises(self):
+        with respx.mock(
+            base_url=BASE_URL, using="httpcore2", assert_all_called=False
+        ) as router:
+            route = router.post("/users/trent_reznor/wants/352665").mock(
+                return_value=_ok()
+            )
+            client = AsyncDiscogs(token="t", cache=True)
+            async with client.cache_only():
+                with pytest.raises(CacheMissError) as exc_info:
+                    await client._send(
+                        "POST", f"{BASE_URL}/users/trent_reznor/wants/352665"
+                    )
+            await client.close()
+
+        assert route.call_count == 0
+        assert exc_info.value.method == "POST"
