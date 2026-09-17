@@ -8,10 +8,12 @@ import os
 import random
 import time
 import urllib.parse
+from collections.abc import Callable
 from typing import Any, Literal, NoReturn
 
 import httpx2
 
+from discogs_sdk._events import RateLimit, RequestEvent
 from discogs_sdk._exceptions import (
     AuthenticationError,
     DiscogsAPIError,
@@ -145,12 +147,15 @@ class BaseClient:
         max_retries: int = 3,
         user_agent: str | None = None,
         media_type: MediaType = "discogs",
+        on_request: Callable[[RequestEvent], None] | None = None,
     ) -> None:
         self.base_url: str = base_url.rstrip("/")
         self.timeout: float = timeout
         self.max_retries: int = max_retries
         self._user_agent: str = user_agent if user_agent else USER_AGENT
         self._media_type: MediaType = media_type
+        self._on_request = on_request
+        self._ratelimit: RateLimit | None = None
 
         self._auth_mode: AuthMode = self._select_auth_mode(
             token=token,
@@ -161,6 +166,23 @@ class BaseClient:
         )
         logger.debug("Auth: %s", _AUTH_MODE_LABELS[self._auth_mode])
         self._auth_namespace: str = self._build_auth_namespace()
+
+    @property
+    def ratelimit(self) -> RateLimit | None:
+        """Rate limit reported by the most recent live response, or ``None``.
+
+        Only network responses carrying all three ``X-Discogs-Ratelimit*`` headers
+        update it; cache hits and responses without the headers leave the last
+        known value in place.
+        """
+        return self._ratelimit
+
+    def _observe(self, event: RequestEvent) -> None:
+        """Record *event*'s rate limit and hand it to the ``on_request`` callback."""
+        if event.ratelimit is not None:
+            self._ratelimit = event.ratelimit
+        if self._on_request is not None:
+            self._on_request(event)
 
     def _build_auth_namespace(self) -> str:
         """Stable, non-reversible identity for cache partitioning.
@@ -335,7 +357,10 @@ class BaseClient:
             body = decoded if isinstance(decoded, dict) else response.text
 
         self._maybe_raise(
-            response.status_code, body, retry_after=response.headers.get("Retry-After")
+            response.status_code,
+            body,
+            retry_after=response.headers.get("Retry-After"),
+            ratelimit=RateLimit.from_headers(response.headers),
         )
 
     def _maybe_raise(
@@ -344,6 +369,7 @@ class BaseClient:
         body: dict[str, Any] | str,
         *,
         retry_after: str | None = None,
+        ratelimit: RateLimit | None = None,
     ) -> None:
         if status_code < 400:
             return
@@ -366,6 +392,7 @@ class BaseClient:
                     status_code=429,
                     response_body=body,
                     retry_after=retry_after,
+                    ratelimit=ratelimit,
                 )
             case _:
                 error_cls = DiscogsAPIError

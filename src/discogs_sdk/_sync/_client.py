@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from functools import cached_property
@@ -25,6 +25,7 @@ from discogs_sdk._base_client import (
     may_retry_transport_error,
 )
 from discogs_sdk._cache import MemoryCache, ResponseCache, SQLiteCache
+from discogs_sdk._events import RateLimit, RequestEvent
 from discogs_sdk._exceptions import DiscogsConnectionError
 from discogs_sdk._sync.resources.artists import Artists
 from discogs_sdk._sync.resources.exports import Exports
@@ -76,6 +77,7 @@ class Discogs(BaseClient):
         http_client: httpx2.Client | None = None,
         user_agent: str | None = None,
         media_type: MediaType = "discogs",
+        on_request: Callable[[RequestEvent], None] | None = None,
     ) -> None:
         """Create an async Discogs client.
 
@@ -118,6 +120,11 @@ class Discogs(BaseClient):
                 compatibility with Discogs.
             media_type: Response text format. ``"discogs"`` returns Discogs markup,
                 ``"html"`` returns HTML, ``"plaintext"`` returns plain text.
+            on_request: Called once per request with a ``RequestEvent``: after a
+                cache hit, or after the final network response before any error
+                is raised. Invoked synchronously from the calling task, so keep
+                it cheap and never block in it. Exceptions it raises propagate
+                unchanged.
         """
         super().__init__(
             token=token,
@@ -130,6 +137,7 @@ class Discogs(BaseClient):
             max_retries=max_retries,
             user_agent=user_agent,
             media_type=media_type,
+            on_request=on_request,
         )
         if http_client is not None:
             # An injected client owns its transport and lifecycle. SDK headers are
@@ -192,13 +200,28 @@ class Discogs(BaseClient):
             # on the fully resolved URL.
             req = self._http_client.build_request(method, url, **build_kwargs)
             cache_key = self._build_cache_key(method, str(req.url), headers["Accept"])
+            t0 = time.monotonic()
             cached = self._cache.get(cache_key)  # type: ignore[union-attr]
+            lookup_ms = (time.monotonic() - t0) * 1000
             if cached is not None:
                 status, cached_headers, body = cached
                 logger.debug("Cache hit: %s %s", method, url)
-                return httpx2.Response(
+                response = httpx2.Response(
                     status_code=status, headers=cached_headers, content=body
                 )
+                self._observe(
+                    RequestEvent(
+                        method=method.upper(),
+                        url=str(req.url),
+                        status_code=status,
+                        source="cache",
+                        elapsed_ms=lookup_ms,
+                        attempts=0,
+                        stored=False,
+                        ratelimit=None,
+                    )
+                )
+                return response
         for attempt in range(self.max_retries + 1):
             logger.debug("HTTP request: %s %s", method, url)
             t0 = time.monotonic()  # Unaffected by system clock adjustments (NTP, DST)
@@ -237,6 +260,7 @@ class Discogs(BaseClient):
                 not may_retry_status(method, response.status_code)
                 or attempt == self.max_retries
             ):
+                stored = False
                 if use_cache and 200 <= response.status_code < 300:
                     assert self._cache is not None  # narrowed by use_cache
                     # response.content is already decompressed by httpx2, so strip
@@ -254,6 +278,21 @@ class Discogs(BaseClient):
                     self._cache.set(
                         cache_key, response.status_code, cache_headers, response.content
                     )
+                    stored = True
+                # Emitted before the error boundary so the event exists even when
+                # the call raises.
+                self._observe(
+                    RequestEvent(
+                        method=method.upper(),
+                        url=str(response.request.url),
+                        status_code=response.status_code,
+                        source="network",
+                        elapsed_ms=elapsed_ms,
+                        attempts=attempt + 1,
+                        stored=stored,
+                        ratelimit=RateLimit.from_headers(response.headers),
+                    )
+                )
                 # The retry policy is done deciding: this is the final response,
                 # so map failures here, before any endpoint parses the body.
                 self._raise_for_response(response)

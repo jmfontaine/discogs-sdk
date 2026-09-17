@@ -1,10 +1,11 @@
-"""Advanced — error handling, caching, custom clients, exports, and lists.
+"""Advanced — errors, caching, observability, custom clients, exports, and lists.
 
 Covers:
   - Exception hierarchy and catching patterns
   - Rate limit handling
   - Custom User-Agent
   - Response caching
+  - Request events and the rate-limit budget
   - Custom httpx2 client
   - Exports (inventory CSV download)
   - Uploads (inventory CSV import)
@@ -23,6 +24,7 @@ from discogs_sdk import (
     DiscogsError,
     NotFoundError,
     RateLimitError,
+    RequestEvent,
     ValidationError,
 )
 
@@ -49,8 +51,11 @@ except AuthenticationError:
     print("Invalid or missing credentials")
 except RateLimitError as exc:
     # The SDK retries 429s automatically (up to max_retries), but if
-    # retries are exhausted this exception is raised.
+    # retries are exhausted this exception is raised. The 429's own
+    # X-Discogs-Ratelimit* headers ride along when Discogs sends them.
     print(f"Rate limited.  Retry after: {exc.retry_after}")
+    if exc.ratelimit:
+        print(f"  {exc.ratelimit.used}/{exc.ratelimit.limit} used this window")
 except ValidationError as exc:
     print(f"Invalid request: {exc.status_code}: {exc.response_body}")
 except DiscogsAPIError as exc:
@@ -96,6 +101,27 @@ with cached_client.no_cache():
 
 # Purge all cached responses:
 cached_client.clear_cache()
+
+
+# ━━ Request events and rate-limit budget ━━━━━━━━━━━━━━━━━━━━━━━━━━
+# on_request receives one RequestEvent per logical request: after a
+# cache hit, or after the final network response (before any error is
+# raised). It runs synchronously, so keep it cheap and never block.
+def on_request(event: RequestEvent) -> None:
+    print(
+        f"{event.method} {event.url} -> {event.status_code} "
+        f"[{event.source}, {event.attempts} attempt(s), {event.elapsed_ms:.0f}ms]"
+    )
+
+
+observed = Discogs(token="YOUR_TOKEN_HERE", cache=True, on_request=on_request)
+_ = observed.artists.get(3857).name  # network event, stored=True
+_ = observed.artists.get(3857).name  # cache event, attempts=0
+
+# client.ratelimit is the X-Discogs-Ratelimit* budget from the most recent
+# live response. Cache hits never touch it; it is None before the first one.
+if observed.ratelimit and observed.ratelimit.remaining < 10:
+    print(f"Only {observed.ratelimit.remaining} requests left this minute")
 
 
 # ━━ Custom cache backend ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

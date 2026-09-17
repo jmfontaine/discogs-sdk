@@ -1,6 +1,7 @@
 from discogs_sdk._async._client import AsyncDiscogs
 from discogs_sdk._async._paginator import AsyncPage
 from discogs_sdk._base_client import MediaType
+from discogs_sdk._events import RateLimit, RequestEvent
 from discogs_sdk._exceptions import (
     AuthenticationError,
     DiscogsAPIError,
@@ -88,6 +89,8 @@ __all__ = [
     "SyncPage",
     # Client config
     "MediaType",
+    "RateLimit",
+    "RequestEvent",
     # Exceptions
     "DiscogsError",
     "DiscogsConnectionError",
