@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from discogs_sdk._events import RateLimit
+
 
 class DiscogsError(Exception):
     """Base exception for all Discogs SDK errors."""
@@ -42,7 +44,12 @@ class NotFoundError(DiscogsAPIError):
 
 
 class RateLimitError(DiscogsAPIError):
-    """429 Too Many Requests."""
+    """429 Too Many Requests.
+
+    Attributes:
+        retry_after: Raw ``Retry-After`` header value, when present.
+        ratelimit: Rate-limit headers carried by the 429 itself, when present.
+    """
 
     def __init__(
         self,
@@ -51,9 +58,11 @@ class RateLimitError(DiscogsAPIError):
         status_code: int,
         response_body: dict[str, Any] | str,
         retry_after: str | None = None,
+        ratelimit: RateLimit | None = None,
     ) -> None:
         super().__init__(message, status_code=status_code, response_body=response_body)
         self.retry_after = retry_after
+        self.ratelimit = ratelimit
 
 
 class ValidationError(DiscogsAPIError):

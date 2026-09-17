@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from discogs_sdk._events import RateLimit
 from discogs_sdk._exceptions import (
     AuthenticationError,
     DiscogsAPIError,
@@ -56,6 +57,19 @@ class TestRateLimitError:
         )
         assert err.retry_after == "30"
 
+    def test_ratelimit_default_none(self):
+        err = RateLimitError("limited", status_code=429, response_body={})
+        assert err.ratelimit is None
+
+    def test_ratelimit_set(self):
+        err = RateLimitError(
+            "limited",
+            status_code=429,
+            response_body={},
+            ratelimit=RateLimit(60, 60, 0),
+        )
+        assert err.ratelimit == RateLimit(60, 60, 0)
+
     def test_inherits_api_error_fields(self):
         err = RateLimitError(
             "limited",
@@ -75,3 +89,25 @@ class TestValidationError:
         )
         assert err.status_code == 422
         assert str(err) == "422: invalid"
+
+
+class TestRateLimit:
+    def test_from_headers_is_case_insensitive(self):
+        headers = {
+            "X-Discogs-Ratelimit": "60",
+            "x-discogs-ratelimit-used": "14",
+            "X-DISCOGS-RATELIMIT-REMAINING": "46",
+        }
+        assert RateLimit.from_headers(headers) == RateLimit(60, 14, 46)
+
+    def test_from_headers_missing_header_is_none(self):
+        headers = {"X-Discogs-Ratelimit": "60", "X-Discogs-Ratelimit-Used": "14"}
+        assert RateLimit.from_headers(headers) is None
+
+    def test_from_headers_non_integer_is_none(self):
+        headers = {
+            "X-Discogs-Ratelimit": "60",
+            "X-Discogs-Ratelimit-Used": "fourteen",
+            "X-Discogs-Ratelimit-Remaining": "46",
+        }
+        assert RateLimit.from_headers(headers) is None
