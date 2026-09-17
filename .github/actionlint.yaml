@@ -1,0 +1,8 @@
+# KLUDGE: actionlint v1.7.12's built-in runner table predates the GitHub-hosted
+# `ubuntu-26.04` label (rhysd/actionlint#682), so it flags every `runs-on` in
+# this repo as unknown. Suppress only that one message. Delete this file once
+# the pinned actionlint release lists `ubuntu-26.04` in its runner table.
+paths:
+  .github/workflows/**/*.{yml,yaml}:
+    ignore:
+      - 'label "ubuntu-26\.04" is unknown\. available labels are .+'
