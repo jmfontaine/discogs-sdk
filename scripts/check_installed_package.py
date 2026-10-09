@@ -22,12 +22,9 @@ from discogs_sdk import Discogs
 from discogs_sdk.models import Release
 
 MINIMUM_PYDANTIC = (2, 12)
-# KLUDGE: mirrors the temporary Python 3.15 clause in pyproject.toml — 2.13 and
-# earlier have no cp315 wheels, and the upper bound keeps the prerelease
-# selection that the beta floor enables from reaching a later pydantic series.
-# When that clause becomes `pydantic>=2.14; python_version=='3.15'`, drop only
-# the upper bound here: the 3.15 branch must keep asserting the 2.14 minimum.
-PYDANTIC_RANGE_315 = ((2, 14), (2, 15))
+# Mirrors the Python 3.15 clause in pyproject.toml: 2.13 and earlier have no
+# cp315 wheels.
+MINIMUM_PYDANTIC_315 = (2, 14)
 
 
 def installed_pydantic() -> tuple[int, int]:
@@ -37,18 +34,13 @@ def installed_pydantic() -> tuple[int, int]:
 
 def main() -> None:
     installed = installed_pydantic()
-    if sys.version_info[:2] == (3, 15):
-        low, high = PYDANTIC_RANGE_315
-        if not low <= installed < high:
-            raise SystemExit(
-                f"pydantic {pydantic.VERSION} is outside the "
-                f"{'.'.join(map(str, low))}–{'.'.join(map(str, high))} range "
-                f"required on Python {sys.version.split()[0]}"
-            )
-    elif installed < MINIMUM_PYDANTIC:
+    minimum = (
+        MINIMUM_PYDANTIC_315 if sys.version_info[:2] == (3, 15) else MINIMUM_PYDANTIC
+    )
+    if installed < minimum:
         raise SystemExit(
             f"pydantic {pydantic.VERSION} is below the "
-            f"{'.'.join(map(str, MINIMUM_PYDANTIC))} floor "
+            f"{'.'.join(map(str, minimum))} floor "
             f"required on Python {sys.version.split()[0]}"
         )
 

@@ -224,9 +224,8 @@ page or the upload API — there is no `pip yank`), then bump the patch version 
 - Python 3.10+ required (CI tests through 3.15), ruff targets 3.10 to match `requires-python`, line length 88
 - Workarounds that are knowingly less than ideal carry a `KLUDGE:` comment stating what is wrong and what
   removes it. Grep for `KLUDGE` to find them; do not add one without a removal condition
-- Python 3.15 needs `pydantic>=2.14.0b2` (earlier pins lack cp315 wheels), declared in `pyproject.toml`
-  with markers whose exact form matters — read the comment there before touching it. `uv.lock` forks
-  pydantic and pydantic-core as a result, so expect two entries for each
+- Python 3.15 needs `pydantic>=2.14` (earlier pins lack cp315 wheels), declared in `pyproject.toml`
+  with a marker whose exact form matters — read the comment there before touching it
 - Dead-code analysis runs through `scripts/check_dead_code.sh`, which pins the tool and its interpreter;
   every caller (justfile, pre-commit, both workflows) invokes that script rather than `deadcode` directly
 - All public API exports go through `src/discogs_sdk/__init__.py`
