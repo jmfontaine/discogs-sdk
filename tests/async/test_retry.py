@@ -10,6 +10,7 @@ import respx
 
 from discogs_sdk import AsyncDiscogs
 from discogs_sdk._async._paginator import AsyncPage
+from discogs_sdk._events import RequestEvent
 from discogs_sdk._exceptions import (
     DiscogsAPIError,
     DiscogsConnectionError,
@@ -46,11 +47,14 @@ class TestRetryOn429:
         assert isinstance(result, Release)
         assert mock_sleep.call_count == 1
 
-    async def test_respects_retry_after_header(self, client, respx_mock):
+    @pytest.mark.parametrize("seconds", ["30", "60"])  # 60: the cap is inclusive
+    async def test_respects_retry_after_header(self, client, respx_mock, seconds):
         responses = iter(
             [
                 respx.MockResponse(
-                    429, json={"message": "Rate limited"}, headers={"Retry-After": "5"}
+                    429,
+                    json={"message": "Rate limited"},
+                    headers={"Retry-After": seconds},
                 ),
                 respx.MockResponse(200, json=make_release()),
             ]
@@ -61,7 +65,7 @@ class TestRetryOn429:
             await client.releases.get(1)
 
         mock_sleep.assert_called_once()
-        assert mock_sleep.call_args[0][0] == 5.0
+        assert mock_sleep.call_args[0][0] == float(seconds)
 
     async def test_exhausts_retries_raises_rate_limit_error(self, client, respx_mock):
         respx_mock.get("/releases/1").mock(
@@ -75,6 +79,65 @@ class TestRetryOn429:
             with pytest.raises(RateLimitError) as exc_info:
                 await lazy
             assert exc_info.value.retry_after == "10"
+
+
+class TestRetryAfterCap:
+    """A valid Retry-After above MAX_RETRY_AFTER surfaces instead of waiting."""
+
+    async def test_long_rate_limit_raises_without_waiting(self, respx_mock):
+        events: list[RequestEvent] = []
+        client = AsyncDiscogs(
+            token="test-token", max_retries=3, on_request=events.append
+        )
+        route = respx_mock.get("/releases/1").mock(
+            return_value=respx.MockResponse(
+                429, json={"message": "Rate limited"}, headers={"Retry-After": "3600"}
+            ),
+        )
+
+        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            lazy = client.releases.get(1)
+            with pytest.raises(RateLimitError) as exc_info:
+                await lazy
+
+        assert route.call_count == 1
+        mock_sleep.assert_not_called()
+        assert exc_info.value.retry_after == "3600"
+        assert [(e.status_code, e.attempts) for e in events] == [(429, 1)]
+
+    async def test_long_server_error_raises_without_waiting(self, client, respx_mock):
+        route = respx_mock.get("/releases/1").mock(
+            return_value=respx.MockResponse(
+                503, text="Service Unavailable", headers={"Retry-After": "3600"}
+            ),
+        )
+
+        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            lazy = client.releases.get(1)
+            with pytest.raises(DiscogsAPIError) as exc_info:
+                await lazy
+
+        assert route.call_count == 1
+        mock_sleep.assert_not_called()
+        assert exc_info.value.status_code == 503
+
+    async def test_invalid_value_backs_off(self, client, respx_mock):
+        responses = iter(
+            [
+                respx.MockResponse(
+                    429, json={"message": "Rate limited"}, headers={"Retry-After": "-5"}
+                ),
+                respx.MockResponse(200, json=make_release()),
+            ]
+        )
+        respx_mock.get("/releases/1").mock(side_effect=lambda req: next(responses))
+
+        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            result = await client.releases.get(1)
+
+        assert isinstance(result, Release)
+        mock_sleep.assert_called_once()
+        assert 1.0 <= mock_sleep.call_args[0][0] < 2.0
 
 
 class TestRetryOn5xx:

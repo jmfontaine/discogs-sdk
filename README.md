@@ -100,8 +100,10 @@ different account or mode. See [`examples/authentication.py`](examples/authentic
 > [!NOTE]
 > Discogs allows 60 requests/minute authenticated and 25/minute unauthenticated, measured as a moving average over
 > the last 60 seconds. The SDK does not pace your requests: it retries a rate-limited **read** a bounded number of
-> times (`max_retries`, default 3), honouring `Retry-After`. Sustained traffic above the limit still needs pacing on
-> your side, and you can still receive `RateLimitError` once the retries are exhausted.
+> times (`max_retries`, default 3), honouring `Retry-After` (seconds or an HTTP-date) up to 60 seconds. A longer
+> `Retry-After` is not slept through: the error is raised immediately, `RateLimitError.retry_after` carries the raw
+> value, and you decide whether to wait. Sustained traffic above the limit still needs pacing on your side, and you can
+> still receive `RateLimitError` once the retries are exhausted.
 
 > [!WARNING]
 > Mutations are not replayed. A `POST`, `PUT` or `DELETE` is retried only when the failure proves the request never
@@ -284,7 +286,7 @@ The [`examples/`](examples/) directory has runnable scripts for every feature:
 | `consumer_key` | `None` | OAuth consumer key |
 | `consumer_secret` | `None` | OAuth consumer secret |
 | `http_client` | `None` | Custom `httpx2.Client` or `httpx2.AsyncClient` |
-| `max_retries` | `3` | Max retries; reads retry on 429/5xx, network errors, timeouts and dropped connections, mutations only on pre-send failures |
+| `max_retries` | `3` | Max retries; reads retry on 429/5xx, network errors, timeouts and dropped connections, mutations only on pre-send failures. A `Retry-After` above 60s raises immediately instead |
 | `on_request` | `None` | Callback receiving a `RequestEvent` per request |
 | `timeout` | `30.0` | Request timeout in seconds |
 | `token` | `None` | Personal access token |
