@@ -216,6 +216,12 @@ Publishing is fully automated via CI. The `publish.yml` workflow triggers on `v*
 2. Commit the version bump
 3. Run `just release` — creates a signed tag, pushes, and monitors the workflow
 
+The push is the point of no return, and the recipe's "tag already exists" guard refuses a rerun once the
+tag exists. After pushing, it polls `gh run list` every 5 seconds, for up to 2 minutes, until the
+publish run registers, and ignores transient `gh` failures meanwhile. Then it watches that run. If no
+run appears in that window it exits non-zero and says so. The tag is pushed by then, so do not rerun
+`just release`; find the run with `gh run list --workflow=publish.yml` or on the Actions page.
+
 The workflow builds the distributions once and publishes those exact files. Before upload it runs QA,
 the test matrix, `scripts/check_distributions.py` (archive contents) and `twine check --strict`
 (metadata), then installs the built wheel into a clean environment on the oldest and newest supported

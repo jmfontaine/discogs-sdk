@@ -79,9 +79,29 @@ release:
     git tag -s "$tag" -m "Release $tag"
     echo "Pushing main and $tag to origin..."
     git push origin main "$tag"
-    echo "Waiting for publish workflow to start..."
-    sleep 5
-    gh run watch --exit-status "$(gh run list --workflow=publish.yml --branch="$tag" --limit=1 --json=databaseId --jq='.[0].databaseId')"
+    # The push above is irreversible: from here on, never push again, and tell the
+    # user not to rerun this recipe if something fails.
+    poll_interval=5
+    poll_attempts=24
+    echo "Waiting for the publish workflow run to register..."
+    run_id=""
+    for ((attempt = 1; attempt <= poll_attempts; attempt++)); do
+        sleep "$poll_interval"
+        # `// empty` turns "no run yet" into an empty string instead of `null`, and a
+        # transient gh failure counts as "no run yet" rather than aborting the loop.
+        run_id=$(gh run list --workflow=publish.yml --branch="$tag" --limit=1 --json=databaseId --jq='.[0].databaseId // empty') || run_id=""
+        if [ -n "$run_id" ]; then
+            break
+        fi
+    done
+    if [ -z "$run_id" ]; then
+        echo "Error: no publish workflow run registered for $tag within $((poll_interval * poll_attempts))s." >&2
+        echo "The tag $tag is already pushed. Do not rerun 'just release'." >&2
+        echo "Find the run with 'gh run list --workflow=publish.yml' or on the repository's Actions page ('gh workflow view publish.yml --web')." >&2
+        exit 1
+    fi
+    echo "Watching publish run $run_id..."
+    gh run watch --exit-status "$run_id"
 
 # Set local dev environment up
 setup:
