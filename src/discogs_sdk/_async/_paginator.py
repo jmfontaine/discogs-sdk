@@ -72,17 +72,14 @@ class AsyncPage(Generic[T]):
         body = response.json()
 
         pagination = body.get("pagination", {})
-        self._page_number = pagination.get("page")
-        self._per_page = pagination.get("per_page")
-        self._total_items = pagination.get("items")
-        self._total_pages = pagination.get("pages")
-
+        page_number = pagination.get("page")
+        per_page = pagination.get("per_page")
+        total_items = pagination.get("items")
+        total_pages = pagination.get("pages")
         # The reference documents first/prev/next/last; only "next" drives the
         # iterator, but all four are worth surfacing.
-        self._urls = pagination.get("urls", {}) or {}
-        self._next_url = self._urls.get("next")
-        if not self._next_url:
-            self._exhausted = True
+        urls = pagination.get("urls", {}) or {}
+        next_url = urls.get("next")
 
         if self._items_path:
             container = body
@@ -92,7 +89,19 @@ class AsyncPage(Generic[T]):
         else:
             raw_items = body.get(self._items_key, [])
 
-        self._items = [self._model_cls.model_validate(item) for item in raw_items]
+        items = [self._model_cls.model_validate(item) for item in raw_items]
+
+        # Commit only once the whole page has parsed: a page that raises above
+        # leaves the paginator as it was, so the next call requests it again.
+        self._page_number = page_number
+        self._per_page = per_page
+        self._total_items = total_items
+        self._total_pages = total_pages
+        self._urls = urls
+        self._next_url = next_url
+        if not next_url:
+            self._exhausted = True
+        self._items = items
         self._index = 0
         self._first_page_fetched = True
 

@@ -287,6 +287,12 @@ attributes (`status_code`, `response_body`, `retry_after`, `ratelimit`, `method`
 `multiprocessing` worker reaches the parent as the same class. As with any pickled
 exception, `__cause__`, `__context__` and the traceback are not carried over.
 
+A paginated iterator (`.list()`, `search()`) that raises keeps its place. Whether the
+request for a page fails or one of the page's items fails validation (Pydantic's
+`ValidationError`), `page`, the totals and the URLs stay as they were before that page,
+and the next `next()` or `anext()` requests the same page again. Items already yielded
+are not repeated, and none are skipped.
+
 ## Examples
 
 The [`examples/`](examples/) directory has runnable scripts for every feature:

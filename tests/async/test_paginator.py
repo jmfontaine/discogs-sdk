@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 
+import pydantic
 import pytest
 import respx
 
@@ -508,6 +509,140 @@ class TestEmptySelectedCategories:
 
         # Truncation would have looked like success.
         assert exc_info.value.status_code == 502
+
+
+ARTIST_RELEASES = f"{BASE_URL}/artists/3857/releases"
+SUBMISSIONS = f"{BASE_URL}/users/trent_reznor/submissions"
+
+
+def _artist_release(id: int | str, title: str) -> dict:
+    return {"id": id, "title": title, "type": "release"}
+
+
+def _serve(respx_mock, path: str, bodies: list[dict]) -> respx.Route:
+    responses = iter(bodies)
+    return respx_mock.get(path).mock(
+        side_effect=lambda req: respx.MockResponse(200, json=next(responses))
+    )
+
+
+class TestPageThatFailsValidation:
+    """A page whose items fail validation leaves the paginator as it was."""
+
+    async def test_failed_later_page_is_requested_again(self, client, respx_mock):
+        route = _serve(
+            respx_mock,
+            "/artists/3857/releases",
+            [
+                make_paginated_response(
+                    "releases",
+                    [_artist_release(3719, "Broken")],
+                    page=1,
+                    pages=2,
+                    next_url=f"{ARTIST_RELEASES}?page=2",
+                ),
+                make_paginated_response(
+                    "releases", [_artist_release("bad", "The Fragile")], page=2, pages=2
+                ),
+                make_paginated_response(
+                    "releases",
+                    [_artist_release(352665, "The Downward Spiral")],
+                    page=2,
+                    pages=2,
+                ),
+            ],
+        )
+        page = client.artists.get(3857).releases.list()
+
+        assert (await anext(page)).title == "Broken"
+        with pytest.raises(pydantic.ValidationError):
+            await anext(page)
+
+        assert page.page == 1
+        assert page.total_pages == 2
+        assert page.next_url == f"{ARTIST_RELEASES}?page=2"
+
+        assert (await anext(page)).id == 352665
+        with pytest.raises(StopAsyncIteration):
+            await anext(page)
+        assert [str(call.request.url) for call in route.calls] == [
+            f"{ARTIST_RELEASES}?page=1",
+            f"{ARTIST_RELEASES}?page=2",
+            f"{ARTIST_RELEASES}?page=2",
+        ]
+
+    async def test_failed_first_page_is_requested_again(self, client, respx_mock):
+        route = _serve(
+            respx_mock,
+            "/artists/3857/releases",
+            [
+                make_paginated_response(
+                    "releases",
+                    [_artist_release("bad", "Pretty Hate Machine")],
+                    page=1,
+                    pages=2,
+                    next_url=f"{ARTIST_RELEASES}?page=2",
+                ),
+                make_paginated_response(
+                    "releases",
+                    [_artist_release(352665, "The Downward Spiral")],
+                    page=1,
+                    pages=1,
+                ),
+            ],
+        )
+        page = client.artists.get(3857).releases.list()
+
+        with pytest.raises(pydantic.ValidationError):
+            await anext(page)
+
+        assert page.page is None
+        assert page.per_page is None
+        assert page.total_items is None
+        assert page.total_pages is None
+        assert page.next_url is None
+
+        assert [item.id async for item in page] == [352665]
+        assert [str(call.request.url) for call in route.calls] == [
+            f"{ARTIST_RELEASES}?page=1",
+            f"{ARTIST_RELEASES}?page=1",
+        ]
+
+    async def test_failed_middle_page_of_submissions_is_not_skipped(
+        self, client, respx_mock
+    ):
+        route = _serve(
+            respx_mock,
+            "/users/trent_reznor/submissions",
+            [
+                _submissions_page(
+                    1, 3, releases=[make_release(id=1, title="Pretty Hate Machine")]
+                ),
+                _submissions_page(
+                    2, 3, releases=[{**make_release(id=2, title="Broken"), "id": "bad"}]
+                ),
+                _submissions_page(2, 3, releases=[make_release(id=2, title="Broken")]),
+                _submissions_page(
+                    3, 3, releases=[make_release(id=3, title="The Downward Spiral")]
+                ),
+            ],
+        )
+        page = client.users.get("trent_reznor").submissions.list()
+
+        assert (await anext(page)).title == "Pretty Hate Machine"
+        with pytest.raises(pydantic.ValidationError):
+            await anext(page)
+
+        assert [item.title async for item in page] == [
+            "Broken",
+            "The Downward Spiral",
+        ]
+        assert [str(call.request.url) for call in route.calls] == [
+            f"{SUBMISSIONS}?page=1",
+            f"{SUBMISSIONS}?page=2",
+            f"{SUBMISSIONS}?page=2",
+            f"{SUBMISSIONS}?page=3",
+        ]
 
 
 PROXY = "https://proxy.example"
