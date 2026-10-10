@@ -7,7 +7,7 @@ import pytest
 import respx
 
 from discogs_sdk import Discogs
-from discogs_sdk._cache import MemoryCache
+from discogs_sdk._cache import MemoryCache, SQLiteCache
 from discogs_sdk._exceptions import AuthenticationError
 from tests.conftest import BASE_URL, make_identity, make_release
 
@@ -411,6 +411,74 @@ class TestLifecycle:
     def test_context_manager(self):
         with Discogs(token="t") as client:
             assert isinstance(client, Discogs)
+
+
+class RecordingCache(MemoryCache):
+    def __init__(self) -> None:
+        super().__init__(ttl=600)
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def _interrupted() -> None:
+    raise KeyboardInterrupt
+
+
+class TestCacheOwnership:
+    """The client closes only a cache it built; an injected one stays the caller's."""
+
+    def test_closing_one_client_leaves_a_shared_cache_usable(self, tmp_path):
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            cache = SQLiteCache(ttl=600, cache_dir=tmp_path)
+            a = Discogs(token="t", cache=cache)
+            b = Discogs(token="t", cache=cache)
+            _ = a.releases.get(352665).title
+            a.close()
+
+            assert b.releases.get(352665).title == "The Downward Spiral"
+            assert route.call_count == 1
+            assert cache._db is not None
+            b.close()
+            cache.close()
+
+    def test_owned_sqlite_cache_is_closed(self, tmp_path):
+        client = Discogs(token="t", cache=True, cache_dir=tmp_path)
+        cache = client._cache
+        assert isinstance(cache, SQLiteCache)
+        client.close()
+        assert cache._db is None
+
+    def test_injected_cache_is_never_closed(self):
+        cache = RecordingCache()
+        client = Discogs(token="t", cache=cache)
+        client.close()
+        assert cache.closed is False
+
+    def test_interrupted_http_close_still_closes_owned_cache(
+        self, tmp_path, monkeypatch
+    ):
+        client = Discogs(token="t", cache=True, cache_dir=tmp_path)
+        cache = client._cache
+        assert isinstance(cache, SQLiteCache)
+        monkeypatch.setattr(client._http_client, "close", _interrupted)
+        with pytest.raises(KeyboardInterrupt):
+            client.close()
+        assert cache._db is None
+        monkeypatch.undo()
+        client._http_client.close()
+
+    def test_interrupted_http_close_leaves_injected_cache_open(self, monkeypatch):
+        cache = RecordingCache()
+        client = Discogs(token="t", cache=cache)
+        monkeypatch.setattr(client._http_client, "close", _interrupted)
+        with pytest.raises(KeyboardInterrupt):
+            client.close()
+        assert cache.closed is False
+        monkeypatch.undo()
+        client._http_client.close()
 
 
 class TestCredentialPrecedence:

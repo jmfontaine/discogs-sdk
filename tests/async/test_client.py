@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import httpx2
 import pytest
 import respx
 
 from discogs_sdk import AsyncDiscogs
-from discogs_sdk._cache import MemoryCache
+from discogs_sdk._cache import MemoryCache, SQLiteCache
 from discogs_sdk._exceptions import AuthenticationError, NotFoundError
 from tests.conftest import BASE_URL, make_identity, make_release
 
@@ -444,6 +446,74 @@ class TestLifecycle:
     async def test_context_manager(self):
         async with AsyncDiscogs(token="t") as client:
             assert isinstance(client, AsyncDiscogs)
+
+
+class RecordingCache(MemoryCache):
+    def __init__(self) -> None:
+        super().__init__(ttl=600)
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
+
+
+async def _cancelled() -> None:
+    raise asyncio.CancelledError
+
+
+class TestCacheOwnership:
+    """The client closes only a cache it built; an injected one stays the caller's."""
+
+    async def test_closing_one_client_leaves_a_shared_cache_usable(self, tmp_path):
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            cache = SQLiteCache(ttl=600, cache_dir=tmp_path)
+            a = AsyncDiscogs(token="t", cache=cache)
+            b = AsyncDiscogs(token="t", cache=cache)
+            await a.releases.get(352665)
+            await a.close()
+
+            assert (await b.releases.get(352665)).title == "The Downward Spiral"
+            assert route.call_count == 1
+            assert cache._db is not None
+            await b.close()
+            cache.close()
+
+    async def test_owned_sqlite_cache_is_closed(self, tmp_path):
+        client = AsyncDiscogs(token="t", cache=True, cache_dir=tmp_path)
+        cache = client._cache
+        assert isinstance(cache, SQLiteCache)
+        await client.close()
+        assert cache._db is None
+
+    async def test_injected_cache_is_never_closed(self):
+        cache = RecordingCache()
+        client = AsyncDiscogs(token="t", cache=cache)
+        await client.close()
+        assert cache.closed is False
+
+    async def test_cancelled_http_close_still_closes_owned_cache(
+        self, tmp_path, monkeypatch
+    ):
+        client = AsyncDiscogs(token="t", cache=True, cache_dir=tmp_path)
+        cache = client._cache
+        assert isinstance(cache, SQLiteCache)
+        monkeypatch.setattr(client._http_client, "aclose", _cancelled)
+        with pytest.raises(asyncio.CancelledError):
+            await client.close()
+        assert cache._db is None
+        monkeypatch.undo()
+        await client._http_client.aclose()
+
+    async def test_cancelled_http_close_leaves_injected_cache_open(self, monkeypatch):
+        cache = RecordingCache()
+        client = AsyncDiscogs(token="t", cache=cache)
+        monkeypatch.setattr(client._http_client, "aclose", _cancelled)
+        with pytest.raises(asyncio.CancelledError):
+            await client.close()
+        assert cache.closed is False
+        monkeypatch.undo()
+        await client._http_client.aclose()
 
 
 class TestCredentialPrecedence:
