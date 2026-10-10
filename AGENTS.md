@@ -150,7 +150,9 @@ local files.
 
 - Authenticated: 60 requests/min. Unauthenticated: 25 requests/min.
 - Rate limit window is a moving average over 60 seconds; resets after 60 seconds of inactivity.
-- The SDK retries on 429 using the standard `Retry-After` header.
+- The SDK retries reads on 429 using the standard `Retry-After` header (seconds or HTTP-date). A valid value above
+  `MAX_RETRY_AFTER` (60s, not configurable) is never slept through: the error is raised at once. Invalid values
+  (negative, `nan`, `inf`, garbage) fall back to exponential backoff.
 - `client.ratelimit` exposes the `X-Discogs-Ratelimit*` headers; `on_request` emits a `RequestEvent` per request.
 
 ### User-Agent Required
