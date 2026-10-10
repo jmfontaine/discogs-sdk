@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import respx
 
+from discogs_sdk import AsyncDiscogs
 from discogs_sdk.models.search import SearchResult
 from tests.conftest import BASE_URL, make_paginated_response, make_search_result
 
@@ -78,6 +79,30 @@ class TestSearch:
             async for item in client.search(query="test", type="release", year="1994")
         ]
         assert len(results) == 1
+
+    async def test_next_link_is_rebased_onto_base_url(self):
+        proxy = "https://proxy.example"
+        bodies = [
+            make_paginated_response(
+                "results",
+                [make_search_result(id=1)],
+                page=1,
+                pages=2,
+                next_url=f"{BASE_URL}/database/search?q=Nine+Inch+Nails&page=2",
+            ),
+            make_paginated_response("results", [make_search_result(id=2)], page=2),
+        ]
+        with respx.mock(using="httpcore2") as router:
+            route = router.route().mock(
+                side_effect=lambda req: respx.MockResponse(200, json=bodies.pop(0))
+            )
+            client = AsyncDiscogs(token="test-token", base_url=proxy)
+            results = [item async for item in client.search(query="Nine Inch Nails")]
+
+        assert len(results) == 2
+        assert str(route.calls[1].request.url) == (
+            f"{proxy}/database/search?q=Nine+Inch+Nails&page=2"
+        )
 
 
 class TestSearchResultModel:

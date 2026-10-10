@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 import respx
 
-from discogs_sdk._exceptions import DiscogsAPIError
+from discogs_sdk import Discogs
+from discogs_sdk._exceptions import DiscogsAPIError, DiscogsError
 from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk.models.release import Release
 from tests.conftest import BASE_URL, make_paginated_response, make_release
@@ -414,3 +417,167 @@ class TestEmptySelectedCategories:
 
         # Truncation would have looked like success.
         assert exc_info.value.status_code == 502
+
+
+PROXY = "https://proxy.example"
+
+
+@pytest.fixture
+def upstream():
+    """Catch-all mock on every origin, recording each request's URL and credentials.
+
+    Append the bodies to serve, in order, to the returned list.
+    """
+    sent: list[tuple[str, str | None]] = []
+    bodies: list[dict] = []
+
+    def respond(request):
+        sent.append((str(request.url), request.headers.get("Authorization")))
+        return respx.MockResponse(200, json=bodies.pop(0))
+
+    with respx.mock(using="httpcore2") as router:
+        router.route().mock(side_effect=respond)
+        yield sent, bodies
+
+
+def _two_pages(next_url: str) -> list[dict]:
+    return [
+        make_paginated_response(
+            "releases",
+            [make_release(id=1, title="Pretty Hate Machine")],
+            page=1,
+            pages=2,
+            per_page=1,
+            next_url=next_url,
+        ),
+        make_paginated_response(
+            "releases",
+            [make_release(id=2, title="Broken")],
+            page=2,
+            pages=2,
+            per_page=1,
+        ),
+    ]
+
+
+def _releases(client: Discogs) -> SyncPage[Release]:
+    return SyncPage(
+        client=client,
+        path="/releases",
+        params={"per_page": 1},
+        model_cls=Release,
+        items_key="releases",
+    )
+
+
+class TestNextLinkOrigin:
+    """``pagination.urls.next`` comes from the body, so it must not steer requests."""
+
+    def test_default_base_url_follows_discogs_link(self, upstream):
+        sent, bodies = upstream
+        next_url = f"{BASE_URL}/releases?page=2&per_page=1"
+        bodies.extend(_two_pages(next_url))
+        client = Discogs(token="test-token")
+
+        titles = [item.title for item in _releases(client)]
+
+        assert titles == ["Pretty Hate Machine", "Broken"]
+        assert sent[1] == (next_url, "Discogs token=test-token")
+
+    def test_discogs_link_is_rebased_onto_proxy(self, upstream):
+        sent, bodies = upstream
+        bodies.extend(_two_pages(f"{BASE_URL}/releases?page=2&per_page=1"))
+        client = Discogs(token="test-token", base_url=PROXY)
+
+        titles = [item.title for item in _releases(client)]
+
+        assert titles == ["Pretty Hate Machine", "Broken"]
+        assert [url for url, _ in sent] == [
+            f"{PROXY}/releases?page=1&per_page=1",
+            f"{PROXY}/releases?page=2&per_page=1",
+        ]
+
+    @pytest.mark.parametrize(
+        ("next_url", "expected"),
+        [
+            (f"{BASE_URL}/releases?page=2", "/releases?page=2"),
+            (f"{PROXY}/discogs/releases?page=2", "/releases?page=2"),
+            # Host case and an explicit default port do not change the origin.
+            ("https://PROXY.Example:443/discogs/releases?page=2", "/releases?page=2"),
+            ("https://API.discogs.com:443/releases?page=2", "/releases?page=2"),
+            # Only the configured origin carries the base path, at a segment edge.
+            (f"{BASE_URL}/discogs/releases?page=2", "/discogs/releases?page=2"),
+            (f"{PROXY}/discogsx/releases?page=2", "/discogsx/releases?page=2"),
+            # Dot segments resolve before the base path is added, never above it.
+            (f"{BASE_URL}/../steal", "/steal"),
+            (f"{PROXY}/discogs/../steal", "/steal"),
+            (f"{BASE_URL}/./releases?page=2", "/releases?page=2"),
+            # The query string is passed through untouched.
+            (
+                f"{BASE_URL}/releases?q=a%2Bb&empty=&page=2",
+                "/releases?q=a%2Bb&empty=&page=2",
+            ),
+        ],
+    )
+    def test_link_is_rebased_under_base_path(self, upstream, next_url, expected):
+        sent, bodies = upstream
+        bodies.extend(_two_pages(next_url))
+        client = Discogs(token="test-token", base_url=f"{PROXY}/discogs/")
+
+        _ = list(_releases(client))
+
+        assert sent[1][0] == f"{PROXY}/discogs{expected}"
+
+    @pytest.mark.parametrize(
+        ("base_url", "next_url", "message_end"),
+        [
+            (BASE_URL, "https://evil.example/steal", "origin https://evil.example"),
+            (BASE_URL, "https://user:pw@evil.example/s", "origin https://evil.example"),
+            (BASE_URL, "http://api.discogs.com/s", "origin http://api.discogs.com"),
+            (
+                BASE_URL,
+                "https://api.discogs.com:8443/s",
+                "origin https://api.discogs.com:8443",
+            ),
+            (PROXY, "https://evil.example/steal", "origin https://evil.example"),
+            (PROXY, "http://proxy.example/s", "origin http://proxy.example"),
+            (
+                PROXY,
+                "https://proxy.example:8443/s",
+                "origin https://proxy.example:8443",
+            ),
+            (BASE_URL, "/releases?page=2", "link without an origin"),
+            (BASE_URL, "https://api.discogs.com:99999/s", "malformed pagination link"),
+            (BASE_URL, "https://[::1/releases?page=2", "malformed pagination link"),
+        ],
+    )
+    def test_rejected_link_raises_after_current_page(
+        self, upstream, base_url, next_url, message_end
+    ):
+        sent, bodies = upstream
+        bodies.extend(_two_pages(next_url))
+        client = Discogs(token="test-token", base_url=base_url)
+        page = _releases(client)
+        titles = []
+
+        with pytest.raises(DiscogsError, match=f"{re.escape(message_end)}$"):
+            for item in page:
+                titles.append(item.title)
+
+        assert titles == ["Pretty Hate Machine"]
+        assert len(sent) == 1
+        assert page.next_url == next_url
+
+    def test_cache_key_uses_configured_origin(self, upstream):
+        sent, bodies = upstream
+        bodies.extend(_two_pages(f"{BASE_URL}/releases?page=2&per_page=1"))
+        client = Discogs(token="test-token", base_url=PROXY, cache=True)
+        _ = list(_releases(client))
+
+        # Served only if page 2 was stored under the proxy URL, not the link's.
+        with client.cache_only():
+            response = client._send("GET", f"{PROXY}/releases?page=2&per_page=1")
+        client.close()
+
+        assert response.json()["releases"][0]["title"] == "Broken"
+        assert len(sent) == 2

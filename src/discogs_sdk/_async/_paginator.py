@@ -59,7 +59,9 @@ class AsyncPage(Generic[T]):
 
     async def _fetch_page(self) -> None:
         if self._next_url:
-            response = await self._client._send("GET", self._next_url)
+            response = await self._client._send(
+                "GET", self._client._resolve_next_url(self._next_url)
+            )
         else:
             response = await self._client._send(
                 "GET",

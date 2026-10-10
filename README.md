@@ -279,7 +279,7 @@ The [`examples/`](examples/) directory has runnable scripts for every feature:
 |---|---|---|
 | `access_token_secret` | `None` | OAuth access token secret |
 | `access_token` | `None` | OAuth access token |
-| `base_url` | `https://api.discogs.com` | API base URL |
+| `base_url` | `https://api.discogs.com` | API base URL; pagination `next` links are rebased onto it, and a link to any origin other than it or `https://api.discogs.com` raises `DiscogsError` |
 | `cache_dir` | `None` | Directory for SQLite cache; in-memory when omitted |
 | `cache_ttl` | `3600.0` | Cache time-to-live in seconds |
 | `cache` | `False` | Enable response caching, or pass a custom `ResponseCache` instance; an injected instance is never closed by the client |
