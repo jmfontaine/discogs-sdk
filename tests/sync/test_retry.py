@@ -333,3 +333,90 @@ class TestWriteRetrySafety:
 
         assert route.call_count == 1
         mock_sleep.assert_not_called()
+
+
+class TestTransportErrorBoundary:
+    """Every httpx2 RequestError surfaces as DiscogsConnectionError."""
+
+    def test_dropped_keep_alive_exhausts_retries_for_reads(self, respx_mock):
+        client = Discogs(token="test-token", max_retries=2)
+        original = httpx2.RemoteProtocolError(
+            "Server disconnected without sending a response."
+        )
+        route = respx_mock.get("/releases/1").mock(side_effect=original)
+
+        with (
+            patch("time.sleep"),
+            pytest.raises(DiscogsConnectionError) as exc_info,
+        ):
+            client.releases.get(1).title  # noqa: B018
+
+        assert route.call_count == 3
+        assert exc_info.value.__cause__ is original
+
+    def test_dropped_keep_alive_is_retried_for_reads(self, client, respx_mock):
+        responses = iter(
+            [
+                httpx2.RemoteProtocolError(
+                    "Server disconnected without sending a response."
+                ),
+                respx.MockResponse(200, json=make_release()),
+            ]
+        )
+
+        def side_effect(request):
+            result = next(responses)
+            if isinstance(result, Exception):
+                raise result
+            return result
+
+        route = respx_mock.get("/releases/1").mock(side_effect=side_effect)
+
+        with patch("time.sleep"):
+            assert client.releases.get(1).title == "The Downward Spiral"
+
+        assert route.call_count == 2
+
+    def test_dropped_keep_alive_does_not_replay_a_write(self, client, respx_mock):
+        original = httpx2.RemoteProtocolError(
+            "Server disconnected without sending a response."
+        )
+        route = respx_mock.post("/marketplace/listings").mock(side_effect=original)
+
+        with (
+            patch("time.sleep") as mock_sleep,
+            pytest.raises(DiscogsConnectionError) as exc_info,
+        ):
+            client.marketplace.listings.create(
+                release_id=352665, condition="Mint (M)", price=29.99
+            )
+
+        assert route.call_count == 1
+        assert exc_info.value.__cause__ is original
+        mock_sleep.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            httpx2.LocalProtocolError("Illegal header value"),
+            httpx2.UnsupportedProtocol("Request URL has an unsupported protocol"),
+            httpx2.ProxyError("407 Proxy Authentication Required"),
+            httpx2.DecodingError("Error -3 while decompressing data"),
+            httpx2.TooManyRedirects("Exceeded maximum allowed redirects."),
+        ],
+        ids=lambda error: type(error).__name__,
+    )
+    def test_deterministic_failures_are_mapped_not_retried(
+        self, client, respx_mock, error
+    ):
+        route = respx_mock.get("/releases/1").mock(side_effect=error)
+
+        with (
+            patch("time.sleep") as mock_sleep,
+            pytest.raises(DiscogsConnectionError) as exc_info,
+        ):
+            client.releases.get(1).title  # noqa: B018
+
+        assert route.call_count == 1
+        assert exc_info.value.__cause__ is error
+        mock_sleep.assert_not_called()
