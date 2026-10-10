@@ -280,7 +280,7 @@ The [`examples/`](examples/) directory has runnable scripts for every feature:
 | `base_url` | `https://api.discogs.com` | API base URL |
 | `cache_dir` | `None` | Directory for SQLite cache; in-memory when omitted |
 | `cache_ttl` | `3600.0` | Cache time-to-live in seconds |
-| `cache` | `False` | Enable response caching, or pass a custom `ResponseCache` instance |
+| `cache` | `False` | Enable response caching, or pass a custom `ResponseCache` instance; an injected instance is never closed by the client |
 | `consumer_key` | `None` | OAuth consumer key |
 | `consumer_secret` | `None` | OAuth consumer secret |
 | `http_client` | `None` | Custom `httpx2.Client` or `httpx2.AsyncClient` |
@@ -297,6 +297,10 @@ Only successful `GET`/`HEAD` responses are cached. Entries are keyed by method, 
 `Accept` representation, and a non-reversible digest of the selected mode's credentials, so two clients sharing one
 cache — or one SQLite directory — never serve each other's private responses, and unauthenticated traffic gets its
 own namespace. No token or secret is stored in a key.
+
+A cache built from `cache=True` belongs to the client, and `client.close()` closes it. A `ResponseCache` instance you
+pass in stays yours, like an injected `http_client`: `client.close()` never closes it, so one cache can outlive any of
+the clients sharing it. Call its `close()` yourself once every client using it is done.
 
 `client.no_cache()` bypasses the cache for the current execution context. Scopes nest, the previous state is
 restored even when the block raises, and concurrent tasks or threads each carry their own state:

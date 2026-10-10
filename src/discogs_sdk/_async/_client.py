@@ -113,6 +113,9 @@ class AsyncDiscogs(BaseClient):
                 backend, or a ``ResponseCache`` instance for a custom one.
                 Entries are partitioned by credential identity and response
                 representation, so clients sharing a cache stay isolated.
+                The client closes a cache it built from ``True``; an injected
+                instance stays yours: ``close()`` never closes it, so close it
+                yourself once every client using it is done.
             cache_ttl: Cache time-to-live in seconds (default 1 hour).
                 Ignored when *cache* is a ``ResponseCache`` instance or ``False``.
             cache_dir: Directory for the cache database. When provided, uses
@@ -159,6 +162,9 @@ class AsyncDiscogs(BaseClient):
             self._owns_client = True
 
         self._cache: ResponseCache | None = None
+        # Like an injected http_client, an injected cache belongs to the caller and
+        # may be shared by other clients, so only a cache built here is closed here.
+        self._owns_cache = False
         if isinstance(cache, ResponseCache):
             self._cache = cache
         elif cache:
@@ -167,6 +173,7 @@ class AsyncDiscogs(BaseClient):
                 if cache_dir
                 else MemoryCache(ttl=cache_ttl)
             )
+            self._owns_cache = True
 
     async def _send(
         self,
@@ -478,15 +485,18 @@ class AsyncDiscogs(BaseClient):
     # --- Lifecycle ---
 
     async def close(self) -> None:
-        """Close the underlying HTTP client.
+        """Close the HTTP client and response cache this instance created.
 
-        Only closes the client if it was created by this instance,
-        not if a custom ``http_client`` was passed to the constructor.
+        A custom ``http_client`` or ``ResponseCache`` passed to the constructor
+        is left open. The owned cache is closed even when closing the HTTP
+        client raises, including on task cancellation.
         """
-        if self._owns_client:
-            await self._http_client.aclose()
-        if self._cache is not None:
-            self._cache.close()
+        try:
+            if self._owns_client:
+                await self._http_client.aclose()
+        finally:
+            if self._owns_cache and self._cache is not None:
+                self._cache.close()
 
     async def __aenter__(self) -> Self:
         return self
