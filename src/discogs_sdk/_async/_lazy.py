@@ -17,6 +17,10 @@ class AsyncLazyResource(Generic[_M]):
     Sub-resource accessors are declared by concrete subclasses as properties, so
     they are typed and never trigger an HTTP call in either variant.
 
+    Names beginning with ``_`` never trigger an HTTP call either: no data field
+    starts with one, so the sync proxy raises ``AttributeError`` for them, resolved
+    or not, instead of fetching the model to answer a tool's probe.
+
     The dynamic ``__getattr__`` fallback is hidden from type checkers: the data
     fields a consumer may read are declared on the generated field mixins, so a
     misspelled field is a static error instead of an ``Any``.
@@ -75,6 +79,11 @@ class AsyncLazyResource(Generic[_M]):
                     "Use: resolved = await resource"
                 )
             else:
+                # No data field starts with "_" (Pydantic makes such names private),
+                # so a miss on one is a tool's probe (_repr_html_, __deepcopy__,
+                # __html__) and must not spend a request.
+                if name.startswith("_"):
+                    raise AttributeError(name)
                 # Otherwise, resolve the model via HTTP and delegate
                 model = self._resolve()
                 return getattr(model, name)

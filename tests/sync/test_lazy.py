@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
+import copy
+
 import pytest
 import respx
 
@@ -46,6 +49,40 @@ class TestAutoResolve:
         lazy = client.releases.get(999)
         with pytest.raises(NotFoundError):
             _ = lazy.title
+
+
+class TestPrivateNameProbes:
+    """Tools probe proxies for ``_``-prefixed names; none of them is a data field.
+
+    The zero-request tests register no route: respx rejects any request to an
+    unmocked URL, so a probe that reached the network fails the test.
+    """
+
+    def test_probes_send_no_request(self, client, respx_mock):
+        lazy = client.releases.get(400027)
+        assert getattr(lazy, "_repr_html_", None) is None
+        assert not hasattr(lazy, "__html__")
+        assert not hasattr(lazy, "__deepcopy__")
+        assert respx_mock.calls.call_count == 0
+
+    def test_deepcopy_sends_no_request(self, client, respx_mock):
+        lazy = client.releases.get(400027)
+        # Whether a proxy can be deep-copied is out of scope: its client holds a
+        # lock, which deepcopy rejects. Only the absence of a request is asserted.
+        with contextlib.suppress(TypeError):
+            copy.deepcopy(lazy)
+        assert respx_mock.calls.call_count == 0
+
+    def test_probes_are_not_delegated_after_resolution(self, client, respx_mock):
+        respx_mock.get("/releases/400027").mock(
+            return_value=respx.MockResponse(200, json=make_release())
+        )
+        lazy = client.releases.get(400027)
+        assert lazy.title == "The Downward Spiral"
+        # The resolved Release defines __deepcopy__; the proxy still does not.
+        assert not hasattr(lazy, "__deepcopy__")
+        assert getattr(lazy, "_repr_html_", None) is None
+        assert respx_mock.calls.call_count == 1
 
 
 class TestGetItem:
