@@ -261,6 +261,12 @@ DiscogsError
     └── RateLimitError       (429)
 ```
 
+Every SDK exception survives `pickle`, `copy.copy` and `copy.deepcopy` with its
+attributes (`status_code`, `response_body`, `retry_after`, `ratelimit`, `method`,
+`url`) and any notes, so an error raised in a `ProcessPoolExecutor` or
+`multiprocessing` worker reaches the parent as the same class. As with any pickled
+exception, `__cause__`, `__context__` and the traceback are not carried over.
+
 ## Examples
 
 The [`examples/`](examples/) directory has runnable scripts for every feature:
