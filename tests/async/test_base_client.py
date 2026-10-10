@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime
+from urllib.parse import unquote
 
 import pytest
 
@@ -204,6 +206,36 @@ class TestBuildOAuthHeader:
             callback="https://example.com/cb",
         )
         assert "oauth_callback=" in header
+
+    @staticmethod
+    def _signature(header: str) -> str:
+        match = re.search(r'oauth_signature="([^"]*)"', header)
+        assert match is not None
+        return match.group(1)
+
+    def test_signature_encodes_each_secret_before_joining(self):
+        header = build_oauth_header(
+            consumer_key="k",
+            consumer_secret="s&e%c",
+            token="t",
+            token_secret="x y",
+        )
+        assert self._signature(header) == "s%2526e%2525c%26x%2520y"
+
+    def test_signature_with_empty_token_secret(self):
+        header = build_oauth_header(consumer_key="ck", consumer_secret="cs")
+        assert self._signature(header) == "cs%26"
+
+    def test_signature_round_trips_to_original_secrets(self):
+        header = build_oauth_header(
+            consumer_key="k",
+            consumer_secret="s&e%c",
+            token="t",
+            token_secret="x y",
+        )
+        consumer_part, token_part = unquote(self._signature(header)).split("&")
+        assert unquote(consumer_part) == "s&e%c"
+        assert unquote(token_part) == "x y"
 
 
 class TestMaybeRaise:

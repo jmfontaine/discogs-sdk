@@ -210,10 +210,16 @@ def build_oauth_header(
     callback: str = "",
 ) -> str:
     """Build an OAuth 1.0a Authorization header using PLAINTEXT signatures."""
+    # RFC 5849 §3.4.4: each secret is encoded before the two are joined with "&";
+    # the joined value is then encoded again like every other header parameter.
+    signature = (
+        f"{urllib.parse.quote(consumer_secret, safe='')}"
+        f"&{urllib.parse.quote(token_secret, safe='')}"
+    )
     params = {
         "oauth_consumer_key": consumer_key,
         "oauth_nonce": _generate_nonce(),
-        "oauth_signature": f"{consumer_secret}&{token_secret}",
+        "oauth_signature": signature,
         "oauth_signature_method": "PLAINTEXT",
         "oauth_timestamp": str(int(time.time())),
     }
