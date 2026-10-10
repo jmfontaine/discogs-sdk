@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from discogs_sdk._base_client import path_segment
 from discogs_sdk._sync._lazy import LazyResource
 from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk._sync._resource import SyncAPIResource
@@ -26,7 +27,7 @@ class UserLists(SyncAPIResource):
             items_key="lists",
             model_cls=ListSummary,
             params=params,
-            path=f"/users/{self._username}/lists",
+            path=f"/users/{path_segment(self._username)}/lists",
         )
 
 
@@ -38,4 +39,4 @@ class Lists(SyncAPIResource):
     """Top-level list access: GET /lists/{id}."""
 
     def get(self, list_id: int) -> ListProxy:
-        return ListProxy(self._client, f"/lists/{list_id}", List_)
+        return ListProxy(self._client, f"/lists/{path_segment(list_id)}", List_)

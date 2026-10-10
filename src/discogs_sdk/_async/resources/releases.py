@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, overload
 
 from discogs_sdk._async._lazy import AsyncLazyResource
 from discogs_sdk._async._resource import AsyncAPIResource
+from discogs_sdk._base_client import path_segment
 from discogs_sdk.models._common import CurrencyCode
 from discogs_sdk.models.release import (
     CommunityRating,
@@ -60,25 +61,29 @@ class ReleaseRating(AsyncAPIResource):
     ) -> CommunityRatingProxy | UserReleaseRatingProxy:
         if username:
             return UserReleaseRatingProxy(
-                self._client,
-                f"/releases/{self._release_id}/rating/{username}",
-                UserReleaseRating,
+                self._client, self._user_path(username), UserReleaseRating
             )
         return CommunityRatingProxy(
             self._client,
-            f"/releases/{self._release_id}/rating",
+            f"/releases/{path_segment(self._release_id)}/rating",
             CommunityRating,
         )
 
     async def update(self, username: str, rating: int) -> UserReleaseRating:
         response = await self._put(
-            f"/releases/{self._release_id}/rating/{username}",
+            self._user_path(username),
             json={"rating": rating},
         )
         return self._parse_response(response, UserReleaseRating)
 
     async def delete(self, username: str) -> None:
-        await self._delete(f"/releases/{self._release_id}/rating/{username}")
+        await self._delete(self._user_path(username))
+
+    def _user_path(self, username: str) -> str:
+        return (
+            f"/releases/{path_segment(self._release_id)}"
+            f"/rating/{path_segment(username)}"
+        )
 
 
 class ReleaseStatsResource(AsyncAPIResource):
@@ -88,7 +93,9 @@ class ReleaseStatsResource(AsyncAPIResource):
 
     def get(self) -> ReleaseStatsProxy:
         return ReleaseStatsProxy(
-            self._client, f"/releases/{self._release_id}/stats", ReleaseStats
+            self._client,
+            f"/releases/{path_segment(self._release_id)}/stats",
+            ReleaseStats,
         )
 
 
@@ -100,7 +107,7 @@ class ReleasePriceSuggestions(AsyncAPIResource):
     def get(self) -> PriceSuggestionsProxy:
         return PriceSuggestionsProxy(
             self._client,
-            f"/marketplace/price_suggestions/{self._release_id}",
+            f"/marketplace/price_suggestions/{path_segment(self._release_id)}",
             PriceSuggestions,
         )
 
@@ -116,7 +123,7 @@ class ReleaseMarketplaceStats(AsyncAPIResource):
         """Marketplace stats for the release, priced in *curr_abbr* when given."""
         return MarketplaceReleaseStatsProxy(
             self._client,
-            f"/marketplace/stats/{self._release_id}",
+            f"/marketplace/stats/{path_segment(self._release_id)}",
             MarketplaceReleaseStats,
             params={"curr_abbr": curr_abbr} if curr_abbr else None,
         )
@@ -136,7 +143,7 @@ class ReleaseProxy(AsyncLazyResource[Release]):
     ) -> None:
         super().__init__(
             client,
-            f"/releases/{release_id}",
+            f"/releases/{path_segment(release_id)}",
             Release,
             params={"curr_abbr": curr_abbr} if curr_abbr else None,
         )

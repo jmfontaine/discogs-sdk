@@ -88,6 +88,8 @@ Resources inherit from `AsyncAPIResource` (or `SyncAPIResource`), which provides
 
 API conventions: `.get(id)` for fetch, `.list()` for paginated lists, `.create()` for POST/PUT, `.update()` for POST, `.delete()` for DELETE.
 
+Every caller-supplied value in a request path, `int` ids included, goes through `path_segment()` (`_base_client.py`), which percent-encodes it with `safe=""` and rejects `"."` and `".."`. Store the raw identifier on resources and proxies and encode where the path is built, so a chained sub-resource encodes it exactly once.
+
 ### Pagination
 
 `.list()` returns auto-paging iterators (`AsyncPage`/`SyncPage`) that fetch pages on demand.

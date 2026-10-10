@@ -6,6 +6,7 @@ from __future__ import annotations
 from functools import cached_property
 from typing import TYPE_CHECKING
 
+from discogs_sdk._base_client import path_segment
 from discogs_sdk._sync._lazy import LazyResource
 from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk._sync._resource import SyncAPIResource
@@ -30,7 +31,7 @@ class LabelReleases(SyncAPIResource):
             items_key="releases",
             model_cls=LabelRelease,
             params=params,
-            path=f"/labels/{self._label_id}/releases",
+            path=f"/labels/{path_segment(self._label_id)}/releases",
         )
 
 
@@ -40,7 +41,7 @@ class LabelProxy(LazyResource[Label], LabelFields):
     _label_id: int
 
     def __init__(self, client: Discogs, label_id: int) -> None:
-        super().__init__(client, f"/labels/{label_id}", Label)
+        super().__init__(client, f"/labels/{path_segment(label_id)}", Label)
         self._label_id = label_id
 
     @cached_property

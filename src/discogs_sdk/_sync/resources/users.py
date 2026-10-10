@@ -6,6 +6,7 @@ from __future__ import annotations
 from functools import cached_property
 from typing import TYPE_CHECKING
 
+from discogs_sdk._base_client import path_segment
 from discogs_sdk._sync._lazy import LazyResource
 from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk._sync._resource import SyncAPIResource
@@ -53,7 +54,7 @@ class UserUpdate(SyncAPIResource):
             }.items()
             if v is not None
         }
-        response = self._post(f"/users/{self._username}", json=body)
+        response = self._post(f"/users/{path_segment(self._username)}", json=body)
         return self._parse_response(response, User)
 
 
@@ -72,7 +73,7 @@ class UserSubmissionArtists(SyncAPIResource):
             items_path=["submissions", "artists"],
             model_cls=Artist,
             params=params,
-            path=f"/users/{self._username}/submissions",
+            path=f"/users/{path_segment(self._username)}/submissions",
         )
 
 
@@ -91,7 +92,7 @@ class UserSubmissionLabels(SyncAPIResource):
             items_path=["submissions", "labels"],
             model_cls=Label,
             params=params,
-            path=f"/users/{self._username}/submissions",
+            path=f"/users/{path_segment(self._username)}/submissions",
         )
 
 
@@ -110,7 +111,7 @@ class UserSubmissions(SyncAPIResource):
             items_path=["submissions", "releases"],
             model_cls=Release,
             params=params,
-            path=f"/users/{self._username}/submissions",
+            path=f"/users/{path_segment(self._username)}/submissions",
         )
 
     @property
@@ -150,7 +151,7 @@ class UserContributions(SyncAPIResource):
             items_key="contributions",
             model_cls=Release,
             params=params,
-            path=f"/users/{self._username}/contributions",
+            path=f"/users/{path_segment(self._username)}/contributions",
         )
 
 
@@ -184,7 +185,7 @@ class UserInventory(SyncAPIResource):
             items_key="listings",
             model_cls=Listing,
             params=params,
-            path=f"/users/{self._username}/inventory",
+            path=f"/users/{path_segment(self._username)}/inventory",
         )
 
 
@@ -205,7 +206,7 @@ class UserProxy(LazyResource[User], UserFields):
     _username: str
 
     def __init__(self, client: Discogs, username: str) -> None:
-        super().__init__(client, f"/users/{username}", User)
+        super().__init__(client, f"/users/{path_segment(username)}", User)
         self._username = username
 
     @cached_property

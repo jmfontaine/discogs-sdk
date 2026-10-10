@@ -9,6 +9,7 @@ from discogs_sdk._async._resource import AsyncAPIResource
 from discogs_sdk._async.resources.collection import Collection
 from discogs_sdk._async.resources.lists import UserLists
 from discogs_sdk._async.resources.wantlist import Wantlist
+from discogs_sdk._base_client import path_segment
 from discogs_sdk.models.artist import Artist
 from discogs_sdk.models.label import Label
 from discogs_sdk.models.marketplace import Listing
@@ -49,7 +50,7 @@ class UserUpdate(AsyncAPIResource):
             }.items()
             if v is not None
         }
-        response = await self._post(f"/users/{self._username}", json=body)
+        response = await self._post(f"/users/{path_segment(self._username)}", json=body)
         return self._parse_response(response, User)
 
 
@@ -71,7 +72,7 @@ class UserSubmissionArtists(AsyncAPIResource):
             items_path=["submissions", "artists"],
             model_cls=Artist,
             params=params,
-            path=f"/users/{self._username}/submissions",
+            path=f"/users/{path_segment(self._username)}/submissions",
         )
 
 
@@ -93,7 +94,7 @@ class UserSubmissionLabels(AsyncAPIResource):
             items_path=["submissions", "labels"],
             model_cls=Label,
             params=params,
-            path=f"/users/{self._username}/submissions",
+            path=f"/users/{path_segment(self._username)}/submissions",
         )
 
 
@@ -115,7 +116,7 @@ class UserSubmissions(AsyncAPIResource):
             items_path=["submissions", "releases"],
             model_cls=Release,
             params=params,
-            path=f"/users/{self._username}/submissions",
+            path=f"/users/{path_segment(self._username)}/submissions",
         )
 
     @property
@@ -155,7 +156,7 @@ class UserContributions(AsyncAPIResource):
             items_key="contributions",
             model_cls=Release,
             params=params,
-            path=f"/users/{self._username}/contributions",
+            path=f"/users/{path_segment(self._username)}/contributions",
         )
 
 
@@ -189,7 +190,7 @@ class UserInventory(AsyncAPIResource):
             items_key="listings",
             model_cls=Listing,
             params=params,
-            path=f"/users/{self._username}/inventory",
+            path=f"/users/{path_segment(self._username)}/inventory",
         )
 
 
@@ -212,7 +213,7 @@ class UserProxy(AsyncLazyResource[User]):
     _username: str
 
     def __init__(self, client: AsyncDiscogs, username: str) -> None:
-        super().__init__(client, f"/users/{username}", User)
+        super().__init__(client, f"/users/{path_segment(username)}", User)
         self._username = username
 
     @cached_property

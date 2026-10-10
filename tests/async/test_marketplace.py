@@ -250,3 +250,36 @@ class TestOrderFilters:
         _ = [order async for order in client.marketplace.orders.list()]
 
         assert "archived" not in route.calls[0].request.url.params
+
+
+class TestOrderIdPathEncoding:
+    """An order id is one path segment: its characters never act as URL syntax."""
+
+    async def test_get_encodes_order_id(self, client, respx_mock):
+        route = respx_mock.route().respond(200, json=make_order())
+        await client.marketplace.orders.get("1/messages?x#")
+        path = route.calls.last.request.url.raw_path
+        assert path == b"/marketplace/orders/1%2Fmessages%3Fx%23"
+
+    async def test_update_encodes_order_id(self, client, respx_mock):
+        route = respx_mock.route().respond(200, json=make_order())
+        await client.marketplace.orders.update("1/messages?x#", status="Shipped")
+        path = route.calls.last.request.url.raw_path
+        assert path == b"/marketplace/orders/1%2Fmessages%3Fx%23"
+
+    async def test_messages_encode_order_id_once(self, client, respx_mock):
+        route = respx_mock.route().respond(
+            200, json=make_paginated_response("messages", [])
+        )
+        messages = client.marketplace.orders.get("1/messages?x#").messages
+        _ = [item async for item in messages.list()]
+        path = route.calls.last.request.url.raw_path.partition(b"?")[0]
+        assert path == b"/marketplace/orders/1%2Fmessages%3Fx%23/messages"
+
+    @pytest.mark.parametrize("order_id", [".", ".."])
+    async def test_dot_segment_order_id_is_rejected(self, client, respx_mock, order_id):
+        with pytest.raises(ValueError, match="path segment"):
+            client.marketplace.orders.get(order_id)
+        with pytest.raises(ValueError, match="path segment"):
+            await client.marketplace.orders.update(order_id, status="Shipped")
+        assert respx_mock.calls.call_count == 0

@@ -7,6 +7,7 @@ import builtins
 from functools import cached_property
 from typing import TYPE_CHECKING, Any
 
+from discogs_sdk._base_client import path_segment
 from discogs_sdk._sync._lazy import LazyResource
 from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk._sync._resource import SyncAPIResource
@@ -40,9 +41,10 @@ class InstanceFields(SyncAPIResource):
         self._instance_id = instance_id
 
     def update(self, field_id: int, *, value: str) -> None:
+        folder = f"/users/{path_segment(self._username)}/collection/folders/{path_segment(self._folder_id)}"
+        instance = f"/releases/{path_segment(self._release_id)}/instances/{path_segment(self._instance_id)}"
         self._post(
-            f"/users/{self._username}/collection/folders/{self._folder_id}/releases/{self._release_id}/instances/{self._instance_id}/fields/{field_id}",
-            json={"value": value},
+            f"{folder}{instance}/fields/{path_segment(field_id)}", json={"value": value}
         )
 
 
@@ -84,8 +86,8 @@ class CollectionInstances(SyncAPIResource):
         self._release_id = release_id
 
     def _base_path(self) -> str:
-        folder = f"/users/{self._username}/collection/folders/{self._folder_id}"
-        return f"{folder}/releases/{self._release_id}/instances"
+        folder = f"/users/{path_segment(self._username)}/collection/folders/{path_segment(self._folder_id)}"
+        return f"{folder}/releases/{path_segment(self._release_id)}/instances"
 
     def get(self, instance_id: int) -> InstanceRef:
         return InstanceRef(
@@ -93,10 +95,10 @@ class CollectionInstances(SyncAPIResource):
         )
 
     def delete(self, instance_id: int) -> None:
-        self._delete(f"{self._base_path()}/{instance_id}")
+        self._delete(f"{self._base_path()}/{path_segment(instance_id)}")
 
     def update(self, instance_id: int, **kwargs: Any) -> None:
-        self._post(f"{self._base_path()}/{instance_id}", json=kwargs)
+        self._post(f"{self._base_path()}/{path_segment(instance_id)}", json=kwargs)
 
 
 class FolderReleaseRef:
@@ -126,7 +128,7 @@ class FolderReleases(SyncAPIResource):
         self._folder_id = folder_id
 
     def _base_path(self) -> str:
-        return f"/users/{self._username}/collection/folders/{self._folder_id}/releases"
+        return f"/users/{path_segment(self._username)}/collection/folders/{path_segment(self._folder_id)}/releases"
 
     def get(self, release_id: int) -> FolderReleaseRef:
         return FolderReleaseRef(
@@ -161,7 +163,7 @@ class FolderReleases(SyncAPIResource):
 
     def create(self, *, release_id: int) -> CollectionInstanceCreated:
         """Add *release_id* to this folder and return the new instance's identity."""
-        response = self._post(f"{self._base_path()}/{release_id}")
+        response = self._post(f"{self._base_path()}/{path_segment(release_id)}")
         return self._parse_response(response, CollectionInstanceCreated)
 
 
@@ -177,7 +179,7 @@ class CollectionFolderProxy(LazyResource[CollectionFolder], CollectionFolderFiel
     def __init__(self, client: Discogs, username: str, folder_id: int) -> None:
         super().__init__(
             client,
-            f"/users/{username}/collection/folders/{folder_id}",
+            f"/users/{path_segment(username)}/collection/folders/{path_segment(folder_id)}",
             CollectionFolder,
         )
         self._username = username
@@ -198,7 +200,7 @@ class CollectionFolders(SyncAPIResource):
         self._username = username
 
     def _base_path(self) -> str:
-        return f"/users/{self._username}/collection/folders"
+        return f"/users/{path_segment(self._username)}/collection/folders"
 
     def get(self, folder_id: int) -> CollectionFolderProxy:
         return CollectionFolderProxy(self._client, self._username, folder_id)
@@ -212,10 +214,12 @@ class CollectionFolders(SyncAPIResource):
         return self._parse_response(response, CollectionFolder)
 
     def delete(self, folder_id: int) -> None:
-        self._delete(f"{self._base_path()}/{folder_id}")
+        self._delete(f"{self._base_path()}/{path_segment(folder_id)}")
 
     def update(self, folder_id: int, *, name: str) -> CollectionFolder:
-        response = self._post(f"{self._base_path()}/{folder_id}", json={"name": name})
+        response = self._post(
+            f"{self._base_path()}/{path_segment(folder_id)}", json={"name": name}
+        )
         return self._parse_response(response, CollectionFolder)
 
 
@@ -239,7 +243,7 @@ class CollectionReleaseRef:
             items_key="releases",
             model_cls=CollectionItem,
             params=params,
-            path=f"/users/{self._username}/collection/releases/{self._release_id}",
+            path=f"/users/{path_segment(self._username)}/collection/releases/{path_segment(self._release_id)}",
         )
 
 
@@ -261,7 +265,7 @@ class CollectionFields(SyncAPIResource):
         self._username = username
 
     def list(self) -> builtins.list[CollectionField]:
-        response = self._get(f"/users/{self._username}/collection/fields")
+        response = self._get(f"/users/{path_segment(self._username)}/collection/fields")
         return self._parse_list_response(response, CollectionField, "fields")
 
 
@@ -275,7 +279,9 @@ class CollectionValueResource(SyncAPIResource):
 
     def get(self) -> CollectionValueProxy:
         return CollectionValueProxy(
-            self._client, f"/users/{self._username}/collection/value", CollectionValue_
+            self._client,
+            f"/users/{path_segment(self._username)}/collection/value",
+            CollectionValue_,
         )
 
 

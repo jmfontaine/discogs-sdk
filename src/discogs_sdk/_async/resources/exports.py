@@ -3,6 +3,7 @@ from __future__ import annotations
 from discogs_sdk._async._lazy import AsyncLazyResource
 from discogs_sdk._async._paginator import AsyncPage
 from discogs_sdk._async._resource import AsyncAPIResource
+from discogs_sdk._base_client import path_segment
 from discogs_sdk.models.export import Export
 
 
@@ -16,7 +17,10 @@ class Exports(AsyncAPIResource):
         new proxy sees the current status; a resolved proxy keeps its data, so poll
         with a new ``get()`` call each time."""
         return ExportProxy(
-            self._client, f"/inventory/export/{export_id}", Export, cacheable=False
+            self._client,
+            f"/inventory/export/{path_segment(export_id)}",
+            Export,
+            cacheable=False,
         )
 
     def list(
@@ -35,7 +39,9 @@ class Exports(AsyncAPIResource):
         )
 
     async def download(self, export_id: int) -> bytes:
-        return await self._get_binary(f"/inventory/export/{export_id}/download")
+        return await self._get_binary(
+            f"/inventory/export/{path_segment(export_id)}/download"
+        )
 
     async def request(self) -> None:
         await self._post("/inventory/export")

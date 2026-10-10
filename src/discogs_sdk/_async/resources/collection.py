@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 from discogs_sdk._async._lazy import AsyncLazyResource
 from discogs_sdk._async._paginator import AsyncPage
 from discogs_sdk._async._resource import AsyncAPIResource
+from discogs_sdk._base_client import path_segment
 from discogs_sdk.models.collection import (
     CollectionField,
     CollectionFolder,
@@ -35,9 +36,16 @@ class InstanceFields(AsyncAPIResource):
         self._instance_id = instance_id
 
     async def update(self, field_id: int, *, value: str) -> None:
+        folder = (
+            f"/users/{path_segment(self._username)}"
+            f"/collection/folders/{path_segment(self._folder_id)}"
+        )
+        instance = (
+            f"/releases/{path_segment(self._release_id)}"
+            f"/instances/{path_segment(self._instance_id)}"
+        )
         await self._post(
-            f"/users/{self._username}/collection/folders/{self._folder_id}"
-            f"/releases/{self._release_id}/instances/{self._instance_id}/fields/{field_id}",
+            f"{folder}{instance}/fields/{path_segment(field_id)}",
             json={"value": value},
         )
 
@@ -80,8 +88,11 @@ class CollectionInstances(AsyncAPIResource):
         self._release_id = release_id
 
     def _base_path(self) -> str:
-        folder = f"/users/{self._username}/collection/folders/{self._folder_id}"
-        return f"{folder}/releases/{self._release_id}/instances"
+        folder = (
+            f"/users/{path_segment(self._username)}"
+            f"/collection/folders/{path_segment(self._folder_id)}"
+        )
+        return f"{folder}/releases/{path_segment(self._release_id)}/instances"
 
     def get(self, instance_id: int) -> InstanceRef:
         return InstanceRef(
@@ -89,10 +100,12 @@ class CollectionInstances(AsyncAPIResource):
         )
 
     async def delete(self, instance_id: int) -> None:
-        await self._delete(f"{self._base_path()}/{instance_id}")
+        await self._delete(f"{self._base_path()}/{path_segment(instance_id)}")
 
     async def update(self, instance_id: int, **kwargs: Any) -> None:
-        await self._post(f"{self._base_path()}/{instance_id}", json=kwargs)
+        await self._post(
+            f"{self._base_path()}/{path_segment(instance_id)}", json=kwargs
+        )
 
 
 class FolderReleaseRef:
@@ -122,7 +135,10 @@ class FolderReleases(AsyncAPIResource):
         self._folder_id = folder_id
 
     def _base_path(self) -> str:
-        return f"/users/{self._username}/collection/folders/{self._folder_id}/releases"
+        return (
+            f"/users/{path_segment(self._username)}"
+            f"/collection/folders/{path_segment(self._folder_id)}/releases"
+        )
 
     def get(self, release_id: int) -> FolderReleaseRef:
         return FolderReleaseRef(
@@ -157,7 +173,7 @@ class FolderReleases(AsyncAPIResource):
 
     async def create(self, *, release_id: int) -> CollectionInstanceCreated:
         """Add *release_id* to this folder and return the new instance's identity."""
-        response = await self._post(f"{self._base_path()}/{release_id}")
+        response = await self._post(f"{self._base_path()}/{path_segment(release_id)}")
         return self._parse_response(response, CollectionInstanceCreated)
 
 
@@ -173,7 +189,8 @@ class CollectionFolderProxy(AsyncLazyResource[CollectionFolder]):
     def __init__(self, client: AsyncDiscogs, username: str, folder_id: int) -> None:
         super().__init__(
             client,
-            f"/users/{username}/collection/folders/{folder_id}",
+            f"/users/{path_segment(username)}"
+            f"/collection/folders/{path_segment(folder_id)}",
             CollectionFolder,
         )
         self._username = username
@@ -194,7 +211,7 @@ class CollectionFolders(AsyncAPIResource):
         self._username = username
 
     def _base_path(self) -> str:
-        return f"/users/{self._username}/collection/folders"
+        return f"/users/{path_segment(self._username)}/collection/folders"
 
     def get(self, folder_id: int) -> CollectionFolderProxy:
         return CollectionFolderProxy(self._client, self._username, folder_id)
@@ -208,11 +225,11 @@ class CollectionFolders(AsyncAPIResource):
         return self._parse_response(response, CollectionFolder)
 
     async def delete(self, folder_id: int) -> None:
-        await self._delete(f"{self._base_path()}/{folder_id}")
+        await self._delete(f"{self._base_path()}/{path_segment(folder_id)}")
 
     async def update(self, folder_id: int, *, name: str) -> CollectionFolder:
         response = await self._post(
-            f"{self._base_path()}/{folder_id}", json={"name": name}
+            f"{self._base_path()}/{path_segment(folder_id)}", json={"name": name}
         )
         return self._parse_response(response, CollectionFolder)
 
@@ -240,7 +257,10 @@ class CollectionReleaseRef:
             items_key="releases",
             model_cls=CollectionItem,
             params=params,
-            path=f"/users/{self._username}/collection/releases/{self._release_id}",
+            path=(
+                f"/users/{path_segment(self._username)}"
+                f"/collection/releases/{path_segment(self._release_id)}"
+            ),
         )
 
 
@@ -262,7 +282,9 @@ class CollectionFields(AsyncAPIResource):
         self._username = username
 
     async def list(self) -> builtins.list[CollectionField]:
-        response = await self._get(f"/users/{self._username}/collection/fields")
+        response = await self._get(
+            f"/users/{path_segment(self._username)}/collection/fields"
+        )
         return self._parse_list_response(response, CollectionField, "fields")
 
 
@@ -277,7 +299,7 @@ class CollectionValueResource(AsyncAPIResource):
     def get(self) -> CollectionValueProxy:
         return CollectionValueProxy(
             self._client,
-            f"/users/{self._username}/collection/value",
+            f"/users/{path_segment(self._username)}/collection/value",
             CollectionValue_,
         )
 

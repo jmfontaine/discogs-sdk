@@ -221,3 +221,44 @@ class TestCurrencySelection:
         )
         await client.releases.get(352665).marketplace_stats.get(curr_abbr="GBP")
         assert route.calls[0].request.url.params["curr_abbr"] == "GBP"
+
+
+class TestRatingUsernamePathEncoding:
+    """The rating's username is one path segment, never URL syntax."""
+
+    async def test_get_encodes_username(self, client, respx_mock):
+        route = respx_mock.route().respond(200, json=make_user_release_rating())
+        await client.releases.get(1).rating.get("../../x?")
+        path = route.calls.last.request.url.raw_path
+        assert path == b"/releases/1/rating/..%2F..%2Fx%3F"
+
+    async def test_update_encodes_username(self, client, respx_mock):
+        route = respx_mock.route().respond(200, json=make_user_release_rating())
+        await client.releases.get(1).rating.update("../../x?", 4)
+        path = route.calls.last.request.url.raw_path
+        assert path == b"/releases/1/rating/..%2F..%2Fx%3F"
+
+    @pytest.mark.parametrize(
+        ("username", "expected"),
+        [
+            ("../../x?", b"/releases/1/rating/..%2F..%2Fx%3F"),
+            ("a/b", b"/releases/1/rating/a%2Fb"),
+        ],
+    )
+    async def test_delete_encodes_username(
+        self, client, respx_mock, username, expected
+    ):
+        route = respx_mock.route().respond(204)
+        await client.releases.get(1).rating.delete(username)
+        assert route.calls.last.request.url.raw_path == expected
+
+    @pytest.mark.parametrize("username", [".", ".."])
+    async def test_dot_segment_username_is_rejected(self, client, respx_mock, username):
+        rating = client.releases.get(1).rating
+        with pytest.raises(ValueError, match="path segment"):
+            rating.get(username)
+        with pytest.raises(ValueError, match="path segment"):
+            await rating.update(username, 4)
+        with pytest.raises(ValueError, match="path segment"):
+            await rating.delete(username)
+        assert respx_mock.calls.call_count == 0

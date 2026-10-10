@@ -93,3 +93,19 @@ class TestWantModel:
         lazy = client.users.get("trent_reznor")
         results = [item async for item in lazy.wantlist.list()]
         assert results[0].model_extra["_unknown_extra_field"] == "test"
+
+
+class TestUsernamePathEncoding:
+    async def test_list_encodes_username_once(self, client, respx_mock):
+        route = respx_mock.route().respond(
+            200, json=make_paginated_response("wants", [])
+        )
+        _ = [item async for item in client.users.get("a/b?c#d").wantlist.list()]
+        path = route.calls.last.request.url.raw_path.partition(b"?")[0]
+        assert path == b"/users/a%2Fb%3Fc%23d/wants"
+
+    async def test_delete_encodes_username_once(self, client, respx_mock):
+        route = respx_mock.route().respond(204)
+        await client.users.get("a/b?c#d").wantlist.delete(352665)
+        path = route.calls.last.request.url.raw_path
+        assert path == b"/users/a%2Fb%3Fc%23d/wants/352665"

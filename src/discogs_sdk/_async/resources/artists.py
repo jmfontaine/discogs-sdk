@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from discogs_sdk._async._lazy import AsyncLazyResource
 from discogs_sdk._async._paginator import AsyncPage
 from discogs_sdk._async._resource import AsyncAPIResource
+from discogs_sdk._base_client import path_segment
 from discogs_sdk.models.artist import Artist, ArtistRelease
 
 if TYPE_CHECKING:
@@ -37,7 +38,7 @@ class ArtistReleases(AsyncAPIResource):
         }
         return AsyncPage(
             client=self._client,
-            path=f"/artists/{self._artist_id}/releases",
+            path=f"/artists/{path_segment(self._artist_id)}/releases",
             params=params,
             model_cls=ArtistRelease,
             items_key="releases",
@@ -50,7 +51,7 @@ class ArtistProxy(AsyncLazyResource[Artist]):
     _artist_id: int
 
     def __init__(self, client: AsyncDiscogs, artist_id: int) -> None:
-        super().__init__(client, f"/artists/{artist_id}", Artist)
+        super().__init__(client, f"/artists/{path_segment(artist_id)}", Artist)
         self._artist_id = artist_id
 
     @cached_property

@@ -84,6 +84,20 @@ def _remove_dot_segments(path: str) -> str:
     return "/".join(output)
 
 
+def path_segment(value: str | float) -> str:
+    """*value* as one percent-encoded URL path segment.
+
+    Every reserved character is encoded, so ``/``, ``?`` and ``#`` in an identifier
+    can never select a different endpoint. ``.`` and ``..`` are rejected with
+    ``ValueError``: they survive encoding unchanged, and HTTP clients collapse them
+    before sending.
+    """
+    segment = urllib.parse.quote(str(value), safe="")
+    if segment in {".", ".."}:
+        raise ValueError(f"{value!r} is not a valid URL path segment")
+    return segment
+
+
 _DEFAULT_ORIGIN = _url_origin(urllib.parse.urlsplit(DEFAULT_BASE_URL))
 
 

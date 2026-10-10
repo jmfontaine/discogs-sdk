@@ -6,6 +6,7 @@ from __future__ import annotations
 from functools import cached_property
 from typing import TYPE_CHECKING
 
+from discogs_sdk._base_client import path_segment
 from discogs_sdk._sync._lazy import LazyResource
 from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk._sync._resource import SyncAPIResource
@@ -52,7 +53,7 @@ class MasterVersions(SyncAPIResource):
             items_key="versions",
             model_cls=MasterVersion,
             params=params,
-            path=f"/masters/{self._master_id}/versions",
+            path=f"/masters/{path_segment(self._master_id)}/versions",
         )
 
 
@@ -62,7 +63,7 @@ class MasterProxy(LazyResource[Master], MasterFields):
     _master_id: int
 
     def __init__(self, client: Discogs, master_id: int) -> None:
-        super().__init__(client, f"/masters/{master_id}", Master)
+        super().__init__(client, f"/masters/{path_segment(master_id)}", Master)
         self._master_id = master_id
 
     @cached_property

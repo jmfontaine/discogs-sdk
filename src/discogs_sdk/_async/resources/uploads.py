@@ -3,6 +3,7 @@ from __future__ import annotations
 from discogs_sdk._async._lazy import AsyncLazyResource
 from discogs_sdk._async._paginator import AsyncPage
 from discogs_sdk._async._resource import AsyncAPIResource
+from discogs_sdk._base_client import path_segment
 from discogs_sdk.models.upload import Upload
 
 
@@ -40,5 +41,8 @@ class Uploads(AsyncAPIResource):
         new proxy sees the current status; a resolved proxy keeps its data, so poll
         with a new ``get()`` call each time."""
         return UploadProxy(
-            self._client, f"/inventory/upload/{upload_id}", Upload, cacheable=False
+            self._client,
+            f"/inventory/upload/{path_segment(upload_id)}",
+            Upload,
+            cacheable=False,
         )

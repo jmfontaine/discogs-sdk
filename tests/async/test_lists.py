@@ -61,3 +61,13 @@ class TestListModel:
         )
         result = await client.lists.get(1)
         assert result.model_extra["uri"] == "http://x"
+
+
+class TestUsernamePathEncoding:
+    async def test_list_encodes_username_once(self, client, respx_mock):
+        route = respx_mock.route().respond(
+            200, json=make_paginated_response("lists", [])
+        )
+        _ = [item async for item in client.users.get("a/b?c#d").lists.list()]
+        path = route.calls.last.request.url.raw_path.partition(b"?")[0]
+        assert path == b"/users/a%2Fb%3Fc%23d/lists"

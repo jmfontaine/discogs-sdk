@@ -278,3 +278,21 @@ class TestCollectionModels:
         lazy = client.users.get("trent_reznor")
         result = await lazy.collection.folders.get(0)
         assert result.model_extra["_unknown_extra_field"] == "test"
+
+
+class TestUsernamePathEncoding:
+    async def test_folders_list_encodes_username_once(self, client, respx_mock):
+        route = respx_mock.route().respond(200, json={"folders": []})
+        await client.users.get("a/b?c#d").collection.folders.list()
+        path = route.calls.last.request.url.raw_path
+        assert path == b"/users/a%2Fb%3Fc%23d/collection/folders"
+
+    async def test_deep_chain_encodes_username_once(self, client, respx_mock):
+        route = respx_mock.route().respond(204)
+        folder = client.users.get("a/b?c#d").collection.folders.get(1)
+        instance = folder.releases.get(352665).instances.get(7)
+        await instance.fields.update(3, value="Mint")
+        assert route.calls.last.request.url.raw_path == (
+            b"/users/a%2Fb%3Fc%23d/collection/folders/1"
+            b"/releases/352665/instances/7/fields/3"
+        )

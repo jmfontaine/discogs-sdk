@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from discogs_sdk._base_client import path_segment
 from discogs_sdk._sync._lazy import LazyResource
 from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk._sync._resource import SyncAPIResource
@@ -41,5 +42,8 @@ class Uploads(SyncAPIResource):
         new proxy sees the current status; a resolved proxy keeps its data, so poll
         with a new ``get()`` call each time."""
         return UploadProxy(
-            self._client, f"/inventory/upload/{upload_id}", Upload, cacheable=False
+            self._client,
+            f"/inventory/upload/{path_segment(upload_id)}",
+            Upload,
+            cacheable=False,
         )

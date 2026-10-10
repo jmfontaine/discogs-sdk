@@ -6,6 +6,7 @@ from __future__ import annotations
 from functools import cached_property
 from typing import TYPE_CHECKING, overload
 
+from discogs_sdk._base_client import path_segment
 from discogs_sdk._sync._lazy import LazyResource
 from discogs_sdk._sync._resource import SyncAPIResource
 from discogs_sdk.models._common import CurrencyCode
@@ -73,22 +74,23 @@ class ReleaseRating(SyncAPIResource):
     ) -> CommunityRatingProxy | UserReleaseRatingProxy:
         if username:
             return UserReleaseRatingProxy(
-                self._client,
-                f"/releases/{self._release_id}/rating/{username}",
-                UserReleaseRating,
+                self._client, self._user_path(username), UserReleaseRating
             )
         return CommunityRatingProxy(
-            self._client, f"/releases/{self._release_id}/rating", CommunityRating
+            self._client,
+            f"/releases/{path_segment(self._release_id)}/rating",
+            CommunityRating,
         )
 
     def update(self, username: str, rating: int) -> UserReleaseRating:
-        response = self._put(
-            f"/releases/{self._release_id}/rating/{username}", json={"rating": rating}
-        )
+        response = self._put(self._user_path(username), json={"rating": rating})
         return self._parse_response(response, UserReleaseRating)
 
     def delete(self, username: str) -> None:
-        self._delete(f"/releases/{self._release_id}/rating/{username}")
+        self._delete(self._user_path(username))
+
+    def _user_path(self, username: str) -> str:
+        return f"/releases/{path_segment(self._release_id)}/rating/{path_segment(username)}"
 
 
 class ReleaseStatsResource(SyncAPIResource):
@@ -98,7 +100,9 @@ class ReleaseStatsResource(SyncAPIResource):
 
     def get(self) -> ReleaseStatsProxy:
         return ReleaseStatsProxy(
-            self._client, f"/releases/{self._release_id}/stats", ReleaseStats
+            self._client,
+            f"/releases/{path_segment(self._release_id)}/stats",
+            ReleaseStats,
         )
 
 
@@ -110,7 +114,7 @@ class ReleasePriceSuggestions(SyncAPIResource):
     def get(self) -> PriceSuggestionsProxy:
         return PriceSuggestionsProxy(
             self._client,
-            f"/marketplace/price_suggestions/{self._release_id}",
+            f"/marketplace/price_suggestions/{path_segment(self._release_id)}",
             PriceSuggestions,
         )
 
@@ -126,7 +130,7 @@ class ReleaseMarketplaceStats(SyncAPIResource):
         """Marketplace stats for the release, priced in *curr_abbr* when given."""
         return MarketplaceReleaseStatsProxy(
             self._client,
-            f"/marketplace/stats/{self._release_id}",
+            f"/marketplace/stats/{path_segment(self._release_id)}",
             MarketplaceReleaseStats,
             params={"curr_abbr": curr_abbr} if curr_abbr else None,
         )
@@ -142,7 +146,7 @@ class ReleaseProxy(LazyResource[Release], ReleaseFields):
     ) -> None:
         super().__init__(
             client,
-            f"/releases/{release_id}",
+            f"/releases/{path_segment(release_id)}",
             Release,
             params={"curr_abbr": curr_abbr} if curr_abbr else None,
         )

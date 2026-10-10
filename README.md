@@ -134,6 +134,10 @@ These lazy resources are read-only views: assigning to one of their attributes r
 value would never reach Discogs. Where the API accepts writes, they go through a resource method such as
 `release.rating.update()` or `user.wantlist.update()`.
 
+Each identifier you pass (username, order id, release id and so on) is sent as a
+single, percent-encoded path segment, so a `/`, `?` or `#` in it cannot reach a
+different endpoint. `"."` and `".."` raise `ValueError` before any request is made.
+
 ### Search
 
 ```python

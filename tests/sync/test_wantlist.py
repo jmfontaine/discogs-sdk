@@ -66,3 +66,19 @@ class TestWantlistDelete:
         lazy = client.users.get("trent_reznor")
         with pytest.raises(NotFoundError):
             lazy.wantlist.delete(999)
+
+
+class TestUsernamePathEncoding:
+    def test_list_encodes_username_once(self, client, respx_mock):
+        route = respx_mock.route().respond(
+            200, json=make_paginated_response("wants", [])
+        )
+        _ = list(client.users.get("a/b?c#d").wantlist.list())
+        path = route.calls.last.request.url.raw_path.partition(b"?")[0]
+        assert path == b"/users/a%2Fb%3Fc%23d/wants"
+
+    def test_delete_encodes_username_once(self, client, respx_mock):
+        route = respx_mock.route().respond(204)
+        client.users.get("a/b?c#d").wantlist.delete(352665)
+        path = route.calls.last.request.url.raw_path
+        assert path == b"/users/a%2Fb%3Fc%23d/wants/352665"

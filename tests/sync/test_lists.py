@@ -41,3 +41,13 @@ class TestUserLists:
         assert len(results) == 1
         assert isinstance(results[0], ListSummary)
         assert results[0].name == "Industrial Essentials"
+
+
+class TestUsernamePathEncoding:
+    def test_list_encodes_username_once(self, client, respx_mock):
+        route = respx_mock.route().respond(
+            200, json=make_paginated_response("lists", [])
+        )
+        _ = list(client.users.get("a/b?c#d").lists.list())
+        path = route.calls.last.request.url.raw_path.partition(b"?")[0]
+        assert path == b"/users/a%2Fb%3Fc%23d/lists"

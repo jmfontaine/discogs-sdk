@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 from discogs_sdk._async._lazy import AsyncLazyResource
 from discogs_sdk._async._paginator import AsyncPage
 from discogs_sdk._async._resource import AsyncAPIResource
+from discogs_sdk._base_client import path_segment
 from discogs_sdk.models._common import Condition, CurrencyCode
 from discogs_sdk.models.marketplace import Fee, Listing, Order, OrderMessage
 
@@ -30,7 +31,7 @@ class OrderMessages(AsyncAPIResource):
             items_key="messages",
             model_cls=OrderMessage,
             params=params,
-            path=f"/marketplace/orders/{self._order_id}/messages",
+            path=f"/marketplace/orders/{path_segment(self._order_id)}/messages",
         )
 
     async def create(
@@ -42,7 +43,7 @@ class OrderMessages(AsyncAPIResource):
             if v is not None
         }
         response = await self._post(
-            f"/marketplace/orders/{self._order_id}/messages",
+            f"/marketplace/orders/{path_segment(self._order_id)}/messages",
             json=body,
         )
         return self._parse_response(response, OrderMessage)
@@ -54,7 +55,7 @@ class OrderProxy(AsyncLazyResource[Order]):
     _order_id: str
 
     def __init__(self, client: AsyncDiscogs, order_id: str) -> None:
-        super().__init__(client, f"/marketplace/orders/{order_id}", Order)
+        super().__init__(client, f"/marketplace/orders/{path_segment(order_id)}", Order)
         self._order_id = order_id
 
     @cached_property
@@ -107,7 +108,9 @@ class MarketplaceOrders(AsyncAPIResource):
         )
 
     async def update(self, order_id: str, **kwargs: Any) -> Order:
-        response = await self._post(f"/marketplace/orders/{order_id}", json=kwargs)
+        response = await self._post(
+            f"/marketplace/orders/{path_segment(order_id)}", json=kwargs
+        )
         return self._parse_response(response, Order)
 
 
@@ -122,7 +125,7 @@ class MarketplaceListings(AsyncAPIResource):
         """The listing, priced in *curr_abbr* when given."""
         return ListingProxy(
             self._client,
-            f"/marketplace/listings/{listing_id}",
+            f"/marketplace/listings/{path_segment(listing_id)}",
             Listing,
             params={"curr_abbr": curr_abbr} if curr_abbr else None,
         )
@@ -147,10 +150,12 @@ class MarketplaceListings(AsyncAPIResource):
         return self._parse_response(response, Listing)
 
     async def update(self, listing_id: int, **kwargs: Any) -> None:
-        await self._post(f"/marketplace/listings/{listing_id}", json=kwargs)
+        await self._post(
+            f"/marketplace/listings/{path_segment(listing_id)}", json=kwargs
+        )
 
     async def delete(self, listing_id: int) -> None:
-        await self._delete(f"/marketplace/listings/{listing_id}")
+        await self._delete(f"/marketplace/listings/{path_segment(listing_id)}")
 
 
 class FeeProxy(AsyncLazyResource[Fee]):
@@ -159,10 +164,9 @@ class FeeProxy(AsyncLazyResource[Fee]):
 
 class MarketplaceFee(AsyncAPIResource):
     def get(self, *, price: float, currency: CurrencyCode | None = None) -> FeeProxy:
+        path = f"/marketplace/fee/{path_segment(price)}"
         if currency:
-            path = f"/marketplace/fee/{price}/{currency}"
-        else:
-            path = f"/marketplace/fee/{price}"
+            path = f"{path}/{path_segment(currency)}"
         return FeeProxy(self._client, path, Fee)
 
 

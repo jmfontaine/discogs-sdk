@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from discogs_sdk._async._lazy import AsyncLazyResource
 from discogs_sdk._async._paginator import AsyncPage
 from discogs_sdk._async._resource import AsyncAPIResource
+from discogs_sdk._base_client import path_segment
 from discogs_sdk.models.label import Label, LabelRelease
 
 if TYPE_CHECKING:
@@ -29,7 +30,7 @@ class LabelReleases(AsyncAPIResource):
             items_key="releases",
             model_cls=LabelRelease,
             params=params,
-            path=f"/labels/{self._label_id}/releases",
+            path=f"/labels/{path_segment(self._label_id)}/releases",
         )
 
 
@@ -39,7 +40,7 @@ class LabelProxy(AsyncLazyResource[Label]):
     _label_id: int
 
     def __init__(self, client: AsyncDiscogs, label_id: int) -> None:
-        super().__init__(client, f"/labels/{label_id}", Label)
+        super().__init__(client, f"/labels/{path_segment(label_id)}", Label)
         self._label_id = label_id
 
     @cached_property

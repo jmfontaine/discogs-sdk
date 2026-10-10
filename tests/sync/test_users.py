@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import json
 
+import pytest
 import respx
 
+from discogs_sdk import Discogs
+from discogs_sdk._cache import MemoryCache
 from discogs_sdk.models.artist import Artist
 from discogs_sdk.models.label import Label
 from discogs_sdk.models.marketplace import Listing
@@ -189,3 +192,60 @@ class TestUserModel:
         )
         lazy = client.users.get("x")
         assert lazy.model_extra["_unknown_extra_field"] == "test"
+
+
+HOSTILE = "a/b?c#d"
+ENCODED = b"a%2Fb%3Fc%23d"
+EMPTY_PAGE = {"pagination": {"page": 1, "pages": 1, "urls": {}}}
+
+
+class TestUsernamePathEncoding:
+    """A username is one path segment: its characters never act as URL syntax."""
+
+    def test_get_encodes_username(self, client, respx_mock):
+        route = respx_mock.route().respond(200, json=make_user())
+        _ = client.users.get(HOSTILE).username
+        assert route.calls.last.request.url.raw_path == b"/users/a%2Fb%3Fc%23d"
+
+    def test_update_encodes_username(self, client, respx_mock):
+        route = respx_mock.route().respond(200, json=make_user())
+        client.users.get(HOSTILE).update(name="X")
+        request = route.calls.last.request
+        assert request.method == "POST"
+        assert request.url.raw_path == b"/users/a%2Fb%3Fc%23d"
+
+    @pytest.mark.parametrize(
+        ("pages", "suffix"),
+        [
+            (lambda user: user.submissions.list(), b"/submissions"),
+            (lambda user: user.submissions.artists.list(), b"/submissions"),
+            (lambda user: user.submissions.labels.list(), b"/submissions"),
+            (lambda user: user.contributions.list(), b"/contributions"),
+            (lambda user: user.inventory.list(), b"/inventory"),
+        ],
+        ids=["submissions", "artists", "labels", "contributions", "inventory"],
+    )
+    def test_sub_resources_encode_username_once(
+        self, client, respx_mock, pages, suffix
+    ):
+        route = respx_mock.route().respond(200, json=EMPTY_PAGE)
+        _ = list(pages(client.users.get(HOSTILE)))
+        path = route.calls.last.request.url.raw_path.partition(b"?")[0]
+        assert path == b"/users/" + ENCODED + suffix
+        assert b"%25" not in path
+
+    @pytest.mark.parametrize("username", [".", ".."])
+    def test_dot_segment_username_is_rejected(self, client, respx_mock, username):
+        with pytest.raises(ValueError, match="path segment"):
+            client.users.get(username)
+        assert respx_mock.calls.call_count == 0
+
+    def test_cache_key_holds_the_encoded_url(self, respx_mock):
+        respx_mock.route().respond(200, json=make_user())
+        cache = MemoryCache(ttl=600)
+        client = Discogs(token="test-token", cache=cache)
+        _ = client.users.get("a/b").username
+        client.close()
+        [key] = cache._store
+        assert "/users/a%2Fb" in key
+        assert "/users/a/b" not in key
