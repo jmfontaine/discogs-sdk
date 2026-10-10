@@ -24,8 +24,6 @@ print(f"Artists: {[a.name for a in release.artists or []]}")
 
 # Community rating (no auth required).
 community = client.releases.get(352665).rating.get()
-# CommunityRating.rating is a RatingInfo on this endpoint.
-assert not isinstance(community.rating, int)
 print(f"Average: {community.rating.average}, Count: {community.rating.count}")
 
 # Your personal rating (requires auth).

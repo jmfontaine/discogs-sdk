@@ -38,9 +38,7 @@ async def main() -> None:
         # Sub-resource accessors live on the proxy, not on the model, and
         # never trigger HTTP — so keep the proxy when you need both.
         community = await client.releases.get(352665).rating.get()
-        rating = community.rating
-        if not isinstance(rating, int):
-            print(f"Average: {rating.average}")
+        print(f"Average: {community.rating.average}")
 
         # ── Pagination with async for ─────────────────────────────
         async for result in client.search(query="Nine Inch Nails", type="artist"):

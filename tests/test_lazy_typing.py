@@ -29,7 +29,23 @@ def sync_usage(client: Discogs) -> None:
         release_title: str = release.title
         print(release_title)
     client.releases.get(352665).rating.get(username="trent_reznor")
+    average: float = client.releases.get(352665).rating.get().rating.average
+    user_rating: int = client.releases.get(352665).rating.get("trent_reznor").rating
+    print(average, user_rating)
+    client.releases.get(352665).rating.get(None)
     client.users.get("trent_reznor").collection.folders.get(1).releases.get(352665).instances.get(20).fields
+
+
+def maybe_user_rating(client: Discogs, username: str | None) -> None:
+    client.releases.get(352665).rating.get(username)
+
+
+async def async_rating_usage(client: AsyncDiscogs) -> None:
+    community = await client.releases.get(352665).rating.get()
+    community_average: float = community.rating.average
+    mine = await client.releases.get(352665).rating.get("trent_reznor")
+    mine_rating: int = mine.rating
+    print(community_average, mine_rating)
 
 
 async def async_usage(client: AsyncDiscogs) -> None:
@@ -70,6 +86,13 @@ from discogs_sdk import AsyncDiscogs
 
 def usage(client: AsyncDiscogs) -> None:
     print(client.releases.get(352665).title)
+""",
+    "average_on_user_rating": """
+from discogs_sdk import Discogs
+
+
+def usage(client: Discogs) -> None:
+    print(client.releases.get(352665).rating.get("trent_reznor").rating.average)
 """,
 }
 

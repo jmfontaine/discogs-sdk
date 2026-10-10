@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from functools import cached_property
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, overload
 
 from discogs_sdk._async._lazy import AsyncLazyResource
 from discogs_sdk._async._resource import AsyncAPIResource
@@ -43,6 +43,17 @@ class ReleaseRating(AsyncAPIResource):
     def __init__(self, client, release_id: int) -> None:
         super().__init__(client)
         self._release_id = release_id
+
+    @overload
+    def get(self) -> CommunityRatingProxy: ...
+
+    @overload
+    def get(self, username: str) -> UserReleaseRatingProxy: ...
+
+    @overload
+    def get(
+        self, username: str | None
+    ) -> CommunityRatingProxy | UserReleaseRatingProxy: ...
 
     def get(
         self, username: str | None = None
