@@ -20,6 +20,7 @@ from discogs_sdk._events import RateLimit, RequestEvent
 from discogs_sdk._exceptions import (
     AuthenticationError,
     DiscogsAPIError,
+    DiscogsError,
     ForbiddenError,
     NotFoundError,
     RateLimitError,
@@ -54,6 +55,33 @@ _PRE_SEND_TRANSPORT_ERRORS: tuple[type[httpx2.RequestError], ...] = (
 # the server, and parking the caller longer is the caller's call. Matches the
 # backoff cap.
 MAX_RETRY_AFTER = 60.0
+_DEFAULT_PORTS: dict[str, int] = {"http": 80, "https": 443}
+
+
+def _url_origin(url: urllib.parse.SplitResult) -> tuple[str, str, int | None]:
+    """Scheme, lower-cased host and effective port of *url*.
+
+    Raises ``ValueError`` for a non-numeric or out-of-range port.
+    """
+    port = url.port
+    if port is None:
+        port = _DEFAULT_PORTS.get(url.scheme)
+    return url.scheme, url.hostname or "", port
+
+
+def _remove_dot_segments(path: str) -> str:
+    """Drop ``.`` and ``..`` path segments (RFC 3986 §5.2.4), as httpx2 does on send."""
+    output: list[str] = []
+    for segment in path.split("/"):
+        if segment == "..":
+            if output and output != [""]:
+                output.pop()
+        elif segment != ".":
+            output.append(segment)
+    return "/".join(output)
+
+
+_DEFAULT_ORIGIN = _url_origin(urllib.parse.urlsplit(DEFAULT_BASE_URL))
 
 
 def may_retry_status(method: str, status_code: int) -> bool:
@@ -374,6 +402,43 @@ class BaseClient:
 
     def _build_url(self, path: str) -> str:
         return f"{self.base_url}{path}"
+
+    def _resolve_next_url(self, next_url: str) -> str:
+        """Turn a pagination ``next`` link from a response body into the URL to request.
+
+        Discogs emits absolute links on its own origin even when ``base_url`` points
+        at a proxy, so a link is trusted on that origin or the configured one, and is
+        always rebased onto ``base_url``. Any other origin raises before a request,
+        and the credentials it would carry, leaves the process.
+        """
+        base = urllib.parse.urlsplit(self.base_url)
+        base_origin = _url_origin(base)
+        try:
+            link = urllib.parse.urlsplit(next_url)
+            origin = _url_origin(link)
+        except ValueError:  # Unbalanced IPv6 brackets, unparsable port
+            raise DiscogsError("Refusing to follow malformed pagination link") from None
+        if origin not in (base_origin, _DEFAULT_ORIGIN):
+            if not link.netloc:
+                raise DiscogsError(
+                    "Refusing to follow pagination link without an origin"
+                )
+            # Drop any userinfo: the message names where the link points, nothing more.
+            host = link.netloc.rpartition("@")[2]
+            raise DiscogsError(
+                f"Refusing to follow pagination link to untrusted origin "
+                f"{link.scheme}://{host}"
+            )
+        # Resolved first, as httpx2 would after concatenation, so `..` cannot climb
+        # out of the base path.
+        path = _remove_dot_segments(link.path)
+        # A rewriting proxy hands back links that already carry the base path.
+        if origin == base_origin and (
+            path == base.path or path.startswith(f"{base.path}/")
+        ):
+            path = path[len(base.path) :]
+        query = f"?{link.query}" if link.query else ""
+        return f"{self.base_url}{path}{query}"
 
     def _retry_delay(self, attempt: int, retry_after: str | None = None) -> float:
         server_wait = parse_retry_after(retry_after)
