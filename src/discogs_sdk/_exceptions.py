@@ -66,7 +66,17 @@ class CacheMissError(DiscogsError):
 
 
 class DiscogsAPIError(DiscogsError):
-    """HTTP error returned by the Discogs API."""
+    """HTTP error returned by the Discogs API.
+
+    ``str(exc)`` is a bounded summary, ``"<status_code>: <message>"``: the message is
+    the body's ``message`` when that is a non-empty string, otherwise the body
+    itself, cut to 500 characters. ``response_body`` holds the full payload.
+
+    Attributes:
+        status_code: HTTP status of the response.
+        response_body: The JSON object the response decoded to, otherwise its
+            raw text, unabridged.
+    """
 
     def __init__(
         self,

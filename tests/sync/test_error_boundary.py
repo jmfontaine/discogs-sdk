@@ -117,6 +117,29 @@ class TestNonJsonFailures:
 
         assert str(exc_info.value) == "404: Release not found."
 
+    def test_oversized_html_body_bounds_message_only(self, client, respx_mock):
+        page = GATEWAY_HTML.replace("nginx", "nginx " * 100)
+        respx_mock.get("/releases/352665").respond(502, html=page)
+
+        with pytest.raises(DiscogsAPIError) as exc_info:
+            _ = client.releases.get(352665).title
+
+        assert len(exc_info.value.args[0]) == 500
+        assert exc_info.value.args[0].endswith("…")
+        assert exc_info.value.response_body == page
+
+    def test_oversized_429_body_keeps_retry_after(self, client, respx_mock):
+        respx_mock.get("/releases/352665").respond(
+            429, text="slow down " * 60, headers={"Retry-After": "17"}
+        )
+
+        with pytest.raises(RateLimitError) as exc_info:
+            _ = client.releases.get(352665).title
+
+        assert len(exc_info.value.args[0]) == 500
+        assert exc_info.value.retry_after == "17"
+        assert exc_info.value.response_body == "slow down " * 60
+
 
 class TestSuccessfulResponsesAreUntouched:
     def test_204_mutation(self, client, respx_mock):

@@ -55,6 +55,9 @@ _PRE_SEND_TRANSPORT_ERRORS: tuple[type[httpx2.RequestError], ...] = (
 # the server, and parking the caller longer is the caller's call. Matches the
 # backoff cap.
 MAX_RETRY_AFTER = 60.0
+# Longest message an API error carries in ``args[0]`` and so in ``str(exc)``, which
+# logs and tracebacks print whole. ``response_body`` keeps the full payload.
+MAX_ERROR_MESSAGE_LENGTH = 500
 _DEFAULT_PORTS: dict[str, int] = {"http": 80, "https": 443}
 
 
@@ -131,6 +134,24 @@ def parse_retry_after(value: str | None) -> float | None:
     if when.tzinfo is None:  # "-0000" zone: RFC 5322 treats it as UTC
         when = when.replace(tzinfo=timezone.utc)
     return max((when - datetime.now(timezone.utc)).total_seconds(), 0.0)
+
+
+def _error_message(body: dict[str, Any] | str) -> str:
+    """Bounded summary of an error body for the exception message.
+
+    A dict body's ``message`` is used only when it is a non-empty string; otherwise
+    the whole dict is rendered. Anything longer than ``MAX_ERROR_MESSAGE_LENGTH`` is
+    cut to that length, ending in ``…``.
+    """
+    if isinstance(body, dict):
+        message = body.get("message")
+        if not isinstance(message, str) or not message:
+            message = str(body)
+    else:
+        message = body
+    if len(message) > MAX_ERROR_MESSAGE_LENGTH:
+        message = message[: MAX_ERROR_MESSAGE_LENGTH - 1] + "…"
+    return message
 
 
 try:
@@ -484,7 +505,7 @@ class BaseClient:
         if status_code < 400:
             return
 
-        message = body.get("message", str(body)) if isinstance(body, dict) else body
+        message = _error_message(body)
 
         error_cls: type[DiscogsAPIError]
         match status_code:

@@ -261,6 +261,11 @@ DiscogsError
     └── RateLimitError       (429)
 ```
 
+`str(exc)` on a `DiscogsAPIError` is a short summary, `"<status>: <message>"`. The
+message is the body's `message` when that is a non-empty string, otherwise the body
+itself, cut to 500 characters so a gateway error page does not flood logs. The full
+payload stays in `exc.response_body`.
+
 Every SDK exception survives `pickle`, `copy.copy` and `copy.deepcopy` with its
 attributes (`status_code`, `response_body`, `retry_after`, `ratelimit`, `method`,
 `url`) and any notes, so an error raised in a `ProcessPoolExecutor` or

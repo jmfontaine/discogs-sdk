@@ -7,7 +7,12 @@ from email.utils import format_datetime
 
 import pytest
 
-from discogs_sdk._base_client import USER_AGENT, BaseClient, build_oauth_header
+from discogs_sdk._base_client import (
+    MAX_ERROR_MESSAGE_LENGTH,
+    USER_AGENT,
+    BaseClient,
+    build_oauth_header,
+)
 from discogs_sdk._exceptions import (
     AuthenticationError,
     DiscogsAPIError,
@@ -270,6 +275,60 @@ class TestMaybeRaise:
         with pytest.raises(DiscogsAPIError) as exc_info:
             c._maybe_raise(418, body)
         assert exc_info.value.status_code == 418
+        assert exc_info.value.response_body == body
+
+
+class TestErrorMessage:
+    """``str(exc)`` is a bounded summary; ``response_body`` keeps the original."""
+
+    @pytest.mark.parametrize(
+        "body",
+        [{"message": None}, {"message": {"nested": 1}}, {"message": ""}],
+        ids=["none", "nested", "empty"],
+    )
+    def test_non_string_or_empty_message_falls_back_to_body(self, body):
+        c = BaseClient(token="t")
+        with pytest.raises(DiscogsAPIError) as exc_info:
+            c._maybe_raise(400, body)
+        assert str(exc_info.value) == f"400: {body}"
+        assert exc_info.value.response_body == body
+
+    def test_message_at_limit_is_unchanged(self):
+        c = BaseClient(token="t")
+        message = "x" * MAX_ERROR_MESSAGE_LENGTH
+        with pytest.raises(DiscogsAPIError) as exc_info:
+            c._maybe_raise(400, {"message": message})
+        assert exc_info.value.args[0] == message
+
+    @pytest.mark.parametrize(
+        ("body", "expected"),
+        [
+            ({"message": "y" * 600}, "y" * 499 + "…"),
+            ({"x": "y" * 600}, "{'x': '" + "y" * 492 + "…"),
+            ("y" * 600, "y" * 499 + "…"),
+        ],
+        ids=["message", "dict-without-message", "text"],
+    )
+    def test_oversized_message_is_truncated(self, body, expected):
+        c = BaseClient(token="t")
+        with pytest.raises(DiscogsAPIError) as exc_info:
+            c._maybe_raise(502, body)
+        message = exc_info.value.args[0]
+        assert MAX_ERROR_MESSAGE_LENGTH == 500
+        assert len(message) == 500
+        assert message == expected
+        assert str(exc_info.value) == f"502: {message}"
+        assert exc_info.value.response_body == body
+
+    def test_oversized_429_keeps_retry_after(self):
+        c = BaseClient(token="t")
+        body = {"message": "slow down " * 60}
+        with pytest.raises(RateLimitError) as exc_info:
+            c._maybe_raise(429, body, retry_after="30")
+        assert len(exc_info.value.args[0]) == 500
+        assert exc_info.value.args[0].endswith("…")
+        assert exc_info.value.retry_after == "30"
+        assert exc_info.value.status_code == 429
         assert exc_info.value.response_body == body
 
 
