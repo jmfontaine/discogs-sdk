@@ -108,8 +108,9 @@ Env vars: `DISCOGS_TOKEN`, `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `D
 - Integration tests marked with `@pytest.mark.integration`, excluded by default
 - `.github/workflows/integration.yml` runs the live suite weekly (and on manual dispatch) in two
   jobs: one authenticated with the repository secrets, one with no credentials at all. A scheduled
-  failure opens (or comments on) an issue labelled `integration-failure`. GitHub disables cron
-  workflows after 60 days without repository activity, so re-enable it if the repo goes quiet
+  failure opens (or comments on) an issue labelled `integration-failure` that names each failed job
+  and step. GitHub disables cron workflows after 60 days without repository activity, so re-enable
+  it if the repo goes quiet
 - The live suite never resets the account. Each writing test removes what it created in a `finally`
   block, and everything it creates is tagged so the *next* run can reclaim what a killed run left:
   collection folders are named with `TEST_FOLDER_PREFIX` and swept by the `scratch_folder` fixture,
