@@ -10,7 +10,11 @@ class DiscogsError(Exception):
 
 
 class DiscogsConnectionError(DiscogsError):
-    """Network-level errors (DNS, timeout, connection refused)."""
+    """Requests that ended without a usable response.
+
+    DNS failures, timeouts, refused or dropped connections, proxy errors, undecodable
+    bodies and redirect loops. ``__cause__`` holds the underlying ``httpx2`` error.
+    """
 
 
 class CacheMissError(DiscogsError):

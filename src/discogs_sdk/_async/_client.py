@@ -248,7 +248,7 @@ class AsyncDiscogs(BaseClient):
             t0 = time.monotonic()  # Unaffected by system clock adjustments (NTP, DST)
             try:
                 response = await self._http_client.request(method, url, **kwargs)
-            except (httpx2.NetworkError, httpx2.TimeoutException) as exc:
+            except httpx2.RequestError as exc:
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 if attempt == self.max_retries or not may_retry_transport_error(
                     method, exc
