@@ -14,6 +14,7 @@ from discogs_sdk.models._common import (
     LabelCredit,
     SDKModel,
     Track,
+    UserSummary,
 )
 from discogs_sdk.models.artist import Artist
 from discogs_sdk.models.label import Label, LabelRelease
@@ -109,15 +110,32 @@ class TestValidationAliasAccess:
 
 
 class TestAliasAccess:
-    """Fields using alias= (not validation_alias=) should also work."""
+    """An API name that is a Python keyword stays reachable through ``getattr``."""
 
     def test_order_message_from(self) -> None:
         msg = OrderMessage.model_validate({"from": {"username": "seller"}})
         assert msg.from_user is not None
         assert msg.from_user.username == "seller"
-        # Access via the alias="from" name
-        assert getattr(msg, "from") is not None
-        assert getattr(msg, "from").username == "seller"
+        # "from" is a keyword, so the API name is only reachable through getattr.
+        assert getattr(msg, "from") == msg.from_user
+
+    def test_order_message_by_alias_dump_keeps_python_name(self) -> None:
+        msg = OrderMessage.model_validate(
+            {"from": {"username": "seller"}, "message": "Shipped"}
+        )
+        dumped = msg.model_dump(by_alias=True)
+        assert "from_user" in dumped
+        assert "from" not in dumped
+        assert dumped == msg.model_dump()
+        assert OrderMessage.model_validate(dumped) == msg
+
+    def test_order_message_python_name_populates_field(self) -> None:
+        built = OrderMessage(from_user=UserSummary(username="seller"))
+        validated = OrderMessage.model_validate({"from_user": {"username": "seller"}})
+        for msg in (built, validated):
+            assert msg.from_user is not None
+            assert msg.from_user.username == "seller"
+            assert msg.model_extra == {}
 
 
 class TestAliasNoneValues:

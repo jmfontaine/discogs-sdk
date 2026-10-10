@@ -67,7 +67,7 @@ class SDKModel(BaseModel):
             elif isinstance(validation_alias, str):
                 aliases = {validation_alias}
             else:
-                aliases = {field_info.alias} if field_info.alias else set()
+                continue
             if name in aliases:
                 return self.__dict__.get(field_name)
         # Pydantic's BaseModel.__getattr__ exists at runtime but is hidden from type

@@ -151,7 +151,7 @@ class Order(SDKModel):
 
 class OrderMessage(SDKModel):
     actor: UserSummary | None = None
-    from_user: UserSummary | None = Field(default=None, alias="from")
+    from_user: UserSummary | None = Field(default=None, validation_alias="from")
     message: str | None = None
     # A shipping-change message reports the shipping amount before and after.
     new: float | None = None

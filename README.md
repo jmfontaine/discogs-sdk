@@ -450,6 +450,9 @@ Model fields use clean Python names. Where the Discogs API uses inconsistent or 
 | `curr_id` | `currency_id` | `OriginalPrice` |
 | `extraartists` | `extra_artists` | `Release`, `Track` |
 | `finished_ts` | `finished_at` | `Export`, `Upload` |
+| `from` | `from_user` | `OrderMessage` |
+| `list_id` | `id` | `List_` |
+| `listing_id` | `id` | `Listing` |
 | `modified_ts` | `modified_at` | `List_` |
 | `namevariations` | `name_variations` | `Artist` |
 | `qty` | `quantity` | `Format` |
@@ -463,6 +466,8 @@ release = client.releases.get(352665)  # The Downward Spiral
 print(release.extra_artists)  # Python name
 print(release.extraartists)  # API name — same value
 ```
+
+An API name that is a Python keyword, such as `from`, is reachable only through `getattr(message, "from")`.
 
 ## Contributing
 
