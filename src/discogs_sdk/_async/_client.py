@@ -489,7 +489,7 @@ class AsyncDiscogs(BaseClient):
 
         A custom ``http_client`` or ``ResponseCache`` passed to the constructor
         is left open. The owned cache is closed even when closing the HTTP
-        client raises, including on task cancellation.
+        client raises or is interrupted.
         """
         try:
             if self._owns_client:
