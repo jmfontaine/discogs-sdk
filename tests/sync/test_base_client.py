@@ -406,6 +406,14 @@ class TestRetryDelay:
         c = BaseClient(token="t", max_retries=5)
         assert c.max_retries == 5
 
+    @pytest.mark.parametrize("value", [-1, -100])
+    def test_negative_max_retries_rejected(self, value):
+        with pytest.raises(ValueError, match="max_retries"):
+            BaseClient(token="t", max_retries=value)
+
+    def test_max_retries_zero_allowed(self):
+        assert BaseClient(token="t", max_retries=0).max_retries == 0
+
 
 class TestBuildOAuthHeaderForRequest:
     def test_returns_oauth_header(self, monkeypatch):

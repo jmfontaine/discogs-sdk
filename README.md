@@ -297,7 +297,7 @@ The [`examples/`](examples/) directory has runnable scripts for every feature:
 | `consumer_key` | `None` | OAuth consumer key |
 | `consumer_secret` | `None` | OAuth consumer secret |
 | `http_client` | `None` | Custom `httpx2.Client` or `httpx2.AsyncClient` |
-| `max_retries` | `3` | Max retries; reads retry on 429/5xx, network errors, timeouts and dropped connections, mutations only on pre-send failures. A `Retry-After` above 60s raises immediately instead |
+| `max_retries` | `3` | Max retries, `>= 0` (`0` disables retries, a negative value raises `ValueError`); reads retry on 429/5xx, network errors, timeouts and dropped connections, mutations only on pre-send failures. A `Retry-After` above 60s raises immediately instead |
 | `on_request` | `None` | Callback receiving a `RequestEvent` per request |
 | `timeout` | `30.0` | Request timeout in seconds |
 | `token` | `None` | Personal access token |

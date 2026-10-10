@@ -245,6 +245,8 @@ class BaseClient:
         media_type: MediaType = "discogs",
         on_request: Callable[[RequestEvent], None] | None = None,
     ) -> None:
+        if max_retries < 0:
+            raise ValueError("max_retries must be >= 0")
         self.base_url: str = base_url.rstrip("/")
         self.timeout: float = timeout
         self.max_retries: int = max_retries

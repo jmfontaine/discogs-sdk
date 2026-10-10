@@ -107,7 +107,8 @@ class AsyncDiscogs(BaseClient):
             access_token_secret: OAuth access token secret for user-level auth.
             base_url: API base URL.
             timeout: Request timeout in seconds.
-            max_retries: Max retry attempts. Reads retry on 429/5xx and on
+            max_retries: Max retry attempts, ``>= 0`` (``0`` disables retries;
+                a negative value raises ``ValueError``). Reads retry on 429/5xx and on
                 network errors and timeouts. Mutations retry only failures that
                 prove the request never reached the server, never after an HTTP
                 status, so a possibly committed change is never sent twice. A
@@ -369,7 +370,7 @@ class AsyncDiscogs(BaseClient):
             else:
                 time.sleep(delay)
 
-        return response  # pragma: no cover — unreachable but satisfies type checker
+        raise AssertionError("unreachable")
 
     # --- Cache ---
 

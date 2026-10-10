@@ -8,7 +8,7 @@ import respx
 
 from discogs_sdk import Discogs
 from discogs_sdk._cache import MemoryCache, SQLiteCache
-from discogs_sdk._exceptions import AuthenticationError
+from discogs_sdk._exceptions import AuthenticationError, DiscogsAPIError
 from tests.conftest import BASE_URL, make_identity, make_release
 
 
@@ -540,4 +540,22 @@ class TestCredentialPrecedence:
                 route.calls[0].request.headers["Authorization"]
                 == "Discogs key=ck, secret=cs"
             )
+            client.close()
+
+
+class TestMaxRetriesValidation:
+    @pytest.mark.parametrize("value", [-1, -100])
+    def test_negative_max_retries_rejected(self, value):
+        with pytest.raises(ValueError, match="max_retries"):
+            Discogs(token="t", max_retries=value)
+
+    def test_zero_sends_a_failing_get_once(self):
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/352665").respond(503)
+            client = Discogs(token="t", max_retries=0)
+
+            with pytest.raises(DiscogsAPIError):
+                client._send("GET", f"{BASE_URL}/releases/352665")
+
+            assert route.call_count == 1
             client.close()
