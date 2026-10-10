@@ -4,11 +4,14 @@ import hashlib
 import importlib.metadata
 import json
 import logging
+import math
 import os
 import random
 import time
 import urllib.parse
 from collections.abc import Callable
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any, Literal, NoReturn
 
 import httpx2
@@ -46,6 +49,11 @@ _PRE_SEND_TRANSPORT_ERRORS: tuple[type[httpx2.RequestError], ...] = (
     httpx2.ConnectTimeout,
     httpx2.PoolTimeout,
 )
+# Longest server-requested wait the client sleeps through before retrying. A valid
+# Retry-After above it surfaces the response instead: retrying sooner would ignore
+# the server, and parking the caller longer is the caller's call. Matches the
+# backoff cap.
+MAX_RETRY_AFTER = 60.0
 
 
 def may_retry_status(method: str, status_code: int) -> bool:
@@ -72,6 +80,29 @@ def may_retry_transport_error(method: str, exc: httpx2.RequestError) -> bool:
     if method.upper() in _SAFE_METHODS:
         return isinstance(exc, _TRANSIENT_TRANSPORT_ERRORS)
     return isinstance(exc, _PRE_SEND_TRANSPORT_ERRORS)
+
+
+def parse_retry_after(value: str | None) -> float | None:
+    """Seconds to wait per a ``Retry-After`` header, or None when it is unusable.
+
+    Accepts a finite, non-negative number of seconds or an HTTP-date (RFC 9110),
+    the latter measured from now and floored at 0. Anything else yields None.
+    """
+    if value is None:
+        return None
+    try:
+        seconds = float(value)
+    except ValueError:
+        pass
+    else:
+        return seconds if math.isfinite(seconds) and seconds >= 0 else None
+    try:
+        when = parsedate_to_datetime(value)
+    except (TypeError, ValueError, OverflowError):  # Overflow: huge year or zone
+        return None
+    if when.tzinfo is None:  # "-0000" zone: RFC 5322 treats it as UTC
+        when = when.replace(tzinfo=timezone.utc)
+    return max((when - datetime.now(timezone.utc)).total_seconds(), 0.0)
 
 
 try:
@@ -345,11 +376,9 @@ class BaseClient:
         return f"{self.base_url}{path}"
 
     def _retry_delay(self, attempt: int, retry_after: str | None = None) -> float:
-        if retry_after is not None:
-            try:
-                return float(retry_after)
-            except ValueError:
-                pass
+        server_wait = parse_retry_after(retry_after)
+        if server_wait is not None:
+            return server_wait
         # Exponential backoff (2^attempt) capped at 60s, plus random jitter to
         # avoid thundering herd
         return min(2**attempt, 60) + random.random()

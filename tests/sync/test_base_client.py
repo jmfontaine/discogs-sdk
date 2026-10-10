@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+from email.utils import format_datetime
+
 import pytest
 
 from discogs_sdk._base_client import USER_AGENT, BaseClient, build_oauth_header
@@ -293,6 +296,47 @@ class TestRetryDelay:
     def test_invalid_retry_after_falls_back(self):
         c = BaseClient(token="t")
         d = c._retry_delay(0, retry_after="not-a-number")
+        assert 1.0 <= d < 2.0
+
+    @pytest.mark.parametrize("value", ["-1", "nan", "inf"])
+    def test_unusable_number_falls_back(self, value):
+        c = BaseClient(token="t")
+        d = c._retry_delay(0, retry_after=value)
+        assert 1.0 <= d < 2.0
+
+    @pytest.mark.parametrize(("value", "expected"), [("0", 0.0), ("2.5", 2.5)])
+    def test_seconds_honoured_exactly(self, value, expected):
+        c = BaseClient(token="t")
+        assert c._retry_delay(0, retry_after=value) == expected
+
+    def test_future_http_date(self):
+        c = BaseClient(token="t")
+        when = datetime.now(timezone.utc) + timedelta(seconds=30)
+        d = c._retry_delay(0, retry_after=format_datetime(when, usegmt=True))
+        assert 28.0 < d <= 30.0  # header has whole-second resolution
+
+    def test_past_http_date_is_zero(self):
+        c = BaseClient(token="t")
+        d = c._retry_delay(0, retry_after="Wed, 21 Oct 2015 07:28:00 GMT")
+        assert d == 0.0
+
+    def test_unknown_zone_http_date_read_as_utc(self):
+        c = BaseClient(token="t")
+        when = datetime.now(timezone.utc) + timedelta(seconds=30)
+        value = format_datetime(when.replace(tzinfo=None))  # naive -> "-0000"
+        assert 28.0 < c._retry_delay(0, retry_after=value) <= 30.0
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "Wed, 99 Foo 2026 07:28:00 GMT",
+            "Wed, 21 Oct 99999999999999999999 07:28:00 GMT",  # OverflowError
+            "Wed, 21 Oct 2026 07:28:00 +9999999999999999999",  # OverflowError
+        ],
+    )
+    def test_malformed_http_date_falls_back(self, value):
+        c = BaseClient(token="t")
+        d = c._retry_delay(0, retry_after=value)
         assert 1.0 <= d < 2.0
 
     def test_max_retries_default(self):

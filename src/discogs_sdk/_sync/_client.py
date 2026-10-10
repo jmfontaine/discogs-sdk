@@ -19,10 +19,12 @@ from discogs_sdk._base_client import (
     DEFAULT_BASE_URL,
     DEFAULT_CACHE_TTL,
     DEFAULT_TIMEOUT,
+    MAX_RETRY_AFTER,
     BaseClient,
     MediaType,
     may_retry_status,
     may_retry_transport_error,
+    parse_retry_after,
 )
 from discogs_sdk._cache import MemoryCache, ResponseCache, SQLiteCache
 from discogs_sdk._events import RateLimit, RequestEvent
@@ -102,7 +104,9 @@ class Discogs(BaseClient):
             max_retries: Max retry attempts. Reads retry on 429/5xx and on
                 network errors and timeouts. Mutations retry only failures that
                 prove the request never reached the server, never after an HTTP
-                status, so a possibly committed change is never sent twice.
+                status, so a possibly committed change is never sent twice. A
+                ``Retry-After`` is honoured up to 60 seconds; a longer one raises
+                the error at once instead of waiting or retrying early.
             cache: Enable response caching. Pass ``True`` for the built-in
                 backend, or a ``ResponseCache`` instance for a custom one.
                 Entries are partitioned by credential identity and response
@@ -272,10 +276,24 @@ class Discogs(BaseClient):
                 response.status_code,
                 elapsed_ms,
             )
-            if (
-                not may_retry_status(method, response.status_code)
-                or attempt == self.max_retries
-            ):
+            retry_after = response.headers.get("Retry-After")
+            retryable = (
+                may_retry_status(method, response.status_code)
+                and attempt < self.max_retries
+            )
+            if retryable:
+                server_wait = parse_retry_after(retry_after)
+                if server_wait is not None and server_wait > MAX_RETRY_AFTER:
+                    logger.info(
+                        "Not retrying %s %s after status %d: Retry-After %.1fs exceeds the %.0fs cap, surfacing the response",
+                        method,
+                        url,
+                        response.status_code,
+                        server_wait,
+                        MAX_RETRY_AFTER,
+                    )
+                    retryable = False
+            if not retryable:
                 stored = False
                 if use_cache and 200 <= response.status_code < 300:
                     assert self._cache is not None  # narrowed by use_cache
@@ -313,9 +331,7 @@ class Discogs(BaseClient):
                 # so map failures here, before any endpoint parses the body.
                 self._raise_for_response(response)
                 return response
-            delay = self._retry_delay(
-                attempt, retry_after=response.headers.get("Retry-After")
-            )
+            delay = self._retry_delay(attempt, retry_after=retry_after)
             logger.info(
                 "Retrying %s %s (attempt %d/%d) after status %d, waiting %.1fs",
                 method,

@@ -134,6 +134,24 @@ class TestRetryLogging:
         assert len(retry_logs) == 1
         assert "attempt 2/2" in retry_logs[0].message
 
+    def test_logs_cap_instead_of_retry(self, client, respx_mock, caplog):
+        respx_mock.get("/releases/1").mock(
+            return_value=respx.MockResponse(
+                429, json={"message": "Rate limited"}, headers={"Retry-After": "3600"}
+            )
+        )
+
+        with caplog.at_level(logging.DEBUG, logger="discogs_sdk"):
+            lazy = client.releases.get(1)
+            with pytest.raises(RateLimitError):
+                lazy.title  # noqa: B018
+
+        assert not [r for r in caplog.records if r.message.startswith("Retrying")]
+        cap_logs = [r for r in caplog.records if r.message.startswith("Not retrying")]
+        assert len(cap_logs) == 1
+        assert cap_logs[0].levelno == logging.INFO
+        assert "Retry-After 3600.0s exceeds the 60s cap" in cap_logs[0].message
+
 
 class TestConnectionErrorLogging:
     def test_logs_retry_on_connection_error(
