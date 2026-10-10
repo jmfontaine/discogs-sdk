@@ -31,6 +31,21 @@ DEFAULT_CACHE_TTL = 3600.0
 # Statuses worth retrying when replaying the request cannot duplicate an effect.
 _RETRY_STATUSES: frozenset[int] = frozenset({429, 500, 502, 503, 504})
 _SAFE_METHODS: frozenset[str] = frozenset({"GET", "HEAD"})
+# Transport failures a fresh attempt can cure. RemoteProtocolError is what a pooled
+# keep-alive connection raises once the server has closed it. Every other
+# RequestError (e.g. LocalProtocolError, UnsupportedProtocol, ProxyError,
+# DecodingError, TooManyRedirects) fails the same way on every attempt.
+_TRANSIENT_TRANSPORT_ERRORS: tuple[type[httpx2.RequestError], ...] = (
+    httpx2.NetworkError,
+    httpx2.TimeoutException,
+    httpx2.RemoteProtocolError,
+)
+# Transport failures that prove no request reached the server.
+_PRE_SEND_TRANSPORT_ERRORS: tuple[type[httpx2.RequestError], ...] = (
+    httpx2.ConnectError,
+    httpx2.ConnectTimeout,
+    httpx2.PoolTimeout,
+)
 
 
 def may_retry_status(method: str, status_code: int) -> bool:
@@ -43,19 +58,20 @@ def may_retry_status(method: str, status_code: int) -> bool:
     return method.upper() in _SAFE_METHODS and status_code in _RETRY_STATUSES
 
 
-def may_retry_transport_error(method: str, exc: Exception) -> bool:
+def may_retry_transport_error(method: str, exc: httpx2.RequestError) -> bool:
     """Whether *exc* allows another attempt for *method*.
 
-    Reads retry the network errors and timeouts ``_send`` catches. Mutations retry
-    only failures that prove no request reached the server: the connection was
-    never established or never acquired. A read, write or ambiguous timeout may
-    follow a committed change.
+    Reads retry transient failures: network errors, timeouts and a connection the
+    server dropped (``RemoteProtocolError``). Deterministic failures (local protocol
+    violations, unsupported schemes, proxy errors, undecodable bodies, redirect
+    loops) are never retried. Mutations retry only failures that prove no request
+    reached the server: the connection was never established or never acquired. A
+    read, write or ambiguous timeout, or a dropped connection, may follow a
+    committed change.
     """
     if method.upper() in _SAFE_METHODS:
-        return True
-    return isinstance(
-        exc, (httpx2.ConnectError, httpx2.ConnectTimeout, httpx2.PoolTimeout)
-    )
+        return isinstance(exc, _TRANSIENT_TRANSPORT_ERRORS)
+    return isinstance(exc, _PRE_SEND_TRANSPORT_ERRORS)
 
 
 try:

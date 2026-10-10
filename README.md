@@ -105,9 +105,14 @@ different account or mode. See [`examples/authentication.py`](examples/authentic
 
 > [!WARNING]
 > Mutations are not replayed. A `POST`, `PUT` or `DELETE` is retried only when the failure proves the request never
-> reached the server, such as a refused connection. After a read timeout or a 5xx the change may already have been
-> committed, so the SDK raises instead of sending it again — the remote outcome is genuinely unknown and only you
-> can decide how to reconcile it.
+> reached the server, such as a refused connection. After a read timeout, a dropped connection or a 5xx the change may
+> already have been committed, so the SDK raises instead of sending it again — the remote outcome is genuinely unknown
+> and only you can decide how to reconcile it.
+
+Every transport failure surfaces as `DiscogsConnectionError`, chained to the underlying `httpx2` error
+(`exc.__cause__`). Reads retry the transient ones: network errors, timeouts, and a keep-alive connection the server
+closed (`RemoteProtocolError`). Failures that would repeat identically — `LocalProtocolError`, `UnsupportedProtocol`,
+`ProxyError`, `DecodingError`, `TooManyRedirects` — are raised at once for every method.
 
 ### Fetching resources
 
@@ -279,7 +284,7 @@ The [`examples/`](examples/) directory has runnable scripts for every feature:
 | `consumer_key` | `None` | OAuth consumer key |
 | `consumer_secret` | `None` | OAuth consumer secret |
 | `http_client` | `None` | Custom `httpx2.Client` or `httpx2.AsyncClient` |
-| `max_retries` | `3` | Max retries; reads retry on 429/5xx, network errors and timeouts, mutations only on pre-send failures |
+| `max_retries` | `3` | Max retries; reads retry on 429/5xx, network errors, timeouts and dropped connections, mutations only on pre-send failures |
 | `on_request` | `None` | Callback receiving a `RequestEvent` per request |
 | `timeout` | `30.0` | Request timeout in seconds |
 | `token` | `None` | Personal access token |
