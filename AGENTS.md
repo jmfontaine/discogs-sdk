@@ -43,6 +43,9 @@ Check sync staleness: `uv run python scripts/generate_sync.py --check`
 `just test-integration` needs `DISCOGS_TOKEN`; `just test-unauthenticated` needs nothing.
 Keep them apart: the anonymous 25/min limit is per IP and the authenticated calls
 consume it, so running both within a minute makes the anonymous ones fail with 429.
+Never run either while other agent sessions work on this repository in parallel: they
+share the same per-IP and per-token limits and would fail each other with 429. The
+default `just test` mocks HTTP and is safe to run concurrently.
 
 ## Architecture
 
