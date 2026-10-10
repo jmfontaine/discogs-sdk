@@ -96,6 +96,9 @@ jobs:
     # to miss; a manual dispatch is already being watched by whoever ran it.
     if: failure() && github.event_name == 'schedule'
     permissions:
+      # actions: read lets the job list which of this run's jobs and steps
+      # failed, so the report names the cause instead of guessing at one.
+      actions: read
       contents: read
       issues: write
     steps:
@@ -105,6 +108,17 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
+          # One line per failed job, naming its failed steps. This job is still
+          # running, so its own conclusion is still empty and it never matches.
+          # The list only helps; if it cannot be fetched, still post the report.
+          failures=$(gh run view "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --json jobs --jq '
+            .jobs[]
+            | select(.conclusion | IN("failure", "timed_out", "cancelled"))
+            | "- \(.name): \(
+                [.steps[] | select(.conclusion | IN("failure", "timed_out", "cancelled")) | .name]
+                | join(", ")
+                | if . == "" then "no failed step recorded" else . end
+              )"') || failures="(could not list the failed jobs; see the run)"
           label=integration-failure
           gh label create "$label" \
             --repo "$GITHUB_REPOSITORY" \
@@ -115,12 +129,14 @@ jobs:
             --limit 1 --json number --jq '.[0].number // empty')
           if [ -n "$issue" ]; then
             gh issue comment "$issue" --repo "$GITHUB_REPOSITORY" \
-              --body "Failed again on $(date -u +%Y-%m-%d): $RUN_URL"
+              --body "$(printf '%s\n\n%s' \
+                "Failed again on $(date -u +%Y-%m-%d): $RUN_URL" \
+                "$failures")"
           else
             gh issue create --repo "$GITHUB_REPOSITORY" --label "$label" \
               --title "Scheduled integration run failed" \
               --body "$(printf '%s\n\n%s\n\n%s' \
                 "The weekly run against the live Discogs API failed: $RUN_URL" \
-                "Either the API changed or the run hit a transient fault. Re-run the workflow manually to tell them apart." \
+                "$failures" \
                 "Later failures are added as comments here, so close this issue once it is resolved.")"
           fi
