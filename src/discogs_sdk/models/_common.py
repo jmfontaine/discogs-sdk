@@ -216,7 +216,7 @@ class Track(SDKModel):
     position: str | None = None
     sub_tracks: list[Track] | None = None
     title: str | None = None
-    type_: str | None = None
+    type: str | None = Field(default=None, validation_alias="type_")
 
 
 class Format(SDKModel):

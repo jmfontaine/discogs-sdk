@@ -7,6 +7,7 @@ import json
 import pytest
 import respx
 
+from discogs_sdk import Track
 from discogs_sdk.models.release import (
     CommunityRating,
     MarketplaceReleaseStats,
@@ -19,8 +20,10 @@ from tests.conftest import (
     make_community_rating,
     make_release,
     make_release_stats,
+    make_tracklist_with_kinds,
     make_user_release_rating,
 )
+from tests.documented_payloads import RELEASE
 
 
 class TestReleasesGet:
@@ -193,6 +196,70 @@ class TestReleaseModel:
         )
         result = await client.releases.get(1)
         assert result.model_extra["unknown_field"] == "val"
+
+
+def _flatten(tracks: list[Track]) -> list[Track]:
+    """Every track in ``tracks``, each index track followed by its sub-tracks."""
+    flat: list[Track] = []
+    for track in tracks:
+        flat.append(track)
+        flat.extend(_flatten(track.sub_tracks or []))
+    return flat
+
+
+class TestTrackType:
+    """Tracklist entries name their kind ``type``, read from the API's ``type_``."""
+
+    async def _tracks(self, client, respx_mock) -> list[Track]:
+        payload = RELEASE | {
+            "tracklist": make_tracklist_with_kinds(RELEASE["tracklist"])
+        }
+        respx_mock.get("/releases/352665").mock(
+            return_value=respx.MockResponse(200, json=payload)
+        )
+        release = await client.releases.get(352665)
+        return _flatten(release.tracklist or [])
+
+    async def test_type_reads_api_key(self, client, respx_mock):
+        tracks = await self._tracks(client, respx_mock)
+        assert [(track.position, track.type) for track in tracks] == [
+            ("", "heading"),
+            ("A1", "track"),
+            ("A2", "index"),
+            ("A2a", "track"),
+            ("A2b", "track"),
+        ]
+
+    async def test_dump_names_field_type(self, client, respx_mock):
+        tracks = await self._tracks(client, respx_mock)
+        for track in tracks:
+            dumped = track.model_dump()
+            assert dumped["type"] == track.type
+            assert "type_" not in dumped
+            assert json.loads(track.model_dump_json()) == dumped
+
+    async def test_dump_round_trips(self, client, respx_mock):
+        tracks = await self._tracks(client, respx_mock)
+        for track in tracks:
+            assert Track.model_validate(track.model_dump()) == track
+            assert Track.model_validate_json(track.model_dump_json()) == track
+
+    async def test_raw_keeps_api_key(self, client, respx_mock):
+        tracks = await self._tracks(client, respx_mock)
+        assert [track.raw["type_"] for track in tracks] == [
+            "heading",
+            "track",
+            "index",
+            "track",
+            "track",
+        ]
+        assert all("type" not in track.raw for track in tracks)
+
+    async def test_api_name_resolves_at_runtime(self, client, respx_mock):
+        tracks = await self._tracks(client, respx_mock)
+        for track in tracks:
+            # The API name is hidden from type checkers; only runtime resolves it.
+            assert track.type_ == track.type  # ty: ignore[unresolved-attribute]
 
 
 class TestCurrencySelection:

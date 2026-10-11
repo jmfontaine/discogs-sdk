@@ -320,6 +320,39 @@ def make_release_stats() -> dict[str, Any]:
     return {"num_have": 1000, "num_want": 500}
 
 
+def make_tracklist_with_kinds(tracks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """``tracks`` under a heading, then an index track with two sub-tracks.
+
+    The reference's examples list plain tracks only. Real tracklists also carry
+    headings and index tracks, and every entry, nested ones included, names its
+    kind in the API's ``type_`` key.
+    """
+    return [
+        {"duration": "", "position": "", "title": "Side A", "type_": "heading"},
+        *tracks,
+        {
+            "duration": "",
+            "position": "A2",
+            "sub_tracks": [
+                {
+                    "duration": "3:15",
+                    "position": "A2a",
+                    "title": "Piggy",
+                    "type_": "track",
+                },
+                {
+                    "duration": "4:05",
+                    "position": "A2b",
+                    "title": "Heresy",
+                    "type_": "track",
+                },
+            ],
+            "title": "Piggy / Heresy",
+            "type_": "index",
+        },
+    ]
+
+
 def make_search_result(
     id: int = 400027,
     title: str = "Nine Inch Nails - The Downward Spiral",

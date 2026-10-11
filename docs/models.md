@@ -19,6 +19,7 @@ Model fields use clean Python names. Where the Discogs API uses inconsistent or 
 | `namevariations` | `name_variations` | `Artist` |
 | `qty` | `quantity` | `Format` |
 | `sublabels` | `sub_labels` | `Label` |
+| `type_` | `type` | `Track` |
 | `uri150` | `uri_150` | `Image` |
 
 The Python name is the typed attribute. API names still resolve as attributes at runtime, but only dynamically: a type

@@ -41,6 +41,9 @@ def sync_usage(client: Discogs) -> None:
     print(average, user_rating)
     client.releases.get(352665).rating.get(None)
     client.users.get("trent_reznor").collection.folders.get(1).releases.get(352665).instances.get(20).fields
+    for track in client.releases.get(352665).tracklist or []:
+        kind: str | None = track.type
+        print(kind)
 
 
 def maybe_user_rating(client: Discogs, username: str | None) -> None:
@@ -174,6 +177,17 @@ async def usage(client: AsyncDiscogs) -> None:
     release = await client.releases.get(352665)
     for track in release.tracklist or []:
         print(track.titel)
+""",
+    ),
+    "track_type_api_name": (
+        "unresolved-attribute",
+        """
+from discogs_sdk import Discogs
+
+
+def usage(client: Discogs) -> None:
+    for track in client.releases.get(352665).tracklist or []:
+        print(track.type_)
 """,
     ),
     "misspelled_sync_mutation_keyword": (
