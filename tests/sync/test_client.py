@@ -8,10 +8,25 @@ import httpx2
 import pytest
 import respx
 
+import discogs_sdk._sync
 from discogs_sdk import Discogs
 from discogs_sdk._cache import MemoryCache, SQLiteCache
 from discogs_sdk._exceptions import AuthenticationError, DiscogsAPIError
+from discogs_sdk._sync._paginator import SyncPage
 from tests.conftest import BASE_URL, make_identity, make_release
+
+
+class TestGeneratedSurface:
+    @pytest.mark.parametrize(
+        "obj", [Discogs, Discogs.__init__, SyncPage], ids=lambda obj: obj.__qualname__
+    )
+    def test_docstring_describes_sync_usage(self, obj):
+        doc = obj.__doc__.lower()
+        assert "async" not in doc
+        assert "await" not in doc
+
+    def test_package_exports_the_sync_client(self):
+        assert discogs_sdk._sync.__all__ == ["Discogs"]
 
 
 class TestCustomHttpClient:

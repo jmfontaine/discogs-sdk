@@ -18,6 +18,14 @@ that is the only statement in the body of a function, class or other compound
 statement, since removing it would leave that body empty (an ``else`` emptied
 this way just disappears). Generation fails before anything is written, so a
 failed run leaves src/discogs_sdk/_sync/ as it was.
+
+Strings: runtime string literals are copied verbatim, except the entries of
+``__all__`` (NAME_MAP on an exact match) and the strings inside ``__repr__``
+(NAME_MAP on whole words; see RENAMED_STRING_FUNCTIONS). Docstrings get NAME_MAP
+on whole words, their code samples are rewritten to sync syntax, and a few fixed
+phrases are reworded (DOC_CODE_REWRITES, DOC_PROSE_REWRITES). A docstring that
+still mentions ``async def``, ``async with``, ``async for``, ``await`` or an
+async name after that is an error: word it so it holds for both clients.
 """
 
 from __future__ import annotations
@@ -26,6 +34,7 @@ import argparse
 import ast
 import copy
 import filecmp
+import re
 import shutil
 import subprocess
 import sys
@@ -51,8 +60,6 @@ NAME_MAP: dict[str, str] = {
     "__anext__": "__next__",
     "aclose": "close",
     "AsyncAPIResource": "SyncAPIResource",
-    "AsyncCacheClient": "SyncCacheClient",
-    "AsyncSqliteStorage": "SyncSqliteStorage",
     "AsyncClient": "Client",
     "asynccontextmanager": "contextmanager",
     "AsyncDiscogs": "Discogs",
@@ -153,11 +160,76 @@ def _needs_statement(node: ast.AST, field: str) -> bool:
     return field == "finalbody" and not getattr(node, "handlers", None)
 
 
-def _rename_in_string(s: str) -> str:
-    """Apply NAME_MAP replacements inside a string value."""
-    for old, new in NAME_MAP.items():
-        s = s.replace(old, new)
-    return s
+# A repr names its class, so string constants inside these methods follow the
+# class rename (``"<AsyncLazyResource "`` becomes ``"<LazyResource "``). Every
+# other runtime string is copied verbatim, except the entries of ``__all__``,
+# which are renamed on an exact match.
+RENAMED_STRING_FUNCTIONS = frozenset({"__repr__"})
+
+# Docstrings are shared by both clients. Their code (literal blocks, doctest
+# lines and ``inline literals``) is rewritten to the sync form, and these fixed
+# phrases are reworded everywhere; NAME_MAP applies to whole words only. A
+# docstring that still reads as async afterwards is an error; the check works on
+# words, so prose wrapped across lines or ending a sentence is caught too.
+DOC_CODE_REWRITES = (
+    ("async def ", "def "),
+    ("async with ", "with "),
+    ("async for ", "for "),
+    ("await ", ""),
+)
+DOC_PROSE_REWRITES = (
+    ("Async client", "Client"),
+    # Ahead of "an async ", so that "an async iterator" reads "an iterator".
+    ("async iterator", "iterator"),
+    ("An async ", "A "),
+    ("an async ", "a "),
+)
+
+_NAME_WORDS = re.compile(r"\b(?:" + "|".join(map(re.escape, NAME_MAP)) + r")\b")
+_DOC_ASYNC_LEFTOVER = re.compile(
+    r"\basync\s+(?:def|with|for)\b|\bawait\b|" + _NAME_WORDS.pattern
+)
+_INLINE_LITERAL = re.compile(r"``[^`]+``")
+
+
+def _rename_words(text: str) -> str:
+    """Apply NAME_MAP to the whole-word matches in *text*."""
+    return _NAME_WORDS.sub(lambda match: NAME_MAP[match.group()], text)
+
+
+def _sync_code(code: str) -> str:
+    for old, new in DOC_CODE_REWRITES:
+        code = code.replace(old, new)
+    return code
+
+
+def _sync_docstring(doc: str) -> str:
+    """Return *doc* reworded for the sync client."""
+    lines = doc.split("\n")
+    # The first line starts right after the quotes: give it the others' margin.
+    margin = min(
+        (len(line) - len(line.lstrip()) for line in lines[1:] if line.strip()),
+        default=0,
+    )
+    # Indent of the paragraph that opened the current literal block, if any.
+    block_indent: int | None = None
+    synced: list[str] = []
+    for number, line in enumerate(lines):
+        stripped = line.lstrip()
+        indent = margin if number == 0 else len(line) - len(stripped)
+        if block_indent is not None and stripped and indent <= block_indent:
+            block_indent = None
+        if block_indent is not None or stripped.startswith((">>> ", "... ")):
+            line = _sync_code(line)
+        else:
+            line = _INLINE_LITERAL.sub(lambda match: _sync_code(match.group()), line)
+            if stripped.endswith("::"):
+                block_indent = indent
+        synced.append(line)
+    text = "\n".join(synced)
+    for old, new in DOC_PROSE_REWRITES:
+        text = text.replace(old, new)
+    return _rename_words(text)
 
 
 def _lazy_model_of(node: ast.ClassDef) -> str | None:
@@ -272,11 +344,13 @@ class AsyncToSyncTransformer(ast.NodeTransformer):
         self._removed: list[int] = []
 
     def generic_visit(self, node: ast.AST) -> ast.AST:
-        # ast.NodeTransformer.generic_visit, plus scope tracking and a check that
-        # removing a directive never empties a block.
+        # ast.NodeTransformer.generic_visit, plus scope tracking, docstring
+        # rewording and a check that removing a directive never empties a block.
         depth = len(self._scope)
         if isinstance(node, _SCOPES):
             self._scope.append(node.name)
+        if isinstance(node, (ast.Module, *_SCOPES)):
+            self._sync_docstring_of(node)
         for field, old_value in ast.iter_fields(node):
             if isinstance(old_value, list):
                 removed = len(self._removed)
@@ -309,6 +383,41 @@ class AsyncToSyncTransformer(ast.NodeTransformer):
             elif isinstance(old_value, ast.AST):
                 setattr(node, field, self.visit(old_value))
         del self._scope[depth:]
+        return node
+
+    def _sync_docstring_of(
+        self, node: ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef
+    ) -> None:
+        first = next(
+            (s for s in node.body if not isinstance(s, ast_comments.Comment)), None
+        )
+        if not (
+            isinstance(first, ast.Expr)
+            and isinstance(first.value, ast.Constant)
+            and isinstance(first.value.value, str)
+        ):
+            return
+        doc = _sync_docstring(first.value.value)
+        if leftover := _DOC_ASYNC_LEFTOVER.search(doc):
+            _fail(
+                self._path,
+                first.lineno + doc.count("\n", 0, leftover.start()),
+                self._scope,
+                f"docstring still reads as async ({leftover.group()!r}); "
+                "word it so that it holds for the sync client too",
+            )
+        first.value.value = doc
+
+    def visit_Assign(self, node: ast.Assign) -> ast.Assign:
+        self.generic_visit(node)
+        exports = any(
+            isinstance(target, ast.Name) and target.id == "__all__"
+            for target in node.targets
+        )
+        if exports and isinstance(node.value, (ast.List, ast.Tuple)):
+            for entry in node.value.elts:
+                if isinstance(entry, ast.Constant) and isinstance(entry.value, str):
+                    entry.value = NAME_MAP.get(entry.value, entry.value)
         return node
 
     def visit_AsyncFor(self, node: ast.AsyncFor) -> ast.For:
@@ -370,10 +479,12 @@ class AsyncToSyncTransformer(ast.NodeTransformer):
         return node
 
     def visit_Constant(self, node: ast.Constant) -> ast.Constant:
-        if isinstance(node.value, str):
-            new_value = _rename_in_string(node.value)
-            if new_value != node.value:
-                node.value = new_value
+        if (
+            isinstance(node.value, str)
+            and self._scope
+            and self._scope[-1] in RENAMED_STRING_FUNCTIONS
+        ):
+            node.value = _rename_words(node.value)
         return node
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.FunctionDef:

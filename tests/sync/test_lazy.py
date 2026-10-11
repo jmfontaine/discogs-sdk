@@ -146,7 +146,7 @@ class TestRepr:
     def test_repr_before_resolve(self, client):
         lazy = client.releases.get(400027)
         r = repr(lazy)
-        assert "LazyResource" in r
+        assert r.startswith("<LazyResource ")
         assert "Release" in r
 
     def test_repr_after_resolve(self, client, respx_mock):

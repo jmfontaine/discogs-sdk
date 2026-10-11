@@ -58,12 +58,12 @@ _CACHEABLE_METHODS = frozenset({"GET", "HEAD"})
 
 
 class Discogs(BaseClient):
-    """Async client for the Discogs API.
+    """Client for the Discogs API.
 
     Use as a context manager to ensure the HTTP client is properly closed::
 
-        async with Discogs(token="...") as client:
-            release = await client.releases.get(352665)
+        with Discogs(token="...") as client:
+            release = client.releases.get(352665)
             print(release.title)  # The Downward Spiral
     """
 
@@ -86,7 +86,7 @@ class Discogs(BaseClient):
         media_type: MediaType = "discogs",
         on_request: Callable[[RequestEvent], None] | None = None,
     ) -> None:
-        """Create an async Discogs client.
+        """Create a Discogs client.
 
         Exactly one authentication mode is selected here and used for every
         request: an explicit *token* wins, then explicit OAuth access-token

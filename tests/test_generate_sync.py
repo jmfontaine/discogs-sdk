@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import inspect
 import sys
 import textwrap
 from pathlib import Path
@@ -169,6 +170,121 @@ class TestDirectiveValidation:
                 return 1
             """
         )
+
+
+def _run(source: str) -> dict[str, object]:
+    """Generate the sync code for *source* and execute it."""
+    namespace: dict[str, object] = {}
+    exec(gen.transform(_source(source)), namespace)  # noqa: S102
+    return namespace
+
+
+def _doc(obj: object) -> str:
+    assert obj.__doc__ is not None
+    return inspect.cleandoc(obj.__doc__)
+
+
+class TestStrings:
+    def test_runtime_strings_are_copied_verbatim(self) -> None:
+        namespace = _run(
+            """
+            x = "/users/AsyncDiscogsFan/wants"
+            msg = "aclose failed"
+            """
+        )
+        assert namespace["x"] == "/users/AsyncDiscogsFan/wants"
+        assert namespace["msg"] == "aclose failed"
+
+    def test_all_entries_are_renamed_on_exact_match(self) -> None:
+        namespace = _run('__all__ = ["AsyncDiscogs", "AsyncDiscogsFan"]')
+        assert namespace["__all__"] == ["Discogs", "AsyncDiscogsFan"]
+
+    def test_repr_strings_follow_the_class_rename(self) -> None:
+        namespace = _run(
+            """
+            class AsyncLazyResource:
+                def __repr__(self):
+                    n = 1
+                    return f"<AsyncLazyResource {n}>"
+            """
+        )
+        cls = namespace["LazyResource"]
+        assert isinstance(cls, type)
+        assert repr(cls()) == "<LazyResource 1>"
+
+    def test_docstrings_describe_sync_usage(self) -> None:
+        namespace = _run(
+            '''
+            """An async module for the AsyncDiscogs client."""
+
+
+            class AsyncDiscogs:
+                """Async client for the Discogs API.
+
+                Wraps ``httpx2.AsyncClient``; AsyncDiscogsFan is not renamed.
+
+                Example::
+
+                    async def main():
+                        async with AsyncDiscogs(token="...") as client:
+                            release = await client.releases.get(352665)
+                            async for item in client.search("Nine Inch Nails"):
+                                print(item)
+
+                Close it with ``await client.aclose()``.
+                """
+
+                async def __aenter__(self):
+                    """Create an async Discogs client, an async iterator."""
+            '''
+        )
+        assert namespace["__doc__"] == "A module for the Discogs client."
+        cls = namespace["Discogs"]
+        assert _doc(cls) == textwrap.dedent(
+            """\
+            Client for the Discogs API.
+
+            Wraps ``httpx2.Client``; AsyncDiscogsFan is not renamed.
+
+            Example::
+
+                def main():
+                    with Discogs(token="...") as client:
+                        release = client.releases.get(352665)
+                        for item in client.search("Nine Inch Nails"):
+                            print(item)
+
+            Close it with ``client.close()``."""
+        )
+        enter = vars(cls)["__enter__"]
+        assert _doc(enter) == "Create a Discogs client, an iterator."
+
+    @pytest.mark.parametrize(
+        "prose",
+        [
+            "Callers must await the result.",
+            "The caller has to await.",
+            "Use async with to close it.",
+        ],
+    )
+    def test_async_prose_left_in_a_docstring_fails(
+        self, prose: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        source = _source(
+            f'''
+            async def f():
+                """Fetch the release.
+
+                {prose}
+                """
+            '''
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            gen.transform(source)
+        assert exc_info.value.code != 0
+        err = capsys.readouterr().err
+        assert "<string>:4:" in err
+        assert "in f:" in err
 
 
 class TestRunOnMalformedSource:

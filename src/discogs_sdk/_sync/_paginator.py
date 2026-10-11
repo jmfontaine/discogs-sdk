@@ -14,7 +14,7 @@ T = TypeVar("T", bound=BaseModel)
 
 
 class SyncPage(Generic[T]):
-    """Auto-paging async iterator over Discogs paginated responses.
+    """Auto-paging iterator over Discogs paginated responses.
 
     Discogs pagination format::
 

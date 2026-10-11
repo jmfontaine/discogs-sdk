@@ -88,7 +88,7 @@ class AsyncLazyResource(Generic[_M]):
                 # __html__) and must not spend a request.
                 if name.startswith("_"):
                     raise AttributeError(name)
-                # Otherwise, resolve the model via HTTP and delegate
+                # Resolve the model via HTTP and delegate.
                 model = self._resolve()
                 return getattr(model, name)
 

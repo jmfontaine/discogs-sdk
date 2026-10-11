@@ -66,6 +66,13 @@ no `else`. The `# ASYNC` comment must be on the `if True:` line; any other `if T
 in the body of a function, class or other compound statement. A failed run leaves `_sync/`
 untouched.
 
+String literals are copied verbatim, except `__all__` entries and strings inside `__repr__`,
+which follow the renames. Docstrings are shared by both clients: the generator renames async
+names on whole words, rewrites code samples (literal blocks, doctest lines, inline literals)
+to sync syntax, and rewords a few fixed phrases ("Async client", "an async",
+"async iterator"). Prose that still says `async def`, `async with`, `async for` or `await`
+fails generation; word it so it holds for both clients.
+
 ### Shared Base (`_base_client.py`)
 
 All non-I/O client logic lives in `_base_client.py`: `BaseClient` holds URL building, header construction, auth and retry calculation; the module-level `raise_for_response` maps error statuses to exceptions for both clients and the OAuth helpers. Both client classes inherit from `BaseClient`.
