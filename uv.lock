@@ -407,6 +407,7 @@ wheels = [
 name = "discogs-sdk"
 version = "0.5.0"
 source = { editable = "." }
+default-groups = "all"
 dependencies = [
     { name = "httpx2" },
     { name = "pydantic" },

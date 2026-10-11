@@ -88,6 +88,12 @@ test = [
   "ty>=0.0.17",
 ]
 
+[tool.uv]
+# `uv run` rebuilds .venv with only the default groups whenever it recreates it,
+# e.g. after .python-version changes, and then `just test` finds no pytest.
+# CI names its groups explicitly, so this only affects local environments.
+default-groups = "all"
+
 [tool.ruff]
 target-version = "py310"
 line-length = 88
