@@ -338,6 +338,9 @@ page or the upload API — there is no `pip yank`), then bump the patch version 
 - `py.typed` marker present (PEP 561) — the package is typed
 - `examples/` contains runnable usage examples (quickstart, auth, database, collection, marketplace, async)
 - All examples in docs, README, docstrings, and `examples/` must use Nine Inch Nails related data (artist 3857, release 352665, master 3719, label 647 Nothing Records, etc.)
+- README.md is the PyPI long description, and PyPI leaves relative links broken, so every link and image in it is
+  absolute (`https://github.com/jmfontaine/discogs-sdk/blob/main/<path>`, `tree/main/<dir>` for a directory) or an
+  in-page anchor. `tests/test_doc_links.py` fails on any other target
 - Run `git` commands directly, never with `git -C`
 - Never commit on `main`. Work starts on a branch named `<type>/issue-<N>-<slug>` for an
   issue, otherwise `<type>/<slug>`, where `<type>` is the Conventional Commits type of the

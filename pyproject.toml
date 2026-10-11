@@ -84,7 +84,11 @@ dev = [
 # registers respx's "httpcore2" mocker, which is what `using="httpcore2"` in
 # `mock_router` (tests/conftest.py) selects; respx's built-in mockers only
 # target httpx/httpcore.
+# markdown-it-py parses README.md for tests/test_doc_links.py; a CommonMark
+# parser finds links that regular expressions miss (an image inside a link, a
+# definition inside a block quote or wrapped onto the next line).
 test = [
+  "markdown-it-py>=3",
   "pytest>=8.3",
   "pytest-asyncio>=1.4",
   "pytest-cov>=6",
@@ -151,6 +155,8 @@ ignore_names = [
   "_drop_losing_field_names",
   "_keep_raw",
   "fast_sqlite_busy_timeout",
+  # HTMLParser calls it (tests/markdown_links.py).
+  "handle_starttag",
   "model_config",
   "pytestmark",
 ]

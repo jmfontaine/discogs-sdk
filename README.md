@@ -91,7 +91,7 @@ when the client is constructed, and only that mode's credentials are used. The p
    `DISCOGS_CONSUMER_KEY`/`DISCOGS_CONSUMER_SECRET`, then unauthenticated.
 
 An explicitly selected but incomplete credential set raises `ValueError` rather than quietly falling back to a
-different account or mode. See [`examples/authentication.py`](examples/authentication.py) for the full OAuth flow.
+different account or mode. See [`examples/authentication.py`](https://github.com/jmfontaine/discogs-sdk/blob/main/examples/authentication.py) for the full OAuth flow.
 
 > [!TIP]
 > Use a `.env` file with [python-dotenv](https://pypi.org/project/python-dotenv/) or
@@ -353,15 +353,15 @@ from pydantic import ValidationError as ModelValidationError
 
 ## Examples
 
-The [`examples/`](examples/) directory has runnable scripts for every feature:
+The [`examples/`](https://github.com/jmfontaine/discogs-sdk/tree/main/examples) directory has runnable scripts for every feature:
 
-- [`quickstart.py`](examples/quickstart.py) — first requests, lazy loading, search
-- [`authentication.py`](examples/authentication.py) — all auth modes including OAuth 1.0a
-- [`database.py`](examples/database.py) — releases, artists, masters, labels, search
-- [`marketplace.py`](examples/marketplace.py) — listings, orders, fees, inventory
-- [`collection.py`](examples/collection.py) — folders, instances, fields, wantlist
-- [`async_usage.py`](examples/async_usage.py) — async client with await and async for
-- [`advanced.py`](examples/advanced.py) — error handling, caching, custom HTTP clients, exports
+- [`quickstart.py`](https://github.com/jmfontaine/discogs-sdk/blob/main/examples/quickstart.py) — first requests, lazy loading, search
+- [`authentication.py`](https://github.com/jmfontaine/discogs-sdk/blob/main/examples/authentication.py) — all auth modes including OAuth 1.0a
+- [`database.py`](https://github.com/jmfontaine/discogs-sdk/blob/main/examples/database.py) — releases, artists, masters, labels, search
+- [`marketplace.py`](https://github.com/jmfontaine/discogs-sdk/blob/main/examples/marketplace.py) — listings, orders, fees, inventory
+- [`collection.py`](https://github.com/jmfontaine/discogs-sdk/blob/main/examples/collection.py) — folders, instances, fields, wantlist
+- [`async_usage.py`](https://github.com/jmfontaine/discogs-sdk/blob/main/examples/async_usage.py) — async client with await and async for
+- [`advanced.py`](https://github.com/jmfontaine/discogs-sdk/blob/main/examples/advanced.py) — error handling, caching, custom HTTP clients, exports
 
 ## Configuration
 
@@ -704,8 +704,8 @@ input instead of an API response.
 
 ## Contributing
 
-Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions are welcome. See [CONTRIBUTING.md](https://github.com/jmfontaine/discogs-sdk/blob/main/CONTRIBUTING.md) for guidelines.
 
 ## License
 
-discogs-sdk is licensed under the [Apache License 2.0](LICENSE.txt).
+discogs-sdk is licensed under the [Apache License 2.0](https://github.com/jmfontaine/discogs-sdk/blob/main/LICENSE.txt).

@@ -18,7 +18,8 @@ from respx.router import MockRouter
 from discogs_sdk import CacheEntry, MemoryCache
 
 BASE_URL = "https://api.discogs.com"
-EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
+REPO_ROOT = Path(__file__).resolve().parent.parent
+EXAMPLES_DIR = REPO_ROOT / "examples"
 
 # KLUDGE: mocked responses across this suite are built with `respx.MockResponse`
 # rather than the `httpx2.Response` the SDK actually returns, and every respx
