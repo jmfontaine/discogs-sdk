@@ -797,6 +797,8 @@ def transform(source: str, path: str = "<string>") -> str:
         tree.body.insert(_import_insertion_point(tree.body), import_node)
     ast.fix_missing_locations(tree)
     result = ast_comments.unparse(tree)
+    if not result:
+        return HEADER
     return HEADER + "\n" + result + "\n"
 
 

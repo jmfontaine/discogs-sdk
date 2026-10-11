@@ -380,6 +380,13 @@ class TestStrings:
         assert "in f:" in err
 
 
+class TestEmptyModule:
+    # end-of-file-fixer strips trailing blank lines, after which sync-check
+    # reports the module out of date, so the two hooks would undo each other.
+    def test_empty_module_ends_in_a_single_newline(self) -> None:
+        assert gen.transform("") == gen.HEADER
+
+
 class TestRunOnMalformedSource:
     @pytest.fixture
     def tree(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
