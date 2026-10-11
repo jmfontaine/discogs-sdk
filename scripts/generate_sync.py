@@ -20,12 +20,12 @@ this way just disappears). Generation fails before anything is written, so a
 failed run leaves src/discogs_sdk/_sync/ as it was.
 
 Strings: runtime string literals are copied verbatim, except the entries of
-``__all__`` (NAME_MAP on an exact match) and the strings inside ``__repr__``
-(NAME_MAP on whole words; see RENAMED_STRING_FUNCTIONS). Docstrings get NAME_MAP
-on whole words, their code samples are rewritten to sync syntax, and a few fixed
-phrases are reworded (DOC_CODE_REWRITES, DOC_PROSE_REWRITES). A docstring that
-still mentions ``async def``, ``async with``, ``async for``, ``await`` or an
-async name after that is an error: word it so it holds for both clients.
+``__all__`` (NAME_MAP on an exact match) and the exact literals listed in
+REPR_RENAMES inside a ``__repr__``. Docstrings get NAME_MAP on whole words,
+their code samples are rewritten to sync syntax, and a few fixed phrases are
+reworded (DOC_CODE_REWRITES, DOC_PROSE_REWRITES). A docstring that still
+mentions ``async def``, ``async with``, ``async for``, ``await`` or an async
+name after that is an error: word it so it holds for both clients.
 """
 
 from __future__ import annotations
@@ -160,11 +160,10 @@ def _needs_statement(node: ast.AST, field: str) -> bool:
     return field == "finalbody" and not getattr(node, "handlers", None)
 
 
-# A repr names its class, so string constants inside these methods follow the
-# class rename (``"<AsyncLazyResource "`` becomes ``"<LazyResource "``). Every
-# other runtime string is copied verbatim, except the entries of ``__all__``,
-# which are renamed on an exact match.
-RENAMED_STRING_FUNCTIONS = frozenset({"__repr__"})
+# Runtime strings are copied verbatim. The exceptions are the entries of
+# ``__all__``, renamed on an exact NAME_MAP match, and these exact literals
+# inside a ``__repr__``: the lazy proxy's repr names its class, which is renamed.
+REPR_RENAMES = {"<AsyncLazyResource ": "<LazyResource "}
 
 # Docstrings are shared by both clients. Their code (literal blocks, doctest
 # lines and ``inline literals``) is rewritten to the sync form, and these fixed
@@ -481,10 +480,10 @@ class AsyncToSyncTransformer(ast.NodeTransformer):
     def visit_Constant(self, node: ast.Constant) -> ast.Constant:
         if (
             isinstance(node.value, str)
-            and self._scope
-            and self._scope[-1] in RENAMED_STRING_FUNCTIONS
+            and self._scope[-1:] == ["__repr__"]
+            and node.value in REPR_RENAMES
         ):
-            node.value = _rename_words(node.value)
+            node.value = REPR_RENAMES[node.value]
         return node
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.FunctionDef:

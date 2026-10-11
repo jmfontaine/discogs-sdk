@@ -66,12 +66,13 @@ no `else`. The `# ASYNC` comment must be on the `if True:` line; any other `if T
 in the body of a function, class or other compound statement. A failed run leaves `_sync/`
 untouched.
 
-String literals are copied verbatim, except `__all__` entries and strings inside `__repr__`,
-which follow the renames. Docstrings are shared by both clients: the generator renames async
-names on whole words, rewrites code samples (literal blocks, doctest lines, inline literals)
-to sync syntax, and rewords a few fixed phrases ("Async client", "an async",
-"async iterator"). Prose that still says `async def`, `async with`, `async for` or `await`
-fails generation; word it so it holds for both clients.
+String literals are copied verbatim, except `__all__` entries (renamed on an exact match) and
+the literals listed in `REPR_RENAMES` inside a `__repr__` (today only `"<AsyncLazyResource "`).
+Docstrings are shared by both clients: the generator renames async names on whole words,
+rewrites code samples (literal blocks, doctest lines, inline literals) to sync syntax, and
+rewords a few fixed phrases ("Async client", "an async", "async iterator"). Prose that still
+says `async def`, `async with`, `async for` or `await` fails generation; word it so it holds
+for both clients.
 
 ### Shared Base (`_base_client.py`)
 

@@ -199,7 +199,7 @@ class TestStrings:
         namespace = _run('__all__ = ["AsyncDiscogs", "AsyncDiscogsFan"]')
         assert namespace["__all__"] == ["Discogs", "AsyncDiscogsFan"]
 
-    def test_repr_strings_follow_the_class_rename(self) -> None:
+    def test_lazy_resource_repr_literal_is_renamed(self) -> None:
         namespace = _run(
             """
             class AsyncLazyResource:
@@ -211,6 +211,18 @@ class TestStrings:
         cls = namespace["LazyResource"]
         assert isinstance(cls, type)
         assert repr(cls()) == "<LazyResource 1>"
+
+    def test_other_repr_strings_are_copied_verbatim(self) -> None:
+        namespace = _run(
+            """
+            class C:
+                def __repr__(self):
+                    return "aclose failed /users/AsyncDiscogs/wants"
+            """
+        )
+        cls = namespace["C"]
+        assert isinstance(cls, type)
+        assert repr(cls()) == "aclose failed /users/AsyncDiscogs/wants"
 
     def test_docstrings_describe_sync_usage(self) -> None:
         namespace = _run(
