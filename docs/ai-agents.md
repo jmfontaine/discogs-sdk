@@ -52,7 +52,7 @@ For an agent that reads only a rules file, paste this into `AGENTS.md`, a file u
 - One client per program: `with Discogs() as client:` or `async with AsyncDiscogs() as client:`; the token comes from `DISCOGS_TOKEN`.
 - `.get()` returns a lazy proxy and sends nothing; the first data attribute access fetches, so catch `NotFoundError` there.
 - Async: `await` a proxy for its model. The model has no sub-resources, so keep the proxy for chaining (`artist_proxy.releases.list()`); use `async for` on pages.
-- `search()` and paginated `.list()` methods send one request per page against the rate limit (60/min, 25/min anonymous): `break` early, never `list()` a large result set.
+- `search()` and paginated `.list()` methods make one logical GET per page: a cache hit sends no request, retries can send several, and each network attempt consumes the budget (60/min, 25/min anonymous). `break` early; never `list()` a large result set.
 - After a write fails ambiguously, poll inside `client.no_cache()` with a new proxy or iterator; never resubmit a create blindly.
 - A custom `http_client` must be an `httpx2` client, never `httpx`; the SDK does not close it.
 - Endpoint-to-method map: https://github.com/jmfontaine/discogs-sdk/blob/main/docs/endpoints.md
