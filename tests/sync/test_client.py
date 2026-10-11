@@ -12,7 +12,14 @@ import pytest
 import respx
 
 import discogs_sdk._sync
-from discogs_sdk import CacheEntry, Discogs, MemoryCache, ResponseCache, SQLiteCache
+from discogs_sdk import (
+    AuthMode,
+    CacheEntry,
+    Discogs,
+    MemoryCache,
+    ResponseCache,
+    SQLiteCache,
+)
 from discogs_sdk._exceptions import AuthenticationError, DiscogsAPIError, NotFoundError
 from discogs_sdk._sync._paginator import SyncPage
 from tests.conftest import (
@@ -925,6 +932,68 @@ class TestCredentialPrecedence:
                 == "Discogs key=ck, secret=cs"
             )
             client.close()
+
+
+_TOKEN_ENV = {"DISCOGS_TOKEN": "env-token"}
+_CONSUMER_ENV = {
+    "DISCOGS_CONSUMER_KEY": "env-key",
+    "DISCOGS_CONSUMER_SECRET": "env-secret",
+}
+_OAUTH_ENV = {
+    **_CONSUMER_ENV,
+    "DISCOGS_ACCESS_TOKEN": "env-at",
+    "DISCOGS_ACCESS_TOKEN_SECRET": "env-ats",
+}
+_EXPLICIT_CONSUMER = {"consumer_key": "ck", "consumer_secret": "cs"}
+_EXPLICIT_OAUTH = {
+    **_EXPLICIT_CONSUMER,
+    "access_token": "at",
+    "access_token_secret": "ats",
+}
+
+
+class TestAuthMode:
+    @pytest.mark.parametrize(
+        ("env", "kwargs", "expected"),
+        [
+            ({}, {"token": "t"}, "token"),
+            (_TOKEN_ENV, {}, "token"),
+            (_CONSUMER_ENV, {}, "consumer"),
+            (_OAUTH_ENV, {}, "oauth"),
+            ({}, {}, "none"),
+            ({**_TOKEN_ENV, **_OAUTH_ENV}, {}, "token"),
+            (_OAUTH_ENV, {"token": "t"}, "token"),
+            (_TOKEN_ENV, _EXPLICIT_OAUTH, "oauth"),
+            ({**_TOKEN_ENV, **_OAUTH_ENV}, _EXPLICIT_CONSUMER, "consumer"),
+        ],
+        ids=[
+            "explicit-token",
+            "env-token",
+            "env-consumer",
+            "env-oauth",
+            "nothing",
+            "env-token-beats-env-oauth",
+            "explicit-token-beats-env-oauth",
+            "explicit-oauth-beats-env-token",
+            "explicit-consumer-beats-env-token-and-oauth",
+        ],
+    )
+    def test_reports_the_selected_mode_without_a_request(
+        self, monkeypatch, env, kwargs, expected: AuthMode
+    ):
+        for name, value in env.items():
+            monkeypatch.setenv(name, value)
+
+        with mock_router() as router:
+            with Discogs(**kwargs) as client:
+                assert client.auth_mode == expected
+            assert not router.calls
+
+    def test_is_read_only(self):
+        with Discogs(token="t") as client:
+            with pytest.raises(AttributeError):
+                client.auth_mode = "none"  # ty: ignore[invalid-assignment]
+            assert client.auth_mode == "token"
 
 
 class TestMaxRetriesValidation:

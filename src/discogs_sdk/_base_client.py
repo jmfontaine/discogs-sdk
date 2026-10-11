@@ -417,6 +417,19 @@ class BaseClient:
         self._auth_namespace: str = self._build_auth_namespace()
 
     @property
+    def auth_mode(self) -> AuthMode:
+        """Authentication mode selected when the client was constructed.
+
+        One of ``"token"``, ``"consumer"``, ``"oauth"`` or ``"none"``, resolved from
+        the constructor arguments and the ``DISCOGS_*`` environment variables with
+        the precedence documented in docs/authentication.md. It tells which kind of
+        credentials the SDK attaches to requests without exposing them, and reading
+        it sends no request. Authentication configured on an injected
+        ``http_client`` is not reflected.
+        """
+        return self._auth_mode
+
+    @property
     def ratelimit(self) -> RateLimit | None:
         """Rate limit reported by the most recent live response, or ``None``.
 

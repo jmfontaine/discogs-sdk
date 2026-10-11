@@ -35,6 +35,26 @@ different account or mode. See [`examples/authentication.py`](../examples/authen
 > Use a `.env` file with [python-dotenv](https://pypi.org/project/python-dotenv/) or
 > [direnv](https://direnv.net/) to avoid exporting tokens manually in every shell.
 
+## The selected mode
+
+`client.auth_mode` reports the mode the client selected, as the exported `AuthMode` literal: `"token"`, `"consumer"`,
+`"oauth"` or `"none"`. It is a plain attribute read on both `Discogs` and `AsyncDiscogs`, with no `await`: it sends no
+request and exposes no credential. Ask the client rather than checking `DISCOGS_TOKEN` yourself: with only
+`DISCOGS_CONSUMER_KEY`/`DISCOGS_CONSUMER_SECRET` set, the client still authenticates, and `auth_mode` is `"consumer"`.
+
+```python
+from discogs_sdk import AuthMode, Discogs
+
+client = Discogs(
+    consumer_key="your-consumer-key", consumer_secret="your-consumer-secret"
+)
+mode: AuthMode = client.auth_mode
+print(mode)  # "consumer"
+```
+
+It reflects only the credentials the SDK attaches. Authentication configured on an injected `http_client` is not
+counted: a client given no credentials of its own reports `"none"` even when the injected client authenticates.
+
 ## The authenticated user
 
 `client.user.identity()` asks Discogs who the credentials belong to (`GET /oauth/identity`) and returns an `Identity`
