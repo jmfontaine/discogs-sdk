@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+if True:  # ASYNC
+    import asyncio
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from pydantic import BaseModel
@@ -57,6 +59,10 @@ class AsyncLazyResource(Generic[_M]):
         # Written through object.__setattr__ and read through
         # object.__getattribute__: a plain read would recurse through __getattr__.
         object.__setattr__(self, "_resolved", None)
+        if True:  # ASYNC
+            # The fetch shared by every awaiter while the proxy is unresolved; set
+            # only while that request is pending.
+            object.__setattr__(self, "_inflight", None)
 
     async def _resolve(self) -> _M:
         # Read through object.__getattribute__: a plain attribute read on a subclass
@@ -64,7 +70,27 @@ class AsyncLazyResource(Generic[_M]):
         resolved = object.__getattribute__(self, "_resolved")
         if resolved is not None:
             return resolved
+        if True:  # ASYNC
+            # Single flight: the first awaiter starts the request as a task and
+            # every awaiter, that one included, waits for it with asyncio.wait(),
+            # which never cancels what it waits on, so cancelling one waiter
+            # neither cancels the request nor affects the others. Not shield():
+            # some releases from 3.14 on (seen on 3.14.2) log the request's
+            # exception when every waiter was cancelled. The task copies the first
+            # awaiter's context, so its no_cache()/cache_only() scope applies to
+            # every awaiter it serves. A finished task is never reused, so a failure
+            # is not cached even before its done callback has cleared the slot.
+            inflight = object.__getattribute__(self, "_inflight")
+            if inflight is None or inflight.done():
+                inflight = asyncio.create_task(self._fetch())
+                object.__setattr__(self, "_inflight", inflight)
+                inflight.add_done_callback(self._fetch_done)
+            await asyncio.wait((inflight,))
+            return inflight.result()
+        else:
+            return self._fetch()
 
+    async def _fetch(self) -> _M:
         client = object.__getattribute__(self, "_client")
         path = object.__getattribute__(self, "_path")
         model_cls = object.__getattribute__(self, "_model_cls")
@@ -77,6 +103,19 @@ class AsyncLazyResource(Generic[_M]):
         resolved = model_cls.model_validate(response.json())
         object.__setattr__(self, "_resolved", resolved)
         return resolved
+
+    if True:  # ASYNC
+
+        def _fetch_done(self, task: asyncio.Task[_M]) -> None:
+            # Drop the reference once the request settles, so a proxy resolved
+            # under one event loop holds nothing tied to it, and a failed fetch
+            # leaves the next await free to start a fresh one.
+            if object.__getattribute__(self, "_inflight") is task:
+                object.__setattr__(self, "_inflight", None)
+            # Retrieve the exception: when every waiter was cancelled nobody else
+            # does, and asyncio would log "Task exception was never retrieved".
+            if not task.cancelled():
+                task.exception()
 
     if not TYPE_CHECKING:
 

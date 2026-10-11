@@ -509,6 +509,12 @@ with ThreadPoolExecutor() as pool:
     print(future.result())  # The Downward Spiral, fetched from the API
 ```
 
+An unresolved `AsyncDiscogs` proxy awaited from several tasks at once sends one request and hands every task the same
+model (or the same exception; a failure is not kept, so the next await tries again). That request runs in the context
+of the task that awaited first, so its `no_cache()` or `cache_only()` scope, or the lack of one, applies to all of them.
+Enter the scope before the first await, or call `get()` again inside it for a proxy of your own. Cancelling one waiting
+task leaves the request and the other tasks alone.
+
 A page returned by `.list()` or `search()` is a single-pass iterator for one consumer. Several threads or tasks
 iterating the same page race on its position and can fetch a page twice and yield its items twice, and a page that
 is exhausted yields nothing on a second pass. Call `.list()` or `search()` again for each consumer and each pass.

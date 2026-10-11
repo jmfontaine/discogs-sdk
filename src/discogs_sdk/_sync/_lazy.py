@@ -66,6 +66,9 @@ class LazyResource(Generic[_M]):
         resolved = object.__getattribute__(self, "_resolved")
         if resolved is not None:
             return resolved
+        return self._fetch()
+
+    def _fetch(self) -> _M:
         client = object.__getattribute__(self, "_client")
         path = object.__getattribute__(self, "_path")
         model_cls = object.__getattribute__(self, "_model_cls")
