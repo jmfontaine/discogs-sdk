@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from pydantic import Field
+from pydantic import ConfigDict, Field
 from pydantic import ValidationError as PydanticValidationError
 
 from discogs_sdk.models._common import (
@@ -204,6 +204,63 @@ class TestCanonicalNameValidation:
             {"uri150": "from-alias", "uri_150": "from-canonical"}
         )
         assert image.uri_150 == "from-alias"
+        assert image.model_extra == {}
+        assert image.model_dump()["uri_150"] == "from-alias"
+        assert Image.model_validate(image.model_dump()) == image
+        assert Image.model_validate_json(image.model_dump_json()) == image
+        from_json = Image.model_validate_json(
+            '{"uri150": "from-alias", "uri_150": "from-canonical"}'
+        )
+        assert from_json == image
+
+    def test_alias_wins_on_a_model_with_several_fields(self) -> None:
+        credit = LabelCredit.model_validate(
+            {
+                "id": 647,
+                "name": "Nothing Records",
+                "catno": "ALIAS",
+                "catalog_number": "NAME",
+            }
+        )
+        assert credit.catalog_number == "ALIAS"
+        assert credit.model_extra == {}
+        assert credit.model_dump()["catalog_number"] == "ALIAS"
+        assert LabelCredit.model_validate(credit.model_dump()) == credit
+        assert LabelCredit.model_validate_json(credit.model_dump_json()) == credit
+
+    def test_alias_wins_in_a_nested_model(self) -> None:
+        release = Release.model_validate(
+            {
+                "id": 352665,
+                "title": "The Downward Spiral",
+                "labels": [
+                    {
+                        "id": 647,
+                        "name": "Nothing Records",
+                        "catno": "ALIAS",
+                        "catalog_number": "NAME",
+                    }
+                ],
+            }
+        )
+        assert release.labels is not None
+        assert release.labels[0].catalog_number == "ALIAS"
+        assert release.labels[0].model_extra == {}
+        assert release.model_dump()["labels"][0]["catalog_number"] == "ALIAS"
+        assert Release.model_validate(release.model_dump()) == release
+        assert Release.model_validate_json(release.model_dump_json()) == release
+
+    def test_unknown_keys_stay_in_extras(self) -> None:
+        image = Image.model_validate({"uri150": "x", "future_field": 1})
+        assert image.model_extra == {"future_field": 1}
+
+    def test_lone_python_name_survives_when_names_are_not_accepted(self) -> None:
+        class AliasOnlyImage(Image):
+            model_config = ConfigDict(validate_by_name=False)
+
+        image = AliasOnlyImage.model_validate({"uri_150": "kept"})
+        assert image.uri_150 is None
+        assert image.model_extra == {"uri_150": "kept"}
 
     def test_canonical_name_is_validated_like_the_alias(self) -> None:
         with pytest.raises(PydanticValidationError):

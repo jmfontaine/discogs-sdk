@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, ClassVar, Literal
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
 Condition = Literal[
     "Mint (M)",
@@ -54,6 +54,21 @@ class SDKModel(BaseModel):
         validate_by_alias=True,
         validate_by_name=True,
     )
+
+    @model_validator(mode="after")
+    def _drop_losing_field_names(self) -> SDKModel:
+        # When an input supplies both spellings, pydantic validates the alias into
+        # the field and keeps the Python-name key as an extra, which would then
+        # override the field in ``model_dump()``. With names accepted, that is the
+        # only way a declared field name reaches the extras, so drop it. A caller
+        # passing ``by_name=False`` to one validation is not covered: its lone
+        # Python-name key is dropped too. A "wrap" validator could tell the cases
+        # apart, but it would make pydantic convert JSON input to Python first.
+        extra = self.__pydantic_extra__
+        if extra and type(self).model_config.get("validate_by_name"):
+            for name in extra.keys() & type(self).model_fields.keys():
+                del extra[name]
+        return self
 
     def __getattr__(self, name: str) -> Any:
         for field_name, field_info in type(self).model_fields.items():
