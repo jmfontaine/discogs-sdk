@@ -200,13 +200,17 @@ def _search(router: MockRouter) -> None:
     )
 
 
+def _artist_releases(router: MockRouter) -> None:
+    router.get("/artists/3857/releases").respond(
+        200, json=make_paginated_response("releases", [make_artist_release()])
+    )
+
+
 def _sub_resources(router: MockRouter) -> None:
     router.get("/releases/352665/rating").respond(
         200, json=make_community_rating(release_id=352665)
     )
-    router.get("/artists/3857/releases").respond(
-        200, json=make_paginated_response("releases", [make_artist_release()])
-    )
+    _artist_releases(router)
     router.get("/masters/3719/versions").respond(
         200, json=make_paginated_response("versions", [make_master_version()])
     )
@@ -288,22 +292,60 @@ class DocRoutes:
 RELEASE_GET = "GET /releases/352665"
 SEARCH_GET = "GET /database/search"
 
+COLLECTION_REQUESTS = (
+    f"GET {FOLDERS}",
+    f"POST {FOLDERS}",
+    f"GET {FOLDERS}/0/releases",
+    f"POST {FOLDER_RELEASE}",
+    f"POST {FOLDER_RELEASE}/instances/20/fields/1",
+    f"GET {COLLECTION_USER}/collection/value",
+    f"PUT {WANT}",
+    f"POST {WANT}",
+    f"GET {COLLECTION_USER}/wants",
+)
+
 # Keyed by path relative to the repository root.
 DOC_ROUTES: dict[str, DocRoutes] = {
     "README.md": DocRoutes(
-        routes=(
-            _release,
-            _artist,
-            _search,
-            _sub_resources,
-            _collection,
-            _marketplace,
-            _not_found,
-        ),
+        routes=(_release, _artist_releases, _search),
         requests=(
             # Introduction
             RELEASE_GET,
             SEARCH_GET,
+            # Quick start, sync then async
+            RELEASE_GET,
+            "GET /artists/3857/releases",
+            RELEASE_GET,
+            SEARCH_GET,
+        ),
+    ),
+    "docs/authentication.md": DocRoutes(routes=(), requests=()),
+    "docs/caching.md": DocRoutes(
+        routes=(_release,),
+        requests=(
+            # no_cache(); cache_only() raises CacheMissError before any request
+            RELEASE_GET,
+            # Shared SQLiteCache: only the first client reaches the API
+            RELEASE_GET,
+        ),
+    ),
+    "docs/collection-and-marketplace.md": DocRoutes(
+        routes=(_collection, _marketplace),
+        requests=(
+            *COLLECTION_REQUESTS,
+            "POST /marketplace/listings",
+            "POST /marketplace/listings/41578241",
+            "DELETE /marketplace/listings/41578241",
+            "GET /marketplace/orders",
+        ),
+    ),
+    "docs/concurrency.md": DocRoutes(routes=(_release,), requests=(RELEASE_GET,)),
+    "docs/errors-and-retries.md": DocRoutes(
+        routes=(_not_found,), requests=("GET /releases/999999999",)
+    ),
+    "docs/getting-started.md": DocRoutes(
+        routes=(_release, _artist, _search, _sub_resources),
+        requests=(
             # Fetching resources: the master and label proxies are never read
             RELEASE_GET,
             "GET /artists/3857",
@@ -316,34 +358,14 @@ DOC_ROUTES: dict[str, DocRoutes] = {
             # Async usage
             RELEASE_GET,
             SEARCH_GET,
-            # Collection
-            f"GET {FOLDERS}",
-            f"POST {FOLDERS}",
-            f"GET {FOLDERS}/0/releases",
-            f"POST {FOLDER_RELEASE}",
-            f"POST {FOLDER_RELEASE}/instances/20/fields/1",
-            f"GET {COLLECTION_USER}/collection/value",
-            f"PUT {WANT}",
-            f"POST {WANT}",
-            f"GET {COLLECTION_USER}/wants",
-            # Marketplace
-            "POST /marketplace/listings",
-            "POST /marketplace/listings/41578241",
-            "DELETE /marketplace/listings/41578241",
-            "GET /marketplace/orders",
-            # Error handling
-            "GET /releases/999999999",
-            # no_cache(); cache_only() raises CacheMissError before any request
-            RELEASE_GET,
-            # Shared SQLiteCache: only the first client reaches the API
-            RELEASE_GET,
-            # Observability, concurrency, field naming, original API values
-            RELEASE_GET,
-            RELEASE_GET,
-            RELEASE_GET,
-            RELEASE_GET,
         ),
     ),
+    "docs/models.md": DocRoutes(
+        routes=(_release,),
+        # Field naming, then original API values
+        requests=(RELEASE_GET, RELEASE_GET),
+    ),
+    "docs/observability.md": DocRoutes(routes=(_release,), requests=(RELEASE_GET,)),
 }
 
 
