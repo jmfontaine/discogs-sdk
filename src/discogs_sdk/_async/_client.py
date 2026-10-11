@@ -5,12 +5,8 @@ import time
 
 if True:  # ASYNC
     import asyncio
-    from collections.abc import AsyncGenerator
-    from contextlib import asynccontextmanager
-else:
-    from collections.abc import Generator
-    from contextlib import contextmanager
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from functools import cached_property
 from pathlib import Path
@@ -429,43 +425,19 @@ class AsyncDiscogs(BaseClient):
 
     # --- Cache ---
 
-    if True:  # ASYNC
+    @asynccontextmanager
+    async def no_cache(self) -> AsyncIterator[Self]:
+        """Bypass the response cache for the current execution context.
 
-        @asynccontextmanager
-        async def no_cache(self) -> AsyncGenerator[Self, None]:
-            """Bypass the response cache for the current execution context.
-
-            Scopes nest, and the exact previous state is restored on exit, including
-            when the block raises. Each task carries its own state, so one task
-            leaving a scope never re-enables another's cache. A task copies the
-            context when it is created, so a task created before the block does
-            not see the scope even if it runs inside it.
-            """
-            token = _CACHE_BYPASS.set(_CACHE_BYPASS.get() | {id(self)})
-            try:
-                yield self
-            finally:
-                _CACHE_BYPASS.reset(token)
-
-        @asynccontextmanager
-        async def cache_only(self) -> AsyncGenerator[Self, None]:
-            """Serve only from the response cache for the current execution context.
-
-            A request the cache cannot serve - a miss, an expired entry, a non-GET,
-            a job status read (``exports.get()``, ``uploads.get()``), a disabled
-            cache or an enclosing ``no_cache()`` - raises ``CacheMissError`` before
-            any network I/O. Scopes nest and restore exactly like ``no_cache()``
-            and, like it, do not reach a task created before the block.
-            """
-            token = _CACHE_ONLY.set(_CACHE_ONLY.get() | {id(self)})
-            try:
-                yield self
-            finally:
-                _CACHE_ONLY.reset(token)
-    else:
-
-        @contextmanager
-        def no_cache(self) -> Generator[Self, None, None]:
+        Scopes nest, and the exact previous state is restored on exit, including
+        when the block raises. Each task carries its own state, so one task
+        leaving a scope never re-enables another's cache. A task copies the
+        context when it is created, so a task created before the block does
+        not see the scope even if it runs inside it.
+        """
+        if True:  # ASYNC
+            pass
+        else:
             """Bypass the response cache for the current execution context.
 
             Scopes nest, and the exact previous state is restored on exit, including
@@ -475,14 +447,25 @@ class AsyncDiscogs(BaseClient):
             scope: enter it inside the worker, or submit
             ``contextvars.copy_context().run`` with the copy taken inside the block.
             """
-            token = _CACHE_BYPASS.set(_CACHE_BYPASS.get() | {id(self)})
-            try:
-                yield self
-            finally:
-                _CACHE_BYPASS.reset(token)
+        token = _CACHE_BYPASS.set(_CACHE_BYPASS.get() | {id(self)})
+        try:
+            yield self
+        finally:
+            _CACHE_BYPASS.reset(token)
 
-        @contextmanager
-        def cache_only(self) -> Generator[Self, None, None]:
+    @asynccontextmanager
+    async def cache_only(self) -> AsyncIterator[Self]:
+        """Serve only from the response cache for the current execution context.
+
+        A request the cache cannot serve - a miss, an expired entry, a non-GET,
+        a job status read (``exports.get()``, ``uploads.get()``), a disabled
+        cache or an enclosing ``no_cache()`` - raises ``CacheMissError`` before
+        any network I/O. Scopes nest and restore exactly like ``no_cache()``
+        and, like it, do not reach a task created before the block.
+        """
+        if True:  # ASYNC
+            pass
+        else:
             """Serve only from the response cache for the current execution context.
 
             A request the cache cannot serve - a miss, an expired entry, a non-GET,
@@ -491,11 +474,11 @@ class AsyncDiscogs(BaseClient):
             any network I/O. Scopes nest and restore exactly like ``no_cache()``
             and, like it, do not follow work submitted to other threads.
             """
-            token = _CACHE_ONLY.set(_CACHE_ONLY.get() | {id(self)})
-            try:
-                yield self
-            finally:
-                _CACHE_ONLY.reset(token)
+        token = _CACHE_ONLY.set(_CACHE_ONLY.get() | {id(self)})
+        try:
+            yield self
+        finally:
+            _CACHE_ONLY.reset(token)
 
     def clear_cache(self) -> None:
         """Purge all cached responses. No-op when caching is disabled."""

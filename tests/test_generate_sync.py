@@ -298,6 +298,87 @@ class TestStrings:
         assert "<string>:4:" in err
         assert "in f:" in err
 
+    def test_directive_after_a_docstring_replaces_it(self) -> None:
+        namespace = _run(
+            '''
+            class AsyncDiscogs:
+                async def f(self):
+                    """Each task carries its own state; await the result."""
+                    if True:  # ASYNC
+                        pass
+                    else:
+                        """Each thread carries its own AsyncDiscogs state."""
+                    return 1
+            '''
+        )
+        cls = namespace["Discogs"]
+        assert isinstance(cls, type)
+        method = vars(cls)["f"]
+        assert _doc(method) == "Each thread carries its own Discogs state."
+        assert method(cls()) == 1
+
+    def test_async_prose_left_in_a_replacement_docstring_fails(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        source = _source(
+            '''
+            async def f():
+                """Fetch the release."""
+                if True:  # ASYNC
+                    pass
+                else:
+                    """Fetch the release.
+
+                    Callers must await the result.
+                    """
+            '''
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            gen.transform(source)
+        assert exc_info.value.code != 0
+        err = capsys.readouterr().err
+        assert "<string>:8:" in err
+        assert "in f:" in err
+
+    @pytest.mark.parametrize(
+        ("source", "line"),
+        [
+            pytest.param(
+                '''
+                async def f():
+                    if True:  # ASYNC
+                        pass
+                    else:
+                        """Fetch the release."""
+                ''',
+                2,
+                id="no-docstring",
+            ),
+            pytest.param(
+                '''
+                async def f():
+                    """Fetch the release."""
+                    n = 1
+                    if True:  # ASYNC
+                        pass
+                    else:
+                        """Fetch the release."""
+                ''',
+                4,
+                id="not-right-after-the-docstring",
+            ),
+        ],
+    )
+    def test_replacement_docstring_away_from_a_docstring_fails(
+        self, source: str, line: int, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        with pytest.raises(SystemExit) as exc_info:
+            gen.transform(_source(source))
+        assert exc_info.value.code != 0
+        err = capsys.readouterr().err
+        assert f"<string>:{line}:" in err
+        assert "in f:" in err
+
 
 class TestRunOnMalformedSource:
     @pytest.fixture

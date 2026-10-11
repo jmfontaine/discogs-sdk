@@ -72,7 +72,18 @@ Docstrings are shared by both clients: the generator renames async names on whol
 rewrites code samples (literal blocks, doctest lines, inline literals) to sync syntax, and
 rewords a few fixed phrases ("Async client", "an async", "async iterator"). Prose that still
 says `async def`, `async with`, `async for` or `await` fails generation; word it so it holds
-for both clients.
+for both clients. Where the two clients need different prose (tasks against threads, say),
+follow the docstring with an `ASYNC` directive whose `else` holds only the sync docstring:
+```python
+async def no_cache(self) -> AsyncIterator[Self]:
+    """Async docstring."""
+    if True:  # ASYNC
+        pass
+    else:
+        """Sync docstring."""
+```
+The sync code gets that docstring in place of the first one, checked and reworded the same way.
+Such a directive anywhere other than directly after a docstring fails generation.
 
 ### Shared Base (`_base_client.py`)
 

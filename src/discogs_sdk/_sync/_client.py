@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from functools import cached_property
@@ -405,7 +405,7 @@ class Discogs(BaseClient):
     # --- Cache ---
 
     @contextmanager
-    def no_cache(self) -> Generator[Self, None, None]:
+    def no_cache(self) -> Iterator[Self]:
         """Bypass the response cache for the current execution context.
 
         Scopes nest, and the exact previous state is restored on exit, including
@@ -422,7 +422,7 @@ class Discogs(BaseClient):
             _CACHE_BYPASS.reset(token)
 
     @contextmanager
-    def cache_only(self) -> Generator[Self, None, None]:
+    def cache_only(self) -> Iterator[Self]:
         """Serve only from the response cache for the current execution context.
 
         A request the cache cannot serve - a miss, an expired entry, a non-GET,

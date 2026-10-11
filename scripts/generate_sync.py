@@ -25,7 +25,11 @@ REPR_RENAMES inside a ``__repr__``. Docstrings get NAME_MAP on whole words,
 their code samples are rewritten to sync syntax, and a few fixed phrases are
 reworded (DOC_CODE_REWRITES, DOC_PROSE_REWRITES). A docstring that still
 mentions ``async def``, ``async with``, ``async for``, ``await`` or an async
-name after that is an error: word it so it holds for both clients.
+name after that is an error: word it so it holds for both clients. Where the
+clients need different prose, follow the docstring with an ASYNC directive
+whose else branch is a single string: the sync code gets that string as its
+docstring instead, reworded and checked the same way. Such a directive
+anywhere else is an error.
 """
 
 from __future__ import annotations
@@ -232,6 +236,28 @@ def _sync_docstring(doc: str) -> str:
     for old, new in DOC_PROSE_REWRITES:
         text = text.replace(old, new)
     return _rename_words(text)
+
+
+def _docstring_of(statement: ast.AST) -> ast.Constant | None:
+    """Return the string constant if *statement* is a bare string expression."""
+    if (
+        isinstance(statement, ast.Expr)
+        and isinstance(statement.value, ast.Constant)
+        and isinstance(statement.value.value, str)
+    ):
+        return statement.value
+    return None
+
+
+def _replacement_docstring_of(statement: ast.AST) -> ast.Constant | None:
+    """Return the sync docstring if *statement* is an ASYNC directive holding one.
+
+    That is a directive whose else branch is a single string expression.
+    """
+    if not (isinstance(statement, ast.If) and _is_async_branch(statement)):
+        return None
+    branch = [s for s in statement.orelse if not isinstance(s, ast_comments.Comment)]
+    return _docstring_of(branch[0]) if len(branch) == 1 else None
 
 
 def _lazy_model_of(node: ast.ClassDef) -> str | None:
@@ -467,25 +493,30 @@ class AsyncToSyncTransformer(ast.NodeTransformer):
     def _sync_docstring_of(
         self, node: ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef
     ) -> None:
-        first = next(
-            (s for s in node.body if not isinstance(s, ast_comments.Comment)), None
-        )
-        if not (
-            isinstance(first, ast.Expr)
-            and isinstance(first.value, ast.Constant)
-            and isinstance(first.value.value, str)
-        ):
+        statements = [s for s in node.body if not isinstance(s, ast_comments.Comment)]
+        docstring = _docstring_of(statements[0]) if statements else None
+        if docstring is None:
             return
-        doc = _sync_docstring(first.value.value)
+        source = docstring
+        if len(statements) > 1 and (
+            replacement := _replacement_docstring_of(statements[1])
+        ):
+            # The directive's else holds the sync docstring: it takes the place
+            # of the async one instead of following it as a stray string.
+            node.body.remove(statements[1])
+            source = replacement
+        text = source.value
+        assert isinstance(text, str)  # _docstring_of returns string constants only
+        doc = _sync_docstring(text)
         if leftover := _DOC_ASYNC_LEFTOVER.search(doc):
             _fail(
                 self._path,
-                first.lineno + doc.count("\n", 0, leftover.start()),
+                source.lineno + doc.count("\n", 0, leftover.start()),
                 self._scope,
                 f"docstring still reads as async ({leftover.group()!r}); "
                 "word it so that it holds for the sync client too",
             )
-        first.value.value = doc
+        docstring.value = doc
 
     def visit_Assign(self, node: ast.Assign) -> ast.Assign:
         self.generic_visit(node)
@@ -575,6 +606,17 @@ class AsyncToSyncTransformer(ast.NodeTransformer):
 
     def visit_If(self, node: ast.If) -> ast.AST | list[ast.AST]:
         if _is_async_branch(node):
+            # _sync_docstring_of consumes the directive right behind a
+            # docstring, so one reaching this point is misplaced, and splicing
+            # it would skip the rewording and the async-prose check.
+            if _replacement_docstring_of(node) is not None:
+                _fail(
+                    self._path,
+                    node.lineno,
+                    self._scope,
+                    "ASYNC directive whose else is a single string must directly "
+                    "follow a docstring, which it replaces in the sync code",
+                )
             if node.orelse:
                 # Splice in the else body, visiting each node recursively.
                 result = []
