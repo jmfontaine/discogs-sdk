@@ -25,6 +25,7 @@ from discogs_sdk import (
     DiscogsAPIError,
     DiscogsConnectionError,
     DiscogsError,
+    ForbiddenError,
     NotFoundError,
     RateLimitError,
     RequestEvent,
@@ -41,6 +42,7 @@ client = Discogs()
 #   +-- CacheMissError (cache_only() could not serve the request)
 #   +-- DiscogsAPIError (HTTP error with status code + body)
 #       +-- AuthenticationError (401)
+#       +-- ForbiddenError (403)
 #       +-- NotFoundError (404)
 #       +-- ValidationError (422)
 #       +-- RateLimitError (429)
@@ -53,17 +55,22 @@ except NotFoundError:
     print("Release not found")
 except AuthenticationError:
     print("Invalid or missing credentials")
+except ForbiddenError:
+    print("Authenticated, but not allowed to access this resource")
 except RateLimitError as exc:
-    # The SDK retries 429s automatically (up to max_retries), but if
-    # retries are exhausted this exception is raised. The 429's own
-    # X-Discogs-Ratelimit* headers ride along when Discogs sends them.
+    # Reads (GET) are retried automatically, up to max_retries, and this is
+    # raised once retries are exhausted, or at once when Retry-After asks
+    # for more than 60 seconds. A mutation (POST, PUT, DELETE) is never
+    # retried after a status code, so it raises on the first 429.
+    # The 429's own X-Discogs-Ratelimit* headers ride along when Discogs
+    # sends them.
     print(f"Rate limited.  Retry after: {exc.retry_after}")
     if exc.ratelimit:
         print(f"  {exc.ratelimit.used}/{exc.ratelimit.limit} used this window")
 except ValidationError as exc:
     print(f"Invalid request: {exc.status_code}: {exc.response_body}")
 except DiscogsAPIError as exc:
-    # Any other HTTP error (500, 502, 503, etc.)
+    # Any other HTTP error status (400, 500, 502, 503, etc.)
     print(f"API error {exc.status_code}: {exc.response_body}")
 except DiscogsConnectionError:
     print("Network error — check your connection")
@@ -72,8 +79,12 @@ except DiscogsError:
 
 
 # ━━ Retry behavior ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# The SDK automatically retries on: 429, 500, 502, 503, 504.
-# It also retries on connection errors and timeouts.
+# Reads (GET) are retried on 429, 500, 502, 503 and 504, and on network
+# errors, timeouts and dropped connections.
+# Mutations (POST, PUT, DELETE) are retried only when the failure proves
+# the request never reached the server: a connect error, or a connect or
+# pool timeout. They are never retried after a status code or a read
+# timeout, since the change may already have been applied.
 # Default: 3 retries with exponential backoff (2^attempt + jitter).
 # The Retry-After header is respected when present.
 client = Discogs(
