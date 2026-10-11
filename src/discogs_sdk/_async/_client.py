@@ -133,7 +133,10 @@ class AsyncDiscogs(BaseClient):
             cache_ttl: Cache time-to-live in seconds (default 1 hour).
                 Ignored when *cache* is a ``ResponseCache`` instance or ``False``.
             cache_dir: Directory for the cache database. When provided, uses
-                SQLite for persistence; otherwise caches in memory only.
+                SQLite for persistence; otherwise caches in memory only. The
+                directory and database are created and opened by the first
+                request that needs the cache, not here; a failure then raises
+                ``CacheError``.
                 Ignored when *cache* is a ``ResponseCache`` instance or ``False``.
             http_client: Custom ``httpx2.AsyncClient`` to use instead of creating
                 one. It keeps its transport configuration and its lifecycle:

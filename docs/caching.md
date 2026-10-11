@@ -39,11 +39,22 @@ from earlier runs. Entries still within `cache_ttl` stay, so the cache's size is
 new responses, not by a fixed count. Deleted rows free pages inside `cache.db` for reuse; the file itself does not
 shrink.
 
-The SQLite cache never fails a request. If its database is locked by another process, read-only, full or corrupt,
-it logs a warning on the `discogs_sdk` logger and carries on: a lookup counts as a miss and a store is skipped, so the
-response still reaches you. Using the cache after it has been closed raises `RuntimeError` (`clear_cache()` reports
-it as a `CacheError` chained to it, with `path` `None`). The database runs in WAL
-mode, so `cache.db-wal` and `cache.db-shm` may appear next to `cache.db`.
+The SQLite cache is opened when it is first needed, not when the client is built: constructing `Discogs(cache=True,
+cache_dir=...)` or `SQLiteCache(...)` touches no file, and a read inside `no_cache()` never opens it. The first cached
+read, `clear_cache()` or successful write (whose clear also runs inside `no_cache()`) creates the directory, vets
+`cache.db` and connects. Concurrent first requests open it once. A request on `AsyncDiscogs` opens it on a worker
+thread like every other cache lookup, while `clear_cache()` opens it on the calling thread, like the purge itself. If
+the directory cannot be created, `cache.db` is refused (see below) or SQLite cannot open it, a cached read raises
+`CacheError` before any network I/O, also inside `cache_only()`, and so does `clear_cache()`; the clear after a write
+logs it like any failed clear. `exc.path` names `cache.db`, `exc.operation` the step (`"create the cache directory"`,
+`"vet the database file"` or `"open the database"`), and `__cause__` the underlying error. The next use tries again.
+Call `SQLiteCache.open()` on a cache you build yourself to run those checks up front.
+
+Once open, the SQLite cache never fails a request. If its database is locked by another process, read-only, full or
+corrupt, it logs a warning on the `discogs_sdk` logger and carries on: a lookup counts as a miss and a store is skipped,
+so the response still reaches you. Using the cache after it has been closed raises `RuntimeError` (`clear_cache()`
+reports it as a `CacheError` chained to it, with `path` `None`). The database runs in WAL mode, so `cache.db-wal` and
+`cache.db-shm` may appear next to `cache.db`.
 
 `client.clear_cache()` purges every entry and returns `None`. A purge you ask for is the exception to the rule
 above: when the backend cannot carry it out, such as a locked or corrupt SQLite database, `clear_cache()` raises
@@ -64,7 +75,8 @@ except CacheError as exc:
 The SQLite database holds the full bodies of your private responses (identity, orders with buyer addresses,
 collection), so put `cache_dir` somewhere only you can read, such as `~/.cache/my-app`, never a shared path like
 `/tmp`. A directory the cache creates is private (`0o700`) and `cache.db` is `0o600`; on POSIX, an existing `cache.db`
-that is a symlink or belongs to another user raises `PermissionError`. Entries keep only the `Content-Type`, `ETag` and
+or sidecar that is a symlink, not a regular file, or belongs to another user is refused with `CacheError`, chained to a
+`PermissionError`, when the cache opens. Entries keep only the `Content-Type`, `ETag` and
 `Last-Modified` response headers.
 
 `client.no_cache()` bypasses the cache for the current execution context. Scopes nest, the previous state is

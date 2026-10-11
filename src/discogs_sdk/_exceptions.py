@@ -87,10 +87,13 @@ class CacheMissError(DiscogsError):
 class CacheError(DiscogsError):
     """The response cache failed an operation whose result the caller asked for.
 
-    Raised by ``clear_cache()`` when the backend could not purge its entries;
-    the entries are left as they were. ``__cause__`` holds the backend's own
-    error. Lookups and stores never raise it: a failing cache degrades to a
-    miss or a skipped store, so a request that succeeded still returns.
+    Raised by a request that needs the built-in ``SQLiteCache`` when it cannot be
+    opened (its directory cannot be created, ``cache.db`` is refused, or SQLite
+    cannot connect), and by ``clear_cache()`` when the backend could not purge
+    its entries, which are then left as they were. ``__cause__`` holds the
+    underlying error. Once open, lookups and stores never raise it: a failing
+    cache degrades to a miss or a skipped store, so a request that succeeded
+    still returns.
 
     Attributes:
         operation: What failed, such as ``"clear the cache"``; ``None`` when not

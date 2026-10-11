@@ -11,9 +11,11 @@ import sqlite3
 import stat
 import subprocess
 import sys
+import threading
 import time
 import warnings
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from unittest.mock import patch
 
@@ -111,9 +113,11 @@ class TestSQLiteCache:
         assert cache.get("GET:http://x/2") is None
         cache.close()
 
-    def test_creates_cache_dir(self, tmp_path):
+    def test_creates_cache_dir_on_first_use(self, tmp_path):
         nested = tmp_path / "a" / "b" / "c"
         cache = SQLiteCache(ttl=60, cache_dir=nested)
+        assert not (tmp_path / "a").exists()
+        cache.open()
         assert nested.is_dir()
         cache.close()
 
@@ -151,6 +155,7 @@ def _fill(cache: MemoryCache | SQLiteCache, start: int, count: int) -> None:
 
 
 def _row_count(cache: SQLiteCache) -> int:
+    cache.open()
     assert cache._db is not None
     return cache._db.execute("SELECT COUNT(*) FROM cache_entries").fetchone()[0]
 
@@ -230,6 +235,7 @@ class TestExpirySweep:
 
     def test_sweep_uses_the_expires_at_index(self, tmp_path):
         cache = SQLiteCache(ttl=60, cache_dir=tmp_path)
+        cache.open()
         assert cache._db is not None
         plan = cache._db.execute(
             f"EXPLAIN QUERY PLAN {_cache._SWEEP_SQL}", (1000.0,)
@@ -249,18 +255,80 @@ class TestExpirySweep:
         cache.close()
 
 
+class TestSQLiteCacheLazyOpen:
+    """Nothing touches the disk until the cache is first used."""
+
+    def test_construction_does_no_io(self, tmp_path):
+        SQLiteCache(ttl=60, cache_dir=tmp_path / "cache").close()
+        assert not (tmp_path / "cache").exists()
+
+    def test_uncreatable_directory_raises_and_is_retried(self, tmp_path):
+        blocker = tmp_path / "file"
+        blocker.write_bytes(b"")
+        cache = SQLiteCache(ttl=60, cache_dir=blocker / "cache")
+        with pytest.raises(CacheError) as exc_info:
+            cache.get("GET:http://x/1")
+        assert exc_info.value.path == blocker / "cache" / "cache.db"
+        assert exc_info.value.operation == "create the cache directory"
+        assert isinstance(exc_info.value.__cause__, OSError)
+        # Each use tries again, so the cache works once the obstacle is gone.
+        blocker.unlink()
+        cache.set("GET:http://x/1", 200, {}, b"a")
+        assert cache.get("GET:http://x/1") == (200, {}, b"a")
+        cache.close()
+
+    def test_failed_connect_raises(self, tmp_path, monkeypatch):
+        def refuse(*args, **kwargs):
+            raise sqlite3.OperationalError("unable to open database file")
+
+        monkeypatch.setattr(sqlite3, "connect", refuse)
+        cache = SQLiteCache(ttl=60, cache_dir=tmp_path)
+        with pytest.raises(CacheError) as exc_info:
+            cache.open()
+        assert exc_info.value.path == tmp_path / "cache.db"
+        assert exc_info.value.operation == "open the database"
+        assert isinstance(exc_info.value.__cause__, sqlite3.OperationalError)
+
+    def test_concurrent_first_uses_open_once(self, tmp_path, monkeypatch):
+        connects = []
+        real_connect = sqlite3.connect
+
+        def slow_connect(*args, **kwargs):
+            connects.append(args)
+            time.sleep(0.05)  # widen the window in which a second open could start
+            return real_connect(*args, **kwargs)
+
+        monkeypatch.setattr(sqlite3, "connect", slow_connect)
+        cache = SQLiteCache(ttl=60, cache_dir=tmp_path)
+        barrier = threading.Barrier(8)
+
+        def use(i: int) -> None:
+            barrier.wait()
+            cache.set(f"GET:http://x/{i}", 200, {}, b"a")
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            list(pool.map(use, range(8)))
+        assert len(connects) == 1
+        assert _row_count(cache) == 8
+        cache.close()
+
+
 class TestSQLiteCacheClosed:
+    @pytest.mark.parametrize("opened", [False, True], ids=["unopened", "opened"])
     @pytest.mark.parametrize(
         "call",
         [
             lambda c: c.get("GET:http://x/1"),
             lambda c: c.set("GET:http://x/1", 200, {}, b"a"),
             lambda c: c.clear(),
+            lambda c: c.open(),
         ],
-        ids=["get", "set", "clear"],
+        ids=["get", "set", "clear", "open"],
     )
-    def test_use_after_close_raises_runtime_error(self, tmp_path, call):
+    def test_use_after_close_raises_runtime_error(self, tmp_path, call, opened):
         cache = SQLiteCache(ttl=60, cache_dir=tmp_path)
+        if opened:
+            cache.open()
         cache.close()
         with pytest.raises(RuntimeError, match="closed"):
             call(cache)
@@ -361,6 +429,7 @@ class TestSQLiteCacheErrors:
 class TestSQLiteCachePragmas:
     def test_uses_wal_and_normal_synchronous(self, tmp_path):
         cache = SQLiteCache(ttl=60, cache_dir=tmp_path)
+        cache.open()
         assert cache._db is not None
         assert cache._db.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
         assert cache._db.execute("PRAGMA synchronous").fetchone()[0] == 1
@@ -373,6 +442,7 @@ class TestSQLiteCachePragmas:
         caplog.set_level(logging.WARNING, logger="discogs_sdk")
         with exclusive_lock(tmp_path):
             cache = SQLiteCache(ttl=60, cache_dir=tmp_path)
+            cache.open()
         assert "journal_mode=WAL" in caplog.text
         assert "create the cache table" in caplog.text
         # The table is created by the first operation that gets the lock.
@@ -396,6 +466,7 @@ class TestSQLiteCachePragmas:
         )
         caplog.set_level(logging.WARNING, logger="discogs_sdk")
         cache = SQLiteCache(ttl=60, cache_dir=tmp_path)
+        cache.open()
         assert "mode stays delete" in caplog.text
         cache.set("GET:http://x/1", 200, {}, b"a")
         assert cache.get("GET:http://x/1") == (200, {}, b"a")
@@ -415,6 +486,22 @@ def mode_of(path) -> int:
     return stat.S_IMODE(os.lstat(path).st_mode)
 
 
+def _opened(cache_dir) -> SQLiteCache:
+    """An ``SQLiteCache`` on *cache_dir* that has already opened its database."""
+    cache = SQLiteCache(ttl=60, cache_dir=cache_dir)
+    cache.open()
+    return cache
+
+
+def _refused(cache_dir, name: str) -> None:
+    """Opening *cache_dir* fails on *name* and reports why."""
+    with pytest.raises(CacheError, match=name) as exc_info:
+        _opened(cache_dir)
+    assert exc_info.value.path == cache_dir / "cache.db"
+    assert isinstance(exc_info.value.__cause__, PermissionError)
+    assert exc_info.value.operation == "vet the database file"
+
+
 @pytest.mark.skipif(os.name != "posix", reason="POSIX file modes and ownership")
 class TestSQLiteCachePermissions:
     """The database holds private responses, so only its owner may reach it."""
@@ -422,14 +509,14 @@ class TestSQLiteCachePermissions:
     def test_created_directories_are_private_even_under_umask_0(self, tmp_path):
         nested = tmp_path / "a" / "b"
         with umask(0):
-            cache = SQLiteCache(ttl=60, cache_dir=nested)
+            cache = _opened(nested)
         assert mode_of(nested) == 0o700
         assert mode_of(tmp_path / "a") == 0o700
         cache.close()
 
     def test_existing_directory_keeps_its_mode(self, tmp_path):
         tmp_path.chmod(0o755)
-        SQLiteCache(ttl=60, cache_dir=tmp_path).close()
+        _opened(tmp_path).close()
         assert mode_of(tmp_path) == 0o755
 
     def test_new_database_is_private_even_under_umask_0(self, tmp_path):
@@ -448,20 +535,20 @@ class TestSQLiteCachePermissions:
             cache.close()
 
     def test_world_readable_database_is_tightened(self, tmp_path):
-        SQLiteCache(ttl=60, cache_dir=tmp_path).close()
+        _opened(tmp_path).close()
         (tmp_path / "cache.db").chmod(0o644)
-        cache = SQLiteCache(ttl=60, cache_dir=tmp_path)
+        cache = _opened(tmp_path)
         assert mode_of(tmp_path / "cache.db") == 0o600
         cache.set("GET:http://x/1", 200, {}, b"a")
         assert cache.get("GET:http://x/1") == (200, {}, b"a")
         cache.close()
 
     def test_world_readable_sidecar_is_tightened(self, tmp_path):
-        SQLiteCache(ttl=60, cache_dir=tmp_path).close()
+        _opened(tmp_path).close()
         wal = tmp_path / "cache.db-wal"
         wal.touch()
         wal.chmod(0o644)
-        cache = SQLiteCache(ttl=60, cache_dir=tmp_path)
+        cache = _opened(tmp_path)
         assert mode_of(wal) == 0o600
         cache.close()
 
@@ -472,8 +559,7 @@ class TestSQLiteCachePermissions:
         cache_dir = tmp_path / "cache"
         cache_dir.mkdir()
         (cache_dir / "cache.db").symlink_to(target)
-        with pytest.raises(PermissionError, match="cache.db"):
-            SQLiteCache(ttl=60, cache_dir=cache_dir)
+        _refused(cache_dir, "cache.db")
         assert target.read_bytes() == b"not yours"
         assert mode_of(target) == 0o644
 
@@ -482,10 +568,9 @@ class TestSQLiteCachePermissions:
         target.write_bytes(b"")
         target.chmod(0o644)
         cache_dir = tmp_path / "cache"
-        SQLiteCache(ttl=60, cache_dir=cache_dir).close()
+        _opened(cache_dir).close()
         (cache_dir / "cache.db-wal").symlink_to(target)
-        with pytest.raises(PermissionError, match="cache.db-wal"):
-            SQLiteCache(ttl=60, cache_dir=cache_dir)
+        _refused(cache_dir, "cache.db-wal")
         assert mode_of(target) == 0o644
 
     @pytest.mark.parametrize(
@@ -500,15 +585,13 @@ class TestSQLiteCachePermissions:
     )
     def test_database_that_is_not_a_regular_file_is_refused(self, tmp_path, make):
         make(tmp_path / "cache.db")
-        with pytest.raises(PermissionError, match="cache.db"):
-            SQLiteCache(ttl=60, cache_dir=tmp_path)
+        _refused(tmp_path, "cache.db")
 
     def test_database_owned_by_someone_else_is_refused(self, tmp_path, monkeypatch):
-        SQLiteCache(ttl=60, cache_dir=tmp_path).close()
+        _opened(tmp_path).close()
         (tmp_path / "cache.db").chmod(0o644)
         monkeypatch.setattr(os, "geteuid", lambda: os.stat(tmp_path).st_uid + 1)
-        with pytest.raises(PermissionError, match="cache.db"):
-            SQLiteCache(ttl=60, cache_dir=tmp_path)
+        _refused(tmp_path, "cache.db")
         # Someone else's file is reported, never chmodded.
         assert mode_of(tmp_path / "cache.db") == 0o644
 
@@ -517,7 +600,7 @@ class TestSQLiteCachePermissions:
         on it, so vetting must not open a database another connection uses."""
         first = SQLiteCache(ttl=60, cache_dir=tmp_path)
         first.set("GET:http://x/1", 200, {}, b"a")
-        SQLiteCache(ttl=60, cache_dir=tmp_path).close()
+        _opened(tmp_path).close()
         # A connection that closes believing it is the last one checkpoints and
         # deletes the WAL file that `first` still uses.
         script = (
@@ -536,17 +619,17 @@ class TestSQLiteCachePermissions:
     def test_a_cache_collected_unclosed_is_vetted_again(self, tmp_path):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", ResourceWarning)
-            SQLiteCache(ttl=60, cache_dir=tmp_path)  # dropped without close()
+            _opened(tmp_path)  # dropped without close()
             gc.collect()
         (tmp_path / "cache.db").chmod(0o644)
-        SQLiteCache(ttl=60, cache_dir=tmp_path).close()
+        _opened(tmp_path).close()
         assert mode_of(tmp_path / "cache.db") == 0o600
 
     @pytest.mark.skipif(
         os.name == "posix" and os.geteuid() == 0, reason="root ignores file modes"
     )
     def test_read_only_database_still_degrades(self, tmp_path, caplog):
-        SQLiteCache(ttl=60, cache_dir=tmp_path).close()
+        _opened(tmp_path).close()
         (tmp_path / "cache.db").chmod(0o400)
         caplog.set_level(logging.WARNING, logger="discogs_sdk")
         cache = SQLiteCache(ttl=60, cache_dir=tmp_path)

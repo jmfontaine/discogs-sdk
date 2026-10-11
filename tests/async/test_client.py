@@ -5,7 +5,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import sqlite3
+import time
 from unittest.mock import patch
 
 import httpx2
@@ -556,6 +558,7 @@ class TestCacheBranch:
 def _entry_count(cache: MemoryCache | SQLiteCache) -> int:
     if isinstance(cache, MemoryCache):
         return len(cache._store)
+    cache.open()
     assert cache._db is not None
     return cache._db.execute("SELECT count(*) FROM cache_entries").fetchone()[0]
 
@@ -824,6 +827,132 @@ class TestFailingSQLiteCache:
         assert [e.source for e in events] == ["network", "network"]
 
 
+def _blocked_cache_dir(tmp_path):
+    """A cache directory that cannot be created: its parent is a regular file."""
+    blocker = tmp_path / "file"
+    blocker.write_bytes(b"")
+    return blocker / "cache"
+
+
+def _seed_database(cache_dir) -> None:
+    cache = SQLiteCache(ttl=600, cache_dir=cache_dir)
+    cache.open()
+    cache.close()
+
+
+class TestLazyCacheOpen:
+    """The SQLite cache is opened by the first request that needs it, not before."""
+
+    async def test_uncreatable_cache_dir_still_builds_a_client(self, tmp_path):
+        cache_dir = _blocked_cache_dir(tmp_path)
+        client = AsyncDiscogs(token="t", cache=True, cache_dir=cache_dir)
+        await client.close()
+
+    async def test_first_cached_request_raises_naming_the_path(self, tmp_path):
+        cache_dir = _blocked_cache_dir(tmp_path)
+        with mock_router(assert_all_called=False) as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            client = AsyncDiscogs(token="t", cache=True, cache_dir=cache_dir)
+            with pytest.raises(CacheError) as exc_info:
+                await client.releases.get(352665)
+            await client.close()
+        assert exc_info.value.path == cache_dir / "cache.db"
+        assert exc_info.value.operation == "create the cache directory"
+        assert isinstance(exc_info.value.__cause__, OSError)
+        assert route.call_count == 0
+
+    async def test_no_cache_request_succeeds_with_an_unusable_cache(self, tmp_path):
+        cache_dir = _blocked_cache_dir(tmp_path)
+        with mock_router() as router:
+            router.get("/releases/352665").respond(200, json=make_release())
+            client = AsyncDiscogs(token="t", cache=True, cache_dir=cache_dir)
+            async with client.no_cache():
+                release = await client.releases.get(352665)
+            assert release.title == "The Downward Spiral"
+            await client.close()
+
+    async def test_no_cache_request_never_touches_the_path(self, tmp_path):
+        cache_dir = tmp_path / "cache"
+        with mock_router() as router:
+            router.get("/releases/352665").respond(200, json=make_release())
+            client = AsyncDiscogs(token="t", cache=True, cache_dir=cache_dir)
+            async with client.no_cache():
+                await client.releases.get(352665)
+            await client.close()
+        assert not cache_dir.exists()
+
+    @pytest.mark.skipif(os.name != "posix", reason="POSIX symlinks and ownership")
+    async def test_symlinked_database_raises(self, tmp_path):
+        target = tmp_path / "elsewhere.db"
+        target.write_bytes(b"not yours")
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        (cache_dir / "cache.db").symlink_to(target)
+        with mock_router(assert_all_called=False) as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            client = AsyncDiscogs(token="t", cache=True, cache_dir=cache_dir)
+            with pytest.raises(CacheError) as exc_info:
+                await client.releases.get(352665)
+            await client.close()
+        assert exc_info.value.path == cache_dir / "cache.db"
+        assert isinstance(exc_info.value.__cause__, PermissionError)
+        assert route.call_count == 0
+        assert target.read_bytes() == b"not yours"
+
+    @pytest.mark.skipif(os.name != "posix", reason="POSIX symlinks and ownership")
+    async def test_foreign_owned_database_raises(self, tmp_path, monkeypatch):
+        _seed_database(tmp_path)
+        monkeypatch.setattr(os, "geteuid", lambda: os.stat(tmp_path).st_uid + 1)
+        with mock_router(assert_all_called=False) as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            client = AsyncDiscogs(token="t", cache=True, cache_dir=tmp_path)
+            with pytest.raises(CacheError) as exc_info:
+                await client.releases.get(352665)
+            await client.close()
+        assert exc_info.value.path == tmp_path / "cache.db"
+        assert isinstance(exc_info.value.__cause__, PermissionError)
+        assert route.call_count == 0
+
+    async def test_concurrent_first_requests_open_the_cache_once(
+        self, tmp_path, monkeypatch
+    ):
+        connects = []
+        real_connect = sqlite3.connect
+
+        def slow_connect(*args, **kwargs):
+            connects.append(args)
+            time.sleep(0.05)  # widen the window in which a second open could start
+            return real_connect(*args, **kwargs)
+
+        monkeypatch.setattr(sqlite3, "connect", slow_connect)
+        with mock_router() as router:
+            router.get(path__regex=r"^/releases/\d+$").respond(200, json=make_release())
+            client = AsyncDiscogs(token="t", cache=True, cache_dir=tmp_path)
+            await asyncio.gather(*(client.releases.get(i) for i in range(1, 9)))
+            await client.close()
+        assert len(connects) == 1
+
+    async def test_write_under_no_cache_with_an_unusable_cache_still_returns(
+        self, tmp_path, caplog
+    ):
+        cache_dir = _blocked_cache_dir(tmp_path)
+        caplog.set_level(logging.WARNING, logger="discogs_sdk")
+        with mock_router() as router:
+            router.post(_FOLDER).mock(return_value=_folder("After update"))
+            client = AsyncDiscogs(token="t", cache=True, cache_dir=cache_dir)
+            async with client.no_cache():
+                folder = await client.users.get(
+                    "trent_reznor"
+                ).collection.folders.update(1, name="After update")
+            assert folder.name == "After update"
+            await client.close()
+        assert any(
+            r.levelno == logging.WARNING
+            and "create the cache directory" in r.getMessage()
+            for r in caplog.records
+        )
+
+
 class TestOAuthInSend:
     async def test_oauth_headers_injected(self):
         with mock_router() as router:
@@ -897,8 +1026,11 @@ class TestCacheOwnership:
         client = AsyncDiscogs(token="t", cache=True, cache_dir=tmp_path)
         cache = client._cache
         assert isinstance(cache, SQLiteCache)
+        cache.open()
         await client.close()
         assert cache._db is None
+        with pytest.raises(RuntimeError, match="closed"):
+            cache.get("k")
 
     async def test_injected_cache_is_never_closed(self):
         cache = RecordingCache()
@@ -912,10 +1044,13 @@ class TestCacheOwnership:
         client = AsyncDiscogs(token="t", cache=True, cache_dir=tmp_path)
         cache = client._cache
         assert isinstance(cache, SQLiteCache)
+        cache.open()
         monkeypatch.setattr(client._http_client, "aclose", _cancelled)
         with pytest.raises(asyncio.CancelledError):
             await client.close()
         assert cache._db is None
+        with pytest.raises(RuntimeError, match="closed"):
+            cache.get("k")
         monkeypatch.undo()
         await client._http_client.aclose()
 

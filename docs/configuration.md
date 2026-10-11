@@ -7,7 +7,7 @@ Every parameter of `Discogs` and `AsyncDiscogs`, all keyword-only:
 | `access_token_secret` | `None` | OAuth access token secret |
 | `access_token` | `None` | OAuth access token |
 | `base_url` | `https://api.discogs.com` | API base URL; pagination `next` links are rebased onto it, and a link to any origin other than it or `https://api.discogs.com` raises `DiscogsError` |
-| `cache_dir` | `None` | Directory for SQLite cache; in-memory when omitted. Used only with `cache=True` |
+| `cache_dir` | `None` | Directory for SQLite cache; in-memory when omitted. Used only with `cache=True`. Created and opened by the first request that needs the cache (see [Caching](caching.md)) |
 | `cache_ttl` | `3600.0` | Cache time-to-live in seconds. Used only with `cache=True` |
 | `cache` | `False` | `True` builds the built-in backend from `cache_dir` and `cache_ttl`; or pass a `ResponseCache` instance (see [Custom backends](caching.md#custom-backends)), which carries its own TTL and storage and is never closed by the client |
 | `consumer_key` | `None` | OAuth consumer key |

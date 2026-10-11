@@ -202,33 +202,84 @@ class MemoryCache(ResponseCache):
 class SQLiteCache(ResponseCache):
     """SQLite-backed cache using ``time.time()`` (survives process restarts).
 
+    Constructing one does no I/O. The directory is created and the database
+    vetted and opened by the first ``get``, ``set`` or ``clear``, or by
+    ``open()`` for a caller that wants any failure up front. Several threads
+    reaching that point together open it once. A failure to create the
+    directory, vet the database or connect to it raises ``CacheError`` naming
+    the path and the operation, chained to the cause, and the next use tries
+    again.
+
     The database holds private response bodies, so it is kept to the current
     user: a directory created here is ``0o700`` and ``cache.db`` is ``0o600``
     (SQLite gives its journal and WAL files the same mode). On POSIX, an existing
     ``cache.db`` or sidecar that is a symlink, not a regular file, or owned by
-    someone else raises ``PermissionError``; group or other permissions on an
-    owned one are removed.
+    someone else fails the open with ``CacheError`` chained to a
+    ``PermissionError``; group or other permissions on an owned one are removed.
 
     The database runs in WAL mode with ``synchronous=NORMAL``, so it may create
-    ``cache.db-wal`` and ``cache.db-shm`` next to ``cache.db``. A database error
-    (locked, read-only, full or corrupt) in ``get`` or ``set`` is logged as a
-    warning and never raised: ``get`` reports a miss and ``set`` skips the store.
-    ``clear`` raises ``CacheError`` instead, chained to the SQLite error, and
-    leaves the entries in place. Using the cache after ``close()`` raises
-    ``RuntimeError``.
+    ``cache.db-wal`` and ``cache.db-shm`` next to ``cache.db``. Once open, a
+    database error (locked, read-only, full or corrupt) in ``get`` or ``set`` is
+    logged as a warning and never raised: ``get`` reports a miss and ``set``
+    skips the store. ``clear`` raises ``CacheError`` instead, chained to the
+    SQLite error, and leaves the entries in place. Using the cache after
+    ``close()`` raises ``RuntimeError``.
     """
 
     def __init__(self, ttl: float, cache_dir: Path) -> None:
         super().__init__(ttl)
         self._lock = threading.Lock()
-        _make_private_dirs(cache_dir)
+        self._dir = cache_dir
         self._path = cache_dir / "cache.db"
+        self._db: sqlite3.Connection | None = None
+        self._file_id: tuple[int, int] | None = None
+        self._closed = False
+        self._table_ready = False
+        self._index_ready = False
+        self._stores = 0
+
+    def open(self) -> None:
+        """Open the database now instead of at first use; a no-op once open.
+
+        Raises:
+            CacheError: The directory could not be created, or the database
+                could not be vetted or opened.
+            RuntimeError: The cache is closed.
+        """
+        with self._lock:
+            self._connection()
+
+    def _error(self, action: str, exc: Exception) -> CacheError:
+        return CacheError(
+            f"SQLite cache {self._path}: could not {action}: {exc}",
+            operation=action,
+            path=self._path,
+        )
+
+    def _connection(self) -> sqlite3.Connection:
+        """Return the connection, opening it on first use. Needs ``self._lock``."""
+        # A real check, not an assert: ``python -O`` must not change the outcome.
+        if self._closed:
+            raise RuntimeError("SQLiteCache is closed")
+        if self._db is not None:
+            return self._db
+        try:
+            _make_private_dirs(self._dir)
+        except OSError as exc:
+            raise self._error("create the cache directory", exc) from exc
         with _OPEN_LOCK:
-            _secure_database(self._path)
-            db = sqlite3.connect(self._path, check_same_thread=False)
-            info = os.stat(self._path)
+            try:
+                _secure_database(self._path)
+                # The vetted file, which _secure_database created if missing.
+                info = os.stat(self._path)
+            except OSError as exc:
+                raise self._error("vet the database file", exc) from exc
+            try:
+                db = sqlite3.connect(self._path, check_same_thread=False)
+            except sqlite3.Error as exc:
+                raise self._error("open the database", exc) from exc
             self._file_id = (info.st_dev, info.st_ino)
-            self._db: sqlite3.Connection | None = db
+            self._db = db
             _OPEN_CACHES.add(self)
         # WAL lets readers run beside a writer, and NORMAL drops the fsync on every
         # commit. Both are optimisations: on failure the SQLite defaults stay.
@@ -244,19 +295,11 @@ class SQLiteCache(ResponseCache):
             db.execute("PRAGMA synchronous=NORMAL")
         except sqlite3.Error as exc:
             self._warn("set PRAGMA synchronous=NORMAL", exc)
-        self._table_ready = False
-        self._index_ready = False
-        self._stores = 0
         try:
             self._ensure_table(db)
         except sqlite3.Error as exc:
             self._fail(db, "create the cache table", exc)
-
-    def _require_open(self) -> sqlite3.Connection:
-        # A real check, not an assert: ``python -O`` must not change the outcome.
-        if self._db is None:
-            raise RuntimeError("SQLiteCache is closed")
-        return self._db
+        return db
 
     def _ensure_table(self, db: sqlite3.Connection) -> None:
         # Every operation retries until it lands, so a lock another process held
@@ -279,7 +322,7 @@ class SQLiteCache(ResponseCache):
         self._sweep(db)
 
     def _sweep(self, db: sqlite3.Connection) -> None:
-        """Delete every expired row. Needs the table; after ``__init__``, the lock."""
+        """Delete every expired row. Needs the table and ``self._lock``."""
         try:
             # The index lets the sweep skip the fresh rows. It is made here, not
             # with the table, so a database this process cannot write, made
@@ -314,7 +357,7 @@ class SQLiteCache(ResponseCache):
 
     def get(self, key: str) -> CacheEntry | None:
         with self._lock:
-            db = self._require_open()
+            db = self._connection()
             try:
                 self._ensure_table(db)
                 row = db.execute(
@@ -338,7 +381,7 @@ class SQLiteCache(ResponseCache):
         self, key: str, status_code: int, headers: dict[str, str], body: bytes
     ) -> None:
         with self._lock:
-            db = self._require_open()
+            db = self._connection()
             try:
                 self._ensure_table(db)
                 db.execute(
@@ -363,7 +406,7 @@ class SQLiteCache(ResponseCache):
 
     def clear(self) -> None:
         with self._lock:
-            db = self._require_open()
+            db = self._connection()
             try:
                 self._ensure_table(db)
                 db.execute("DELETE FROM cache_entries")
@@ -372,15 +415,11 @@ class SQLiteCache(ResponseCache):
                 # The caller asked for the purge, so its failure is raised, not
                 # logged; the rollback leaves every entry in place.
                 self._rollback(db)
-                action = "clear the cache"
-                raise CacheError(
-                    f"SQLite cache {self._path}: could not {action}: {exc}",
-                    operation=action,
-                    path=self._path,
-                ) from exc
+                raise self._error("clear the cache", exc) from exc
 
     def close(self) -> None:
         with self._lock:
+            self._closed = True
             if self._db is not None:
                 # Unregistered first: once the connection closes, its inode number
                 # may be reused by a new file that has to be vetted.
