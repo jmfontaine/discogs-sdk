@@ -4,13 +4,13 @@
 from __future__ import annotations
 
 from functools import cached_property
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from discogs_sdk._base_client import path_segment
 from discogs_sdk._sync._lazy import LazyResource
 from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk._sync._resource import SyncAPIResource
-from discogs_sdk.models._common import Condition, CurrencyCode
+from discogs_sdk.models._common import Condition, CurrencyCode, SleeveCondition
 from discogs_sdk.models._lazy_fields import FeeFields, ListingFields, OrderFields
 from discogs_sdk.models.marketplace import (
     Fee,
@@ -21,6 +21,8 @@ from discogs_sdk.models.marketplace import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from discogs_sdk._sync._client import Discogs
 
 
@@ -113,9 +115,32 @@ class MarketplaceOrders(SyncAPIResource):
             path="/marketplace/orders",
         )
 
-    def update(self, order_id: str, **kwargs: Any) -> Order:
+    def update(
+        self,
+        order_id: str,
+        *,
+        status: str | None = None,
+        shipping: float | None = None,
+        tracking: Mapping[str, str] | None = None,
+    ) -> Order:
+        """Change the order's *status*, *shipping* amount or *tracking*.
+
+        *tracking* holds the carrier's ``number`` and, optionally, a ``carrier``.
+        Only the fields you pass are sent, so omitting one leaves it untouched.
+        Setting *shipping* invoices the buyer and moves the order to
+        ``Invoice Sent``, which is why Discogs rejects it together with *status*.
+        """
+        body = {
+            k: v
+            for k, v in {
+                "status": status,
+                "shipping": shipping,
+                "tracking": None if tracking is None else dict(tracking),
+            }.items()
+            if v is not None
+        }
         response = self._post(
-            f"/marketplace/orders/{path_segment(order_id)}", json=kwargs
+            f"/marketplace/orders/{path_segment(order_id)}", json=body
         )
         return self._parse_response(response, Order)
 
@@ -143,21 +168,85 @@ class MarketplaceListings(SyncAPIResource):
         condition: Condition,
         price: float,
         status: str = "For Sale",
-        **kwargs: Any,
+        sleeve_condition: SleeveCondition | None = None,
+        comments: str | None = None,
+        allow_offers: bool | None = None,
+        external_id: str | None = None,
+        location: str | None = None,
+        weight: float | str | None = None,
+        format_quantity: int | str | None = None,
     ) -> ListingCreated:
-        """List *release_id* for sale and return the new listing's identity."""
+        """List *release_id* for sale and return the new listing's identity.
+
+        *status* is ``For Sale`` or ``Draft``. The optional fields are
+        *sleeve_condition*, *comments*, *allow_offers*, *external_id*,
+        *location*, *weight* (grams) and *format_quantity*; only those you pass
+        are sent. *weight* and *format_quantity* also accept ``"auto"``, which
+        has Discogs estimate them.
+        """
         body = {
             "release_id": release_id,
             "condition": condition,
             "price": price,
             "status": status,
-            **kwargs,
+            **{
+                k: v
+                for k, v in {
+                    "sleeve_condition": sleeve_condition,
+                    "comments": comments,
+                    "allow_offers": allow_offers,
+                    "external_id": external_id,
+                    "location": location,
+                    "weight": weight,
+                    "format_quantity": format_quantity,
+                }.items()
+                if v is not None
+            },
         }
         response = self._post("/marketplace/listings", json=body)
         return self._parse_response(response, ListingCreated)
 
-    def update(self, listing_id: int, **kwargs: Any) -> None:
-        self._post(f"/marketplace/listings/{path_segment(listing_id)}", json=kwargs)
+    def update(
+        self,
+        listing_id: int,
+        *,
+        release_id: int | None = None,
+        condition: Condition | None = None,
+        price: float | None = None,
+        status: str | None = None,
+        sleeve_condition: SleeveCondition | None = None,
+        comments: str | None = None,
+        allow_offers: bool | None = None,
+        external_id: str | None = None,
+        location: str | None = None,
+        weight: float | str | None = None,
+        format_quantity: int | str | None = None,
+    ) -> None:
+        """Edit the listing.
+
+        The fields are those of :meth:`create`, all optional. Only the fields
+        you pass are sent, so omitting one leaves it untouched. The API reference
+        marks *release_id*, *condition*, *price* and *status* as required on this
+        endpoint too; the SDK does not enforce that.
+        """
+        body = {
+            k: v
+            for k, v in {
+                "release_id": release_id,
+                "condition": condition,
+                "price": price,
+                "status": status,
+                "sleeve_condition": sleeve_condition,
+                "comments": comments,
+                "allow_offers": allow_offers,
+                "external_id": external_id,
+                "location": location,
+                "weight": weight,
+                "format_quantity": format_quantity,
+            }.items()
+            if v is not None
+        }
+        self._post(f"/marketplace/listings/{path_segment(listing_id)}", json=body)
 
     def delete(self, listing_id: int) -> None:
         self._delete(f"/marketplace/listings/{path_segment(listing_id)}")

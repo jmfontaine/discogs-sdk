@@ -132,7 +132,9 @@ label = client.labels.get(647)
 
 These lazy resources are read-only views: assigning to one of their attributes raises `AttributeError`, since the
 value would never reach Discogs. Where the API accepts writes, they go through a resource method such as
-`release.rating.update()` or `user.wantlist.update()`.
+`release.rating.update()` or `user.wantlist.update()`. Those methods take the fields Discogs documents as typed
+keyword parameters: an optional field you omit, or pass as `None`, is not sent, so an update leaves it unchanged, and a
+misspelled name raises `TypeError` before any request is made.
 
 Each identifier you pass (username, order id, release id and so on) is sent as a
 single, percent-encoded path segment, so a `/`, `?` or `#` in it cannot reach a

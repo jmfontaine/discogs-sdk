@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 import respx
 
@@ -22,6 +24,25 @@ from tests.conftest import (
     make_order_message,
     make_paginated_response,
 )
+
+# The body create() always sends for these tests' required arguments.
+LISTING_REQUIRED_BODY = {
+    "release_id": 352665,
+    "condition": "Mint (M)",
+    "price": 39.99,
+    "status": "For Sale",
+}
+# Every optional listing field, set to a value other than its omission.
+LISTING_OPTIONAL_FIELDS = {
+    "status": "Draft",
+    "sleeve_condition": "Near Mint (NM or M-)",
+    "comments": "Halo 8, first pressing",
+    "allow_offers": True,
+    "external_id": "NIN-HALO-8",
+    "location": "Shelf A",
+    "weight": 230.0,
+    "format_quantity": 2,
+}
 
 
 class TestMarketplaceListings:
@@ -66,6 +87,72 @@ class TestMarketplaceListings:
         )
         with pytest.raises(NotFoundError):
             await client.marketplace.listings.update(123, price=12.99)
+
+    @pytest.mark.parametrize(
+        ("fields", "body"),
+        [
+            (
+                {"release_id": 352665, "condition": "Mint (M)", "price": 39.99}
+                | LISTING_OPTIONAL_FIELDS,
+                {"release_id": 352665, "condition": "Mint (M)", "price": 39.99}
+                | LISTING_OPTIONAL_FIELDS,
+            ),
+            ({"price": 12.99}, {"price": 12.99}),
+            # A falsy value is still a value: only None is left out.
+            ({"allow_offers": False}, {"allow_offers": False}),
+        ],
+    )
+    async def test_update_sends_only_given_fields(
+        self, client, respx_mock, fields, body
+    ):
+        route = respx_mock.post("/marketplace/listings/123").mock(
+            return_value=respx.MockResponse(204)
+        )
+        await client.marketplace.listings.update(123, **fields)
+        assert json.loads(route.calls[0].request.content) == body
+
+    async def test_update_rejects_a_misspelled_field(self, client, respx_mock):
+        listings = client.marketplace.listings
+        with pytest.raises(TypeError):
+            await listings.update(123, prise=12.99)  # ty: ignore[unknown-argument]
+        assert respx_mock.calls.call_count == 0
+
+    @pytest.mark.parametrize(
+        ("fields", "body"),
+        [
+            (LISTING_OPTIONAL_FIELDS, LISTING_REQUIRED_BODY | LISTING_OPTIONAL_FIELDS),
+            ({"comments": "Halo 8"}, LISTING_REQUIRED_BODY | {"comments": "Halo 8"}),
+            (
+                {"allow_offers": False, "comments": ""},
+                LISTING_REQUIRED_BODY | {"allow_offers": False, "comments": ""},
+            ),
+            (
+                {"weight": "auto", "format_quantity": "auto"},
+                LISTING_REQUIRED_BODY | {"weight": "auto", "format_quantity": "auto"},
+            ),
+        ],
+    )
+    async def test_create_sends_only_given_fields(
+        self, client, respx_mock, fields, body
+    ):
+        route = respx_mock.post("/marketplace/listings").mock(
+            return_value=respx.MockResponse(201, json=make_listing_created())
+        )
+        await client.marketplace.listings.create(
+            release_id=352665, condition="Mint (M)", price=39.99, **fields
+        )
+        assert json.loads(route.calls[0].request.content) == body
+
+    async def test_create_rejects_a_misspelled_field(self, client, respx_mock):
+        listings = client.marketplace.listings
+        with pytest.raises(TypeError):
+            await listings.create(
+                release_id=352665,
+                condition="Mint (M)",
+                price=39.99,
+                coments="Halo 8",  # ty: ignore[unknown-argument]
+            )
+        assert respx_mock.calls.call_count == 0
 
     async def test_delete(self, client, respx_mock):
         respx_mock.delete("/marketplace/listings/123").mock(
@@ -125,6 +212,41 @@ class TestMarketplaceOrders:
         result = await client.marketplace.orders.update("1-1", status="Shipped")
         assert isinstance(result, Order)
         assert result.status == "Shipped"
+
+    @pytest.mark.parametrize(
+        ("fields", "body"),
+        [
+            (
+                {
+                    "status": "Shipped",
+                    "shipping": 5.0,
+                    "tracking": {"number": "1Z999", "carrier": "UPS"},
+                },
+                {
+                    "status": "Shipped",
+                    "shipping": 5.0,
+                    "tracking": {"number": "1Z999", "carrier": "UPS"},
+                },
+            ),
+            ({"shipping": 5.0}, {"shipping": 5.0}),
+            # A falsy value is still a value: only None is left out.
+            ({"shipping": 0.0}, {"shipping": 0.0}),
+        ],
+    )
+    async def test_update_sends_only_given_fields(
+        self, client, respx_mock, fields, body
+    ):
+        route = respx_mock.post("/marketplace/orders/1-1").mock(
+            return_value=respx.MockResponse(200, json=make_order())
+        )
+        await client.marketplace.orders.update("1-1", **fields)
+        assert json.loads(route.calls[0].request.content) == body
+
+    async def test_update_rejects_a_misspelled_field(self, client, respx_mock):
+        orders = client.marketplace.orders
+        with pytest.raises(TypeError):
+            await orders.update("1-1", statuz="Shipped")  # ty: ignore[unknown-argument]
+        assert respx_mock.calls.call_count == 0
 
 
 class TestOrderMessages:

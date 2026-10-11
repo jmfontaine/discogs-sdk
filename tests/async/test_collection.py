@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 import respx
 
@@ -199,6 +201,31 @@ class TestCollectionInstances:
         ref = folder.releases.get(400027)
         with pytest.raises(NotFoundError):
             await ref.instances.update(1, rating=4)
+
+    @pytest.mark.parametrize(
+        ("fields", "body"),
+        [
+            ({"folder_id": 2, "rating": 5}, {"folder_id": 2, "rating": 5}),
+            ({"rating": 5}, {"rating": 5}),
+            # A falsy value is still a value: only None is left out.
+            ({"rating": 0}, {"rating": 0}),
+        ],
+    )
+    async def test_update_sends_only_given_fields(
+        self, client, respx_mock, fields, body
+    ):
+        route = respx_mock.post(
+            "/users/trent_reznor/collection/folders/0/releases/400027/instances/1"
+        ).mock(return_value=respx.MockResponse(204))
+        ref = client.users.get("trent_reznor").collection.folders.get(0)
+        await ref.releases.get(400027).instances.update(1, **fields)
+        assert json.loads(route.calls[0].request.content) == body
+
+    async def test_update_rejects_a_misspelled_field(self, client, respx_mock):
+        ref = client.users.get("trent_reznor").collection.folders.get(0)
+        with pytest.raises(TypeError):
+            await ref.releases.get(400027).instances.update(1, ratings=5)  # ty: ignore[unknown-argument]
+        assert respx_mock.calls.call_count == 0
 
     async def test_delete(self, client, respx_mock):
         respx_mock.delete(

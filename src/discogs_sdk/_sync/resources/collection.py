@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import builtins
 from functools import cached_property
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from discogs_sdk._base_client import path_segment
 from discogs_sdk._sync._lazy import LazyResource
@@ -97,8 +97,23 @@ class CollectionInstances(SyncAPIResource):
     def delete(self, instance_id: int) -> None:
         self._delete(f"{self._base_path()}/{path_segment(instance_id)}")
 
-    def update(self, instance_id: int, **kwargs: Any) -> None:
-        self._post(f"{self._base_path()}/{path_segment(instance_id)}", json=kwargs)
+    def update(
+        self,
+        instance_id: int,
+        *,
+        folder_id: int | None = None,
+        rating: int | None = None,
+    ) -> None:
+        """Move the instance to *folder_id*, set its *rating*, or both.
+
+        Only the fields you pass are sent, so omitting one leaves it untouched.
+        """
+        body = {
+            k: v
+            for k, v in {"folder_id": folder_id, "rating": rating}.items()
+            if v is not None
+        }
+        self._post(f"{self._base_path()}/{path_segment(instance_id)}", json=body)
 
 
 class FolderReleaseRef:

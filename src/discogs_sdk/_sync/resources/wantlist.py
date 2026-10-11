@@ -3,8 +3,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from discogs_sdk._base_client import path_segment
 from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk._sync._resource import SyncAPIResource
@@ -42,8 +40,17 @@ class Wantlist(SyncAPIResource):
     def delete(self, release_id: int) -> None:
         self._delete(self._want_path(release_id))
 
-    def update(self, release_id: int, **kwargs: Any) -> Want:
-        response = self._post(self._want_path(release_id), json=kwargs)
+    def update(
+        self, release_id: int, *, notes: str | None = None, rating: int | None = None
+    ) -> Want:
+        """Set the *notes* or *rating* of the want for *release_id*.
+
+        Only the fields you pass are sent, so omitting one leaves it untouched.
+        """
+        body = {
+            k: v for k, v in {"notes": notes, "rating": rating}.items() if v is not None
+        }
+        response = self._post(self._want_path(release_id), json=body)
         return self._parse_response(response, Want)
 
     def _want_path(self, release_id: int) -> str:

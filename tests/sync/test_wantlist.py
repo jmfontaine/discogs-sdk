@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 import respx
 
@@ -49,6 +51,31 @@ class TestWantlistUpdate:
         result = lazy.wantlist.update(400027, rating=3)
         assert isinstance(result, Want)
         assert respx_mock.calls[0].request.method == "POST"
+
+    @pytest.mark.parametrize(
+        ("fields", "body"),
+        [
+            (
+                {"notes": "Original pressing", "rating": 4},
+                {"notes": "Original pressing", "rating": 4},
+            ),
+            ({"notes": "Original pressing"}, {"notes": "Original pressing"}),
+            # A falsy value is still a value: only None is left out.
+            ({"notes": "", "rating": 0}, {"notes": "", "rating": 0}),
+        ],
+    )
+    def test_update_sends_only_given_fields(self, client, respx_mock, fields, body):
+        route = respx_mock.post("/users/trent_reznor/wants/400027").mock(
+            return_value=respx.MockResponse(200, json=make_want())
+        )
+        client.users.get("trent_reznor").wantlist.update(400027, **fields)
+        assert json.loads(route.calls[0].request.content) == body
+
+    def test_update_rejects_a_misspelled_field(self, client, respx_mock):
+        wantlist = client.users.get("trent_reznor").wantlist
+        with pytest.raises(TypeError):
+            wantlist.update(400027, note="Original pressing")  # ty: ignore[unknown-argument]
+        assert respx_mock.calls.call_count == 0
 
 
 class TestWantlistDelete:

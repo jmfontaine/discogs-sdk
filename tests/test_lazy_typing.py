@@ -1,4 +1,4 @@
-"""The lazy proxies must carry concrete types to consumers.
+"""Consumers must get concrete types from the lazy proxies and resource methods.
 
 These run the project's type checker over short consumer snippets built from
 public imports only. They assert whether the checker accepts the snippet, never
@@ -68,6 +68,26 @@ async def async_usage(client: AsyncDiscogs) -> None:
     async for item in proxy.releases.list():
         item_title: str = item.title
         print(item_title)
+
+
+def mutation_usage(client: Discogs) -> None:
+    instances = client.users.get("trent_reznor").collection.folders.get(1).releases.get(352665).instances
+    instances.update(20, folder_id=2, rating=5)
+    client.users.get("trent_reznor").wantlist.update(352665, notes="Original pressing", rating=4)
+    client.marketplace.orders.update("12345-1", tracking={"number": "1Z999", "carrier": "UPS"})
+    created = client.marketplace.listings.create(
+        release_id=352665,
+        condition="Very Good Plus (VG+)",
+        price=25.00,
+        sleeve_condition="Generic",
+        weight="auto",
+        format_quantity="auto",
+    )
+    client.marketplace.listings.update(created.listing_id, price=22.50, allow_offers=True)
+
+
+async def async_mutation_usage(client: AsyncDiscogs) -> None:
+    await client.marketplace.orders.update("12345-1", status="Shipped")
 """
 
 INVALID_SNIPPETS = {
@@ -130,6 +150,21 @@ async def usage(client: AsyncDiscogs) -> None:
     release = await client.releases.get(352665)
     for track in release.tracklist or []:
         print(track.titel)
+""",
+    "misspelled_sync_mutation_keyword": """
+from discogs_sdk import Discogs
+
+
+def usage(client: Discogs) -> None:
+    instances = client.users.get("trent_reznor").collection.folders.get(1).releases.get(352665).instances
+    instances.update(20, ratings=5)
+""",
+    "misspelled_async_mutation_keyword": """
+from discogs_sdk import AsyncDiscogs
+
+
+async def usage(client: AsyncDiscogs) -> None:
+    await client.marketplace.orders.update("12345-1", statuz="Shipped")
 """,
 }
 
