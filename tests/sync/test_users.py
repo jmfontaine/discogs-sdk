@@ -7,13 +7,14 @@ import json
 import pytest
 import respx
 
-from discogs_sdk import Discogs, MemoryCache
+from discogs_sdk import Discogs
 from discogs_sdk.models.artist import Artist
 from discogs_sdk.models.label import Label
 from discogs_sdk.models.marketplace import Listing
 from discogs_sdk.models.release import Release
 from discogs_sdk.models.user import Identity, User
 from tests.conftest import (
+    SpyCache,
     make_artist,
     make_identity,
     make_label,
@@ -241,10 +242,10 @@ class TestUsernamePathEncoding:
 
     def test_cache_key_holds_the_encoded_url(self, respx_mock):
         respx_mock.route().respond(200, json=make_user())
-        cache = MemoryCache(ttl=600)
+        cache = SpyCache()
         client = Discogs(token="test-token", cache=cache)
         _ = client.users.get("a/b").username
         client.close()
-        [key] = cache._store
+        [key] = cache.stored_keys
         assert "/users/a%2Fb" in key
         assert "/users/a/b" not in key

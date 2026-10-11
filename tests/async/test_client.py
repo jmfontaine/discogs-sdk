@@ -22,6 +22,7 @@ from discogs_sdk import (
 from discogs_sdk._exceptions import AuthenticationError, DiscogsAPIError, NotFoundError
 from tests.conftest import (
     BASE_URL,
+    SpyCache,
     exclusive_lock,
     make_collection_folder,
     make_identity,
@@ -242,11 +243,12 @@ class TestCacheIsolation:
     async def test_cache_keys_never_contain_credentials(self):
         with mock_router() as router:
             router.get("/oauth/identity").respond(200, json=make_identity())
-            cache = MemoryCache(ttl=600)
+            cache = SpyCache()
             client = AsyncDiscogs(token="super-secret-token", cache=cache)
             await client.user.identity()
-            assert cache._store
-            assert all("super-secret-token" not in key for key in cache._store)
+            assert len(cache.stored_keys) == 1
+            keys = cache.looked_up_keys + cache.stored_keys
+            assert all("super-secret-token" not in key for key in keys)
             await client.close()
 
 
@@ -284,12 +286,14 @@ class TestCacheBranch:
     async def test_custom_cache_instance_receives_the_response(self):
         with mock_router() as router:
             route = router.get("/releases/352665").respond(200, json=make_release())
-            cache = MemoryCache(ttl=600)
+            cache = SpyCache()
             client = AsyncDiscogs(token="t", cache=cache)
             await client.releases.get(352665)
             await client.releases.get(352665)
             assert route.call_count == 1
-            assert len(cache._store) == 1
+            # One store on the miss; the repeat looked up that same key.
+            [key] = cache.stored_keys
+            assert cache.looked_up_keys == [key, key]
             await client.close()
 
     async def test_custom_subclass_of_public_response_cache_serves_repeats(self):

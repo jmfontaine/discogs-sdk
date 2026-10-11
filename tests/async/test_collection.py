@@ -236,7 +236,7 @@ class TestCollectionInstances:
         ref = folder.releases.get(400027)
         await ref.instances.delete(1)
 
-    async def test_delete_error_empty_body(self, client, respx_mock):
+    async def test_delete_error(self, client, respx_mock):
         respx_mock.delete(
             "/users/trent_reznor/collection/folders/0/releases/400027/instances/1"
         ).mock(return_value=respx.MockResponse(404, json={"message": "Not Found"}))

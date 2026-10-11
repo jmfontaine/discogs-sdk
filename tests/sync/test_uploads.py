@@ -9,7 +9,7 @@ from discogs_sdk import Discogs
 from discogs_sdk._exceptions import CacheMissError, DiscogsAPIError
 from tests.conftest import (
     BASE_URL,
-    StoreRecordingCache,
+    SpyCache,
     make_paginated_response,
     make_release,
     make_upload,
@@ -198,7 +198,7 @@ class TestUploadStatusPolling:
 
     def test_poll_stores_nothing(self, respx_mock):
         respx_mock.get("/inventory/upload/1").respond(200, json=make_upload())
-        cache = StoreRecordingCache()
+        cache = SpyCache()
         events = []
         client = Discogs(token="test-token", cache=cache, on_request=events.append)
         client.uploads.get(1).status  # noqa: B018 — triggers resolve

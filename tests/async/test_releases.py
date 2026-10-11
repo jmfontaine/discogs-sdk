@@ -96,7 +96,7 @@ class TestReleaseRating:
         lazy = client.releases.get(400027)
         await lazy.rating.delete("trent_reznor")  # should not raise
 
-    async def test_delete_rating_error_empty_body(self, client, respx_mock):
+    async def test_delete_rating_error(self, client, respx_mock):
         respx_mock.delete("/releases/400027/rating/trent_reznor").mock(
             return_value=respx.MockResponse(404, json={"message": "Not Found"})
         )

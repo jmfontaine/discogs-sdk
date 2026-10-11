@@ -153,6 +153,31 @@ class TestNonJsonFailures:
         assert exc_info.value.response_body == "slow down " * 60
 
 
+class TestNonObjectJsonFailures:
+    """A JSON error body that is not an object is kept as the raw response text."""
+
+    @pytest.mark.parametrize(
+        "raw", ['["Release not found."]', '"Release not found."'], ids=["list", "str"]
+    )
+    @pytest.mark.parametrize(
+        ("status", "error_cls"), [(404, NotFoundError), (500, DiscogsAPIError)]
+    )
+    async def test_raw_text_becomes_the_message(
+        self, client, respx_mock, raw, status, error_cls
+    ):
+        respx_mock.get("/releases/352665").respond(
+            status, content=raw.encode(), content_type="application/json"
+        )
+
+        with pytest.raises(error_cls) as exc_info:
+            await client.releases.get(352665)
+
+        assert type(exc_info.value) is error_cls
+        assert exc_info.value.status_code == status
+        assert exc_info.value.args[0] == raw
+        assert exc_info.value.response_body == raw
+
+
 class TestFailedRequestIsIdentified:
     async def test_not_found_names_method_and_url(self, client, respx_mock):
         respx_mock.get("/releases/352665").respond(

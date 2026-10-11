@@ -5,6 +5,7 @@ from __future__ import annotations
 import functools
 import gc
 import logging
+import math
 import os
 import sqlite3
 import stat
@@ -47,11 +48,15 @@ class TestMemoryCache:
         cache = MemoryCache(ttl=60)
         assert cache.get("GET:http://x/missing") is None
 
-    def test_expired_entry_returns_none(self):
-        cache = MemoryCache(ttl=0.01)
-        cache.set("GET:http://x/1", 200, {}, b"ok")
-        time.sleep(0.02)
-        assert cache.get("GET:http://x/1") is None
+    def test_entry_is_fresh_before_ttl_and_expired_at_it(self):
+        cache = MemoryCache(ttl=10)
+        with patch("discogs_sdk._cache.time.monotonic", return_value=1000.0):
+            cache.set("GET:http://x/1", 200, {}, b"ok")
+        just_before = math.nextafter(1010.0, 0)
+        with patch("discogs_sdk._cache.time.monotonic", return_value=just_before):
+            assert cache.get("GET:http://x/1") == (200, {}, b"ok")
+        with patch("discogs_sdk._cache.time.monotonic", return_value=1010.0):
+            assert cache.get("GET:http://x/1") is None
 
     def test_clear_removes_all(self):
         cache = MemoryCache(ttl=60)
@@ -86,11 +91,15 @@ class TestSQLiteCache:
         assert cache.get("GET:http://x/missing") is None
         cache.close()
 
-    def test_expired_entry_returns_none(self, tmp_path):
-        cache = SQLiteCache(ttl=0.01, cache_dir=tmp_path)
-        cache.set("GET:http://x/1", 200, {}, b"ok")
-        time.sleep(0.02)
-        assert cache.get("GET:http://x/1") is None
+    def test_entry_is_fresh_before_ttl_and_expired_at_it(self, tmp_path):
+        cache = SQLiteCache(ttl=10, cache_dir=tmp_path)
+        with patch("discogs_sdk._cache.time.time", return_value=1000.0):
+            cache.set("GET:http://x/1", 200, {}, b"ok")
+        just_before = math.nextafter(1010.0, 0)
+        with patch("discogs_sdk._cache.time.time", return_value=just_before):
+            assert cache.get("GET:http://x/1") == (200, {}, b"ok")
+        with patch("discogs_sdk._cache.time.time", return_value=1010.0):
+            assert cache.get("GET:http://x/1") is None
         cache.close()
 
     def test_clear_removes_all(self, tmp_path):
@@ -182,13 +191,14 @@ class TestExpirySweep:
     """Expired entries nobody reads again are purged every few writes."""
 
     def test_unread_expired_entries_are_dropped(self, make_cache):
-        cache = make_cache(ttl=0.01)
-        _fill(cache, 0, 150)
-        time.sleep(0.02)
-        _fill(cache, 150, 100)
-        # The sweep at the 200th write drops the first 150; at most the 100
-        # entries written after the pause remain.
-        assert _entry_count(cache) <= 100
+        cache = make_cache(ttl=10)
+        with _clock(1000.0):
+            _fill(cache, 0, 150)  # expire at 1010
+        with _clock(1015.0):
+            _fill(cache, 150, 100)
+        # The sweep at the 200th write drops the first 150; the 100 entries
+        # written at 1015 remain.
+        assert _entry_count(cache) == 100
 
     def test_fresh_entry_survives_a_sweep(self, make_cache):
         cache = make_cache(ttl=10)

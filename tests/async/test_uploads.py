@@ -10,7 +10,7 @@ from discogs_sdk._exceptions import CacheMissError, DiscogsAPIError
 from discogs_sdk.models.upload import Upload
 from tests.conftest import (
     BASE_URL,
-    StoreRecordingCache,
+    SpyCache,
     make_paginated_response,
     make_release,
     make_upload,
@@ -202,7 +202,7 @@ class TestUploadStatusPolling:
 
     async def test_poll_stores_nothing(self, respx_mock):
         respx_mock.get("/inventory/upload/1").respond(200, json=make_upload())
-        cache = StoreRecordingCache()
+        cache = SpyCache()
         events = []
         client = AsyncDiscogs(token="test-token", cache=cache, on_request=events.append)
         await client.uploads.get(1)

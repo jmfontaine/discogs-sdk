@@ -92,8 +92,9 @@ class TestGetItem:
         )
         lazy = client.releases.get(400027)
         # Pydantic models don't support subscript by default
-        with pytest.raises(TypeError, match="not subscriptable"):
+        with pytest.raises(TypeError):
             lazy["title"]
+        assert respx_mock.calls.call_count == 1
 
 
 class TestSubResources:

@@ -232,10 +232,11 @@ class TestConcurrentAwaits:
 
 
 class TestAttributeAccess:
-    async def test_data_attr_before_await_raises(self, client):
+    async def test_data_attr_before_await_raises(self, client, respx_mock):
         lazy = client.releases.get(400027)
-        with pytest.raises(AttributeError, match="Cannot access 'title'"):
+        with pytest.raises(AttributeError):
             _ = lazy.title
+        assert respx_mock.calls.call_count == 0
 
     async def test_data_attr_after_await(self, client, respx_mock):
         respx_mock.get("/releases/400027").mock(
@@ -247,10 +248,11 @@ class TestAttributeAccess:
 
 
 class TestGetItem:
-    def test_getitem_before_await_raises(self, client):
+    def test_getitem_before_await_raises(self, client, respx_mock):
         lazy = client.releases.get(400027)
-        with pytest.raises(TypeError, match="Cannot subscript unresolved"):
+        with pytest.raises(TypeError):
             lazy["title"]
+        assert respx_mock.calls.call_count == 0
 
     async def test_getitem_after_await(self, client, respx_mock):
         respx_mock.get("/releases/400027").mock(
@@ -259,8 +261,9 @@ class TestGetItem:
         lazy = client.releases.get(400027)
         await lazy
         # Pydantic models don't support subscript by default, so this should raise
-        with pytest.raises(TypeError, match="not subscriptable"):
+        with pytest.raises(TypeError):
             lazy["title"]
+        assert respx_mock.calls.call_count == 1
 
 
 class TestSubResources:

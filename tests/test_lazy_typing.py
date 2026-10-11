@@ -1,8 +1,8 @@
 """Consumers must get concrete types from the lazy proxies and resource methods.
 
 These run the project's type checker over short consumer snippets built from
-public imports only. They assert whether the checker accepts the snippet, never
-the wording of a diagnostic.
+public imports only. They assert whether the checker accepts the snippet and, for
+a rejected one, the id of the rule it breaks, never the wording of a diagnostic.
 """
 
 from __future__ import annotations
@@ -90,43 +90,61 @@ async def async_mutation_usage(client: AsyncDiscogs) -> None:
     await client.marketplace.orders.update("12345-1", status="Shipped")
 """
 
+# Snippet name -> (ty rule the snippet must break, snippet).
 INVALID_SNIPPETS = {
-    "misspelled_sync_field": """
+    "misspelled_sync_field": (
+        "unresolved-attribute",
+        """
 from discogs_sdk import Discogs
 
 
 def usage(client: Discogs) -> None:
     print(client.releases.get(352665).titel)
 """,
-    "misspelled_subresource": """
+    ),
+    "misspelled_subresource": (
+        "unresolved-attribute",
+        """
 from discogs_sdk import Discogs
 
 
 def usage(client: Discogs) -> None:
     client.releases.get(352665).ratings
 """,
-    "wrong_argument_type": """
+    ),
+    "wrong_argument_type": (
+        "invalid-argument-type",
+        """
 from discogs_sdk import Discogs
 
 
 def usage(client: Discogs) -> None:
     client.releases.get("352665")
 """,
-    "async_field_without_await": """
+    ),
+    "async_field_without_await": (
+        "unresolved-attribute",
+        """
 from discogs_sdk import AsyncDiscogs
 
 
 def usage(client: AsyncDiscogs) -> None:
     print(client.releases.get(352665).title)
 """,
-    "average_on_user_rating": """
+    ),
+    "average_on_user_rating": (
+        "unresolved-attribute",
+        """
 from discogs_sdk import Discogs
 
 
 def usage(client: Discogs) -> None:
     print(client.releases.get(352665).rating.get("trent_reznor").rating.average)
 """,
-    "misspelled_awaited_model_field": """
+    ),
+    "misspelled_awaited_model_field": (
+        "unresolved-attribute",
+        """
 from discogs_sdk import AsyncDiscogs
 
 
@@ -134,7 +152,10 @@ async def usage(client: AsyncDiscogs) -> None:
     release = await client.releases.get(352665)
     print(release.titel)
 """,
-    "misspelled_paginated_item_field": """
+    ),
+    "misspelled_paginated_item_field": (
+        "unresolved-attribute",
+        """
 from discogs_sdk import Discogs
 
 
@@ -142,7 +163,10 @@ def usage(client: Discogs) -> None:
     for release in client.artists.get(3857).releases.list():
         print(release.titel)
 """,
-    "misspelled_embedded_list_item_field": """
+    ),
+    "misspelled_embedded_list_item_field": (
+        "unresolved-attribute",
+        """
 from discogs_sdk import AsyncDiscogs
 
 
@@ -151,7 +175,10 @@ async def usage(client: AsyncDiscogs) -> None:
     for track in release.tracklist or []:
         print(track.titel)
 """,
-    "misspelled_sync_mutation_keyword": """
+    ),
+    "misspelled_sync_mutation_keyword": (
+        "unknown-argument",
+        """
 from discogs_sdk import Discogs
 
 
@@ -159,13 +186,17 @@ def usage(client: Discogs) -> None:
     instances = client.users.get("trent_reznor").collection.folders.get(1).releases.get(352665).instances
     instances.update(20, ratings=5)
 """,
-    "misspelled_async_mutation_keyword": """
+    ),
+    "misspelled_async_mutation_keyword": (
+        "unknown-argument",
+        """
 from discogs_sdk import AsyncDiscogs
 
 
 async def usage(client: AsyncDiscogs) -> None:
     await client.marketplace.orders.update("12345-1", statuz="Shipped")
 """,
+    ),
 }
 
 
@@ -190,5 +221,7 @@ def test_supported_usage_type_checks(tmp_path):
 
 @pytest.mark.parametrize("name", sorted(INVALID_SNIPPETS))
 def test_unsupported_usage_is_rejected(tmp_path, name):
-    result = _type_check(tmp_path, INVALID_SNIPPETS[name])
+    rule, source = INVALID_SNIPPETS[name]
+    result = _type_check(tmp_path, source)
     assert result.returncode != 0, result.stdout + result.stderr
+    assert f"[{rule}]" in result.stdout, result.stdout + result.stderr

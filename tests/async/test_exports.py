@@ -16,7 +16,7 @@ from discogs_sdk._exceptions import (
 from discogs_sdk.models.export import Export
 from tests.conftest import (
     BASE_URL,
-    StoreRecordingCache,
+    SpyCache,
     make_export,
     make_paginated_response,
     make_release,
@@ -156,7 +156,7 @@ class TestExportStatusPolling:
 
     async def test_poll_stores_nothing(self, respx_mock):
         respx_mock.get("/inventory/export/1").respond(200, json=make_export())
-        cache = StoreRecordingCache()
+        cache = SpyCache()
         events = []
         client = AsyncDiscogs(token="test-token", cache=cache, on_request=events.append)
         await client.exports.get(1)

@@ -160,7 +160,7 @@ class TestMarketplaceListings:
         )
         await client.marketplace.listings.delete(123)
 
-    async def test_delete_error_empty_body(self, client, respx_mock):
+    async def test_delete_error(self, client, respx_mock):
         respx_mock.delete("/marketplace/listings/999").mock(
             return_value=respx.MockResponse(404, json={"message": "Not Found"})
         )

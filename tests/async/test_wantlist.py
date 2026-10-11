@@ -89,7 +89,7 @@ class TestWantlistDelete:
         lazy = client.users.get("trent_reznor")
         await lazy.wantlist.delete(400027)
 
-    async def test_delete_empty_body_error(self, client, respx_mock):
+    async def test_delete_error(self, client, respx_mock):
         respx_mock.delete("/users/trent_reznor/wants/999").mock(
             return_value=respx.MockResponse(404, json={"message": "Not Found"})
         )

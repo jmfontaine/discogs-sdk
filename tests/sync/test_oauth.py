@@ -22,7 +22,7 @@ from discogs_sdk._sync._oauth import (
     get_access_token,
     get_request_token,
 )
-from tests.conftest import BASE_URL, mock_router
+from tests.conftest import BASE_URL, mock_router, oauth_header_params
 
 REQUEST_TOKEN_PATH = "/oauth/request_token"
 ACCESS_TOKEN_PATH = "/oauth/access_token"
@@ -46,7 +46,7 @@ HELPERS = [
 class TestGetRequestToken:
     def test_returns_request_token(self):
         with mock_router() as router:
-            router.get("/oauth/request_token").mock(
+            route = router.get("/oauth/request_token").mock(
                 return_value=respx.MockResponse(
                     200, text="oauth_token=req-token&oauth_token_secret=req-secret"
                 )
@@ -56,10 +56,15 @@ class TestGetRequestToken:
             assert result.oauth_token == "req-token"
             assert result.oauth_token_secret == "req-secret"
             assert "oauth_token=req-token" in result.authorize_url
+        params = oauth_header_params(route.calls.last.request)
+        assert params["oauth_consumer_key"] == "ck"
+        assert params["oauth_signature_method"] == "PLAINTEXT"
+        assert params["oauth_signature"] == "cs%26"
+        assert params["oauth_callback"] == "oob"
 
     def test_custom_callback_url(self):
         with mock_router() as router:
-            router.get("/oauth/request_token").mock(
+            route = router.get("/oauth/request_token").mock(
                 return_value=respx.MockResponse(
                     200, text="oauth_token=t&oauth_token_secret=s"
                 )
@@ -68,6 +73,8 @@ class TestGetRequestToken:
                 "ck", "cs", callback_url="https://example.com/cb"
             )
             assert result.oauth_token == "t"
+        params = oauth_header_params(route.calls.last.request)
+        assert params["oauth_callback"] == "https%3A%2F%2Fexample.com%2Fcb"
 
     def test_401_raises_authentication_error(self):
         with mock_router() as router:
@@ -117,7 +124,7 @@ class TestGetRequestToken:
 class TestGetAccessToken:
     def test_returns_access_token(self):
         with mock_router() as router:
-            router.post("/oauth/access_token").mock(
+            route = router.post("/oauth/access_token").mock(
                 return_value=respx.MockResponse(
                     200,
                     text="oauth_token=access-token&oauth_token_secret=access-secret",
@@ -129,6 +136,13 @@ class TestGetAccessToken:
             assert isinstance(result, AccessToken)
             assert result.oauth_token == "access-token"
             assert result.oauth_token_secret == "access-secret"
+        params = oauth_header_params(route.calls.last.request)
+        assert params["oauth_consumer_key"] == "ck"
+        assert params["oauth_signature_method"] == "PLAINTEXT"
+        assert params["oauth_signature"] == "cs%26req-secret"
+        assert params["oauth_token"] == "req-token"
+        assert params["oauth_verifier"] == "verifier-123"
+        assert "oauth_callback" not in params
 
     def test_403_raises_forbidden_error(self):
         with mock_router() as router:

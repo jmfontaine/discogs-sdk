@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import functools
+import re
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -14,7 +15,7 @@ import respx
 from respx.mocks import Mocker
 from respx.router import MockRouter
 
-from discogs_sdk import MemoryCache
+from discogs_sdk import CacheEntry, MemoryCache
 
 BASE_URL = "https://api.discogs.com"
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
@@ -119,18 +120,30 @@ def exclusive_lock(cache_dir: Path) -> Iterator[None]:
         holder.close()
 
 
-class StoreRecordingCache(MemoryCache):
-    """A ``MemoryCache`` that records the key of every store."""
+class SpyCache(MemoryCache):
+    """A ``MemoryCache`` that records the key of every lookup and every store."""
 
     def __init__(self) -> None:
         super().__init__(ttl=600)
+        self.looked_up_keys: list[str] = []
         self.stored_keys: list[str] = []
+
+    def get(self, key: str) -> CacheEntry | None:
+        self.looked_up_keys.append(key)
+        return super().get(key)
 
     def set(
         self, key: str, status_code: int, headers: dict[str, str], body: bytes
     ) -> None:
         self.stored_keys.append(key)
         super().set(key, status_code, headers, body)
+
+
+def oauth_header_params(request) -> dict[str, str]:
+    """The ``OAuth`` parameters of ``request``'s ``Authorization``, still encoded."""
+    scheme, _, params = request.headers["Authorization"].partition(" ")
+    assert scheme == "OAuth"
+    return dict(re.findall(r'(\w+)="([^"]*)"', params))
 
 
 def make_artist(id: int = 40, name: str = "Nine Inch Nails") -> dict[str, Any]:
