@@ -14,6 +14,8 @@ import weakref
 from abc import ABC, abstractmethod
 from pathlib import Path
 
+from discogs_sdk._exceptions import CacheError
+
 logger = logging.getLogger("discogs_sdk")
 
 # Type alias for cached response tuples: (status_code, headers, body)
@@ -142,7 +144,14 @@ class ResponseCache(ABC):
 
     @abstractmethod
     def clear(self) -> None:
-        """Drop all entries."""
+        """Drop all entries, or raise if they could not all be dropped.
+
+        Raising is how a backend reports a failed purge: ``clear_cache()``
+        re-raises a ``CacheError`` as it is and wraps any other exception in
+        one, while the clear that follows a successful write logs the failure
+        and returns, since the write has already happened. ``SQLiteCache``
+        raises ``CacheError`` when its purge fails.
+        """
 
     @abstractmethod
     def close(self) -> None:
@@ -202,9 +211,11 @@ class SQLiteCache(ResponseCache):
 
     The database runs in WAL mode with ``synchronous=NORMAL``, so it may create
     ``cache.db-wal`` and ``cache.db-shm`` next to ``cache.db``. A database error
-    (locked, read-only, full or corrupt) is logged as a warning and never raised:
-    ``get`` reports a miss, ``set`` skips the store and ``clear`` leaves the
-    entries in place. Using the cache after ``close()`` raises ``RuntimeError``.
+    (locked, read-only, full or corrupt) in ``get`` or ``set`` is logged as a
+    warning and never raised: ``get`` reports a miss and ``set`` skips the store.
+    ``clear`` raises ``CacheError`` instead, chained to the SQLite error, and
+    leaves the entries in place. Using the cache after ``close()`` raises
+    ``RuntimeError``.
     """
 
     def __init__(self, ttl: float, cache_dir: Path) -> None:
@@ -292,9 +303,13 @@ class SQLiteCache(ResponseCache):
     def _fail(self, db: sqlite3.Connection, action: str, exc: sqlite3.Error) -> None:
         """Log a failed operation and end its transaction so no lock stays held."""
         self._warn(action, exc)
+        self._rollback(db)
+
+    @staticmethod
+    def _rollback(db: sqlite3.Connection) -> None:
         try:
             db.rollback()
-        except sqlite3.Error:  # pragma: no cover - the original error is logged
+        except sqlite3.Error:  # pragma: no cover - the original error is reported
             pass
 
     def get(self, key: str) -> CacheEntry | None:
@@ -354,7 +369,15 @@ class SQLiteCache(ResponseCache):
                 db.execute("DELETE FROM cache_entries")
                 db.commit()
             except sqlite3.Error as exc:
-                self._fail(db, "clear the cache", exc)
+                # The caller asked for the purge, so its failure is raised, not
+                # logged; the rollback leaves every entry in place.
+                self._rollback(db)
+                action = "clear the cache"
+                raise CacheError(
+                    f"SQLite cache {self._path}: could not {action}: {exc}",
+                    operation=action,
+                    path=self._path,
+                ) from exc
 
     def close(self) -> None:
         with self._lock:

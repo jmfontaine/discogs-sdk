@@ -20,7 +20,7 @@ from unittest.mock import patch
 import pytest
 
 import discogs_sdk
-from discogs_sdk import MemoryCache, SQLiteCache, _cache
+from discogs_sdk import CacheError, MemoryCache, SQLiteCache, _cache
 from tests.conftest import exclusive_lock
 
 
@@ -295,7 +295,7 @@ class TestSQLiteCacheClosed:
 
 
 class TestSQLiteCacheErrors:
-    """A failing database degrades to misses and skipped stores, never raises."""
+    """A failing database degrades to misses and skipped stores; ``clear`` raises."""
 
     def test_set_while_locked_skips_the_store(
         self, tmp_path, caplog, fast_sqlite_busy_timeout
@@ -329,15 +329,20 @@ class TestSQLiteCacheErrors:
         assert "database is locked" in caplog.text
         cache.close()
 
-    def test_clear_while_locked_keeps_entries(
-        self, tmp_path, caplog, fast_sqlite_busy_timeout
+    def test_clear_while_locked_raises_and_keeps_entries(
+        self, tmp_path, fast_sqlite_busy_timeout
     ):
         cache = SQLiteCache(ttl=60, cache_dir=tmp_path)
         cache.set("GET:http://x/1", 200, {}, b"a")
-        caplog.set_level(logging.WARNING, logger="discogs_sdk")
-        with exclusive_lock(tmp_path):
+        with exclusive_lock(tmp_path), pytest.raises(CacheError) as exc_info:
             cache.clear()
-        assert "database is locked" in caplog.text
+        assert exc_info.value.path == tmp_path / "cache.db"
+        assert exc_info.value.operation == "clear the cache"
+        assert "database is locked" in str(exc_info.value)
+        assert isinstance(exc_info.value.__cause__, sqlite3.OperationalError)
+        # The failed purge was rolled back, so this connection holds no lock.
+        assert cache._db is not None
+        assert not cache._db.in_transaction
         assert cache.get("GET:http://x/1") == (200, {}, b"a")
         cache.close()
 
@@ -347,7 +352,8 @@ class TestSQLiteCacheErrors:
             cache = SQLiteCache(ttl=60, cache_dir=tmp_path)
             cache.set("GET:http://x/1", 200, {}, b"a")
             assert cache.get("GET:http://x/1") is None
-            cache.clear()
+            with pytest.raises(CacheError, match="file is not a database"):
+                cache.clear()
         assert "file is not a database" in caplog.text
         cache.close()
 

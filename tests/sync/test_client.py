@@ -15,6 +15,7 @@ import discogs_sdk._sync
 from discogs_sdk import (
     AuthMode,
     CacheEntry,
+    CacheError,
     Discogs,
     MemoryCache,
     ResponseCache,
@@ -505,12 +506,15 @@ class TestCacheBranch:
             assert route.call_count == 3
             client.close()
 
-    def test_clear_cache_forces_a_refetch(self):
+    @pytest.mark.parametrize("sqlite", [False, True], ids=["memory", "sqlite"])
+    def test_clear_cache_forces_a_refetch(self, tmp_path, sqlite):
         with mock_router() as router:
             route = router.get("/releases/352665").respond(200, json=make_release())
-            client = Discogs(token="t", cache=True)
+            client = Discogs(
+                token="t", cache=True, cache_dir=tmp_path if sqlite else None
+            )
             _ = client.releases.get(352665).title
-            client.clear_cache()
+            assert client.clear_cache() is None
             _ = client.releases.get(352665).title
             assert route.call_count == 2
             client.close()
@@ -518,6 +522,41 @@ class TestCacheBranch:
     def test_clear_cache_without_cache(self):
         client = Discogs(token="t", cache=False)
         client.clear_cache()  # should not raise
+
+    def test_clear_cache_on_a_corrupt_database_raises(self, tmp_path):
+        garbage = b"this is not a database" * 64
+        (tmp_path / "cache.db").write_bytes(garbage)
+        client = Discogs(token="t", cache=True, cache_dir=tmp_path)
+        with pytest.raises(CacheError) as exc_info:
+            client.clear_cache()
+        client.close()
+        assert exc_info.value.path == tmp_path / "cache.db"
+        assert isinstance(exc_info.value.__cause__, sqlite3.DatabaseError)
+        assert (tmp_path / "cache.db").read_bytes() == garbage
+
+    def test_clear_cache_on_a_locked_database_raises(
+        self, tmp_path, fast_sqlite_busy_timeout
+    ):
+        with mock_router() as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            client = Discogs(token="t", cache=True, cache_dir=tmp_path)
+            _ = client.releases.get(352665).title
+            with exclusive_lock(tmp_path), pytest.raises(CacheError) as exc_info:
+                client.clear_cache()
+            assert exc_info.value.path == tmp_path / "cache.db"
+            assert isinstance(exc_info.value.__cause__, sqlite3.OperationalError)
+            # Nothing was purged: the entry still serves the next read.
+            _ = client.releases.get(352665).title
+            assert route.call_count == 1
+            client.close()
+
+    def test_clear_cache_wraps_a_backend_failure(self):
+        client = Discogs(token="t", cache=_ClearFails())
+        with pytest.raises(CacheError, match="cache backend is down") as exc_info:
+            client.clear_cache()
+        client.close()
+        assert exc_info.value.path is None
+        assert isinstance(exc_info.value.__cause__, RuntimeError)
 
 
 def _entry_count(cache: MemoryCache | SQLiteCache) -> int:
@@ -657,6 +696,24 @@ class TestWritesEvictTheCache:
             assert folder.name == "After update"
             client.close()
         assert "cache backend is down" in caplog.text
+
+    def test_locked_sqlite_clear_never_fails_the_write(
+        self, tmp_path, caplog, fast_sqlite_busy_timeout
+    ):
+        caplog.set_level(logging.WARNING, logger="discogs_sdk")
+        with mock_router() as router:
+            router.post(_FOLDER).mock(return_value=_folder("After update"))
+            client = Discogs(token="t", cache=True, cache_dir=tmp_path)
+            with exclusive_lock(tmp_path):
+                folder = client.users.get("trent_reznor").collection.folders.update(
+                    1, name="After update"
+                )
+            assert folder.name == "After update"
+            client.close()
+        assert any(
+            r.levelno == logging.WARNING and "database is locked" in r.getMessage()
+            for r in caplog.records
+        )
 
 
 class TestNonJsonBodiesAreNotCached:

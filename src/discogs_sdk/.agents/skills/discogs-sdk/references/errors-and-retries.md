@@ -121,6 +121,7 @@ The full exception hierarchy:
 DiscogsError
 ├── DiscogsConnectionError
 ├── CacheMissError
+├── CacheError
 └── DiscogsAPIError
     ├── AuthenticationError  (401)
     ├── ForbiddenError       (403)
@@ -151,10 +152,11 @@ stays in `exc.response_body`.
 
 Every SDK exception survives `pickle`, `copy.copy` and `copy.deepcopy` with its
 attributes (`status_code`, `response_body`, `retry_after`, `retry_after_seconds`,
-`ratelimit`, `method`, `url`, `transient`) and any notes, so an error raised in a
-`ProcessPoolExecutor` or `multiprocessing` worker reaches the parent as the same class.
-As with any pickled exception, `__cause__`, `__context__` and the traceback are not
-carried over. `retry_after_seconds` keeps the value computed when the error was raised.
+`ratelimit`, `method`, `url`, `transient`, `operation`, `path`) and any notes, so an error
+raised in a `ProcessPoolExecutor` or `multiprocessing` worker reaches the parent as the
+same class. As with any pickled exception, `__cause__`, `__context__` and the traceback
+are not carried over. `retry_after_seconds` keeps the value computed when the error was
+raised.
 
 A paginated iterator that raises keeps its place, and a page with the wrong shape raises `DiscogsError`; see
 [When a page fails](pagination.md#when-a-page-fails).

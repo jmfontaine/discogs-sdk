@@ -43,8 +43,25 @@ shrink.
 
 The SQLite cache never fails a request. If its database is locked by another process, read-only, full or corrupt,
 it logs a warning on the `discogs_sdk` logger and carries on: a lookup counts as a miss and a store is skipped, so the
-response still reaches you. Using the cache after it has been closed raises `RuntimeError`. The database runs in WAL
+response still reaches you. Using the cache after it has been closed raises `RuntimeError` (`clear_cache()` reports
+it as a `CacheError` chained to it, with `path` `None`). The database runs in WAL
 mode, so `cache.db-wal` and `cache.db-shm` may appear next to `cache.db`.
+
+`client.clear_cache()` purges every entry and returns `None`. A purge you ask for is the exception to the rule
+above: when the backend cannot carry it out, such as a locked or corrupt SQLite database, `clear_cache()` raises
+`CacheError`, chained to the backend's error, and the entries stay as they were. `exc.path` names the database file
+(`None` for a backend without one) and `exc.operation` the step that failed. The SDK never deletes or recreates the
+file for you:
+
+```python
+from discogs_sdk import CacheError, Discogs
+
+client = Discogs(cache=True)
+try:
+    client.clear_cache()
+except CacheError as exc:
+    print(f"Cache not cleared ({exc.path}): {exc.__cause__}")
+```
 
 The SQLite database holds the full bodies of your private responses (identity, orders with buyer addresses,
 collection), so put `cache_dir` somewhere only you can read, such as `~/.cache/my-app`, never a shared path like
@@ -85,7 +102,8 @@ with client.cache_only():
 
 The cache types are exported from `discogs_sdk`. To store responses elsewhere, subclass `ResponseCache` and implement
 four methods: `get(key)` returns a `CacheEntry`, the `(status_code, headers, body)` tuple, or `None` on a miss or an
-expired entry; `set(key, status_code, headers, body)` stores one; `clear()` drops every entry; `close()` releases
+expired entry; `set(key, status_code, headers, body)` stores one; `clear()` drops every entry, and raises when it
+cannot (`clear_cache()` passes a `CacheError` on and wraps any other exception in one); `close()` releases
 whatever the backend holds. The base constructor takes the `ttl` in seconds, and the backend is the one that enforces
 it. A backend must be thread-safe: so that disk I/O never blocks the event loop, `AsyncDiscogs` may call `get`, `set`
 and `clear` from worker threads, while `clear_cache()` and `close()` run on the calling thread, and concurrent requests

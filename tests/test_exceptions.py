@@ -6,6 +6,7 @@ import copy
 import pickle
 import sys
 from concurrent.futures import ProcessPoolExecutor
+from pathlib import Path
 from typing import Any, ClassVar
 
 import pytest
@@ -13,6 +14,7 @@ import pytest
 from discogs_sdk._events import RateLimit
 from discogs_sdk._exceptions import (
     AuthenticationError,
+    CacheError,
     CacheMissError,
     DiscogsAPIError,
     DiscogsConnectionError,
@@ -74,6 +76,10 @@ class TestHierarchy:
     def test_cache_miss_error_is_discogs_error(self):
         assert issubclass(CacheMissError, DiscogsError)
         assert not issubclass(CacheMissError, DiscogsAPIError)
+
+    def test_cache_error_is_discogs_error(self):
+        assert issubclass(CacheError, DiscogsError)
+        assert not issubclass(CacheError, DiscogsAPIError)
 
     def test_authentication_error(self):
         assert issubclass(AuthenticationError, DiscogsAPIError)
@@ -275,6 +281,27 @@ class TestPickleAndCopy:
         assert clone.url == CACHE_URL
         assert clone.args == (f"Not cached: GET {CACHE_URL}",)
         assert str(clone) == f"Not cached: GET {CACHE_URL}"
+
+    @ROUND_TRIPS
+    def test_cache_error(self, round_trip):
+        err = CacheError(
+            "SQLite cache /c/cache.db: could not clear the cache: database is locked",
+            operation="clear the cache",
+            path=Path("/c/cache.db"),
+        )
+        clone = round_trip(err)
+        assert type(clone) is CacheError
+        assert clone.args == err.args
+        assert clone.operation == "clear the cache"
+        assert clone.path == Path("/c/cache.db")
+
+    @ROUND_TRIPS
+    def test_cache_error_without_details(self, round_trip):
+        clone = round_trip(CacheError("backend is down"))
+        assert type(clone) is CacheError
+        assert clone.args == ("backend is down",)
+        assert clone.operation is None
+        assert clone.path is None
 
     @ROUND_TRIPS
     @pytest.mark.parametrize("cls", [DiscogsError, DiscogsConnectionError])

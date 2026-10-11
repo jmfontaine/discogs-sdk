@@ -5,6 +5,7 @@ from discogs_sdk._cache import CacheEntry, MemoryCache, ResponseCache, SQLiteCac
 from discogs_sdk._events import RateLimit, RequestEvent
 from discogs_sdk._exceptions import (
     AuthenticationError,
+    CacheError,
     CacheMissError,
     DiscogsAPIError,
     DiscogsConnectionError,
@@ -104,6 +105,7 @@ __all__ = [
     # Exceptions
     "DiscogsError",
     "CacheMissError",
+    "CacheError",
     "DiscogsConnectionError",
     "DiscogsAPIError",
     "AuthenticationError",

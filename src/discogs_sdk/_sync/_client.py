@@ -31,7 +31,7 @@ from discogs_sdk._base_client import (
 )
 from discogs_sdk._cache import MemoryCache, ResponseCache, SQLiteCache
 from discogs_sdk._events import RateLimit, RequestEvent
-from discogs_sdk._exceptions import CacheMissError
+from discogs_sdk._exceptions import CacheError, CacheMissError
 from discogs_sdk._sync.resources.artists import Artists
 from discogs_sdk._sync.resources.exports import Exports
 from discogs_sdk._sync.resources.labels import Labels
@@ -440,9 +440,25 @@ class Discogs(BaseClient):
             _CACHE_ONLY.reset(token)
 
     def clear_cache(self) -> None:
-        """Purge all cached responses. No-op when caching is disabled."""
-        if self._cache is not None:
+        """Purge all cached responses. No-op when caching is disabled.
+
+        Raises:
+            CacheError: The backend could not purge its entries, chained to its
+                own error, which is wrapped when it is not a ``CacheError``
+                already: a closed cache's ``RuntimeError`` arrives this way, with
+                ``path`` ``None``. Nothing is retried or deleted in its place.
+        """
+        if self._cache is None:
+            return
+        try:
             self._cache.clear()
+        except CacheError:
+            raise
+        except Exception as exc:  # any ResponseCache may signal failure by raising
+            raise CacheError(
+                f"Could not clear the response cache: {exc}",
+                operation="clear the cache",
+            ) from exc
 
     # --- Database ---
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from discogs_sdk._events import RateLimit
@@ -81,6 +82,37 @@ class CacheMissError(DiscogsError):
 
     def __reduce__(self) -> tuple[Any, ...]:
         return _reduce(self, (self.method, self.url), {}, ("method", "url"))
+
+
+class CacheError(DiscogsError):
+    """The response cache failed an operation whose result the caller asked for.
+
+    Raised by ``clear_cache()`` when the backend could not purge its entries;
+    the entries are left as they were. ``__cause__`` holds the backend's own
+    error. Lookups and stores never raise it: a failing cache degrades to a
+    miss or a skipped store, so a request that succeeded still returns.
+
+    Attributes:
+        operation: What failed, such as ``"clear the cache"``; ``None`` when not
+            given.
+        path: The cache database file, for a backend that has one (the built-in
+            ``SQLiteCache``); otherwise ``None``.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        operation: str | None = None,
+        path: Path | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.operation = operation
+        self.path = path
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        kwargs = {"operation": self.operation, "path": self.path}
+        return _reduce(self, (self.args[0],), kwargs, tuple(kwargs))
 
 
 class DiscogsAPIError(DiscogsError):

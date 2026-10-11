@@ -135,7 +135,7 @@ The predecessor's root is `DiscogsAPIError`, with `HTTPError`, `AuthorizationErr
 `TooManyAttemptsError` and `MalformedResponseError` beneath it. discogs-sdk's root is `DiscogsError`, and its own
 `DiscogsAPIError` covers only HTTP-status errors, with a subclass per status (`AuthenticationError`, `ForbiddenError`,
 `NotFoundError`, `ValidationError`, `RateLimitError`). Porting `except DiscogsAPIError` by name therefore misses
-`DiscogsConnectionError` and `CacheMissError`; catch `DiscogsError` for everything the SDK raises.
+`DiscogsConnectionError`, `CacheMissError` and `CacheError`; catch `DiscogsError` for everything the SDK raises.
 
 The predecessor wraps a body that is not JSON (or not UTF-8) in `MalformedResponseError`. discogs-sdk lets
 `json.JSONDecodeError` and `UnicodeDecodeError` through on a 2xx, and `pydantic.ValidationError` when the JSON does not
