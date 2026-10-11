@@ -149,7 +149,6 @@ class TestItemsPath:
             path="/users/trent_reznor/submissions",
             params={},
             model_cls=Release,
-            items_key="submissions",
             items_path=["submissions", "releases"],
         )
         results = [item async for item in page]
@@ -165,11 +164,30 @@ class TestItemsPath:
             path="/users/trent_reznor/submissions",
             params={},
             model_cls=Release,
-            items_key="submissions",
             items_path=["submissions", "releases"],
         )
         results = [item async for item in page]
         assert results == []
+
+
+class TestItemsArguments:
+    @pytest.mark.parametrize(
+        "items",
+        [
+            pytest.param(
+                {"items_key": "releases", "items_path": ["submissions", "releases"]},
+                id="both",
+            ),
+            pytest.param({}, id="neither"),
+            pytest.param({"items_path": []}, id="empty-path"),
+            pytest.param(
+                {"items_key": "releases", "items_path": []}, id="key-and-empty"
+            ),
+        ],
+    )
+    def test_requires_exactly_one(self, client, items):
+        with pytest.raises(ValueError, match="items_key.*items_path"):
+            AsyncPage(client=client, path="/releases", model_cls=Release, **items)
 
 
 class TestErrors:

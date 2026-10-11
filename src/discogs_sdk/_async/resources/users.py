@@ -68,7 +68,6 @@ class UserSubmissionArtists(AsyncAPIResource):
         params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return AsyncPage(
             client=self._client,
-            items_key="submissions",
             items_path=["submissions", "artists"],
             model_cls=Artist,
             params=params,
@@ -90,7 +89,6 @@ class UserSubmissionLabels(AsyncAPIResource):
         params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return AsyncPage(
             client=self._client,
-            items_key="submissions",
             items_path=["submissions", "labels"],
             model_cls=Label,
             params=params,
@@ -112,7 +110,6 @@ class UserSubmissions(AsyncAPIResource):
         params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return AsyncPage(
             client=self._client,
-            items_key="submissions",
             items_path=["submissions", "releases"],
             model_cls=Release,
             params=params,

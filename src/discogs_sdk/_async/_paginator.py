@@ -35,11 +35,15 @@ class AsyncPage(Generic[T]):
             "<items_key>": [...]
         }
 
-    For nested responses (e.g. submissions), set ``items_path`` to traverse
-    into the response body before extracting items::
+    Give exactly one of ``items_key`` and ``items_path``: ``items_key`` names
+    the items list at the top of the body, and ``items_path`` lists the keys
+    to traverse into a nested body (e.g. submissions), the last one naming the
+    list::
 
         {"submissions": {"releases": [...]}}
         items_path=["submissions", "releases"]
+
+    Passing both, neither, or an empty ``items_path`` raises ``ValueError``.
 
     A body of any other shape raises ``DiscogsError`` and leaves the iterator
     where it was. An absent ``pagination`` means no next page, and an absent
@@ -56,17 +60,25 @@ class AsyncPage(Generic[T]):
         client: AsyncDiscogs,
         path: str,
         model_cls: type[T],
-        items_key: str,
+        items_key: str | None = None,
         *,
         params: dict[str, Any] | None = None,
         items_path: list[str] | None = None,
     ) -> None:
+        # The flat items key is a path of one step, so one traversal serves both.
+        if items_key is not None and items_path is None:
+            self._items_path = [items_key]
+        elif items_key is None and items_path:
+            self._items_path = list(items_path)
+        else:
+            raise ValueError(
+                "pass exactly one of items_key or items_path, "
+                "and items_path must not be empty"
+            )
         self._client = client
         self._path = path
         self._params = {"page": 1, **(params or {})}
         self._model_cls = model_cls
-        self._items_key = items_key
-        self._items_path = items_path
 
         self._items: list[T] = []
         self._index = 0
@@ -105,10 +117,9 @@ class AsyncPage(Generic[T]):
         urls = self._expect('"pagination.urls"', pagination.get("urls") or {}, dict)
         next_url = urls.get("next")
 
-        # The flat items key is a path of one step. An absent key at any depth is
-        # an empty page: a page of /users/{username}/submissions can carry only
-        # some categories.
-        keys = self._items_path or [self._items_key]
+        # An absent key at any depth is an empty page: a page of
+        # /users/{username}/submissions can carry only some categories.
+        keys = self._items_path
         container: dict[str, Any] = body
         raw_items: list[Any] = []
         for depth, key in enumerate(keys, start=1):

@@ -69,7 +69,6 @@ class UserSubmissionArtists(SyncAPIResource):
         params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return SyncPage(
             client=self._client,
-            items_key="submissions",
             items_path=["submissions", "artists"],
             model_cls=Artist,
             params=params,
@@ -88,7 +87,6 @@ class UserSubmissionLabels(SyncAPIResource):
         params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return SyncPage(
             client=self._client,
-            items_key="submissions",
             items_path=["submissions", "labels"],
             model_cls=Label,
             params=params,
@@ -107,7 +105,6 @@ class UserSubmissions(SyncAPIResource):
         params = {k: v for k, v in {"page": page, "per_page": per_page}.items() if v}
         return SyncPage(
             client=self._client,
-            items_key="submissions",
             items_path=["submissions", "releases"],
             model_cls=Release,
             params=params,

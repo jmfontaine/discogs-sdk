@@ -100,46 +100,46 @@ class TestUserUpdate:
         assert payload == {"profile": ""}
 
 
+def _all_submissions() -> dict:
+    """A submissions page carrying every category, so each list must pick its own."""
+    return {
+        "pagination": {"page": 1, "pages": 1, "urls": {}},
+        "submissions": {
+            "artists": [make_artist(id=10), make_artist(id=11)],
+            "labels": [make_label(id=20), make_label(id=21)],
+            "releases": [make_release(id=1), make_release(id=2)],
+        },
+    }
+
+
 class TestUserSubmissions:
-    async def test_submissions_uses_items_path(self, client, respx_mock):
-        body = {
-            "pagination": {"page": 1, "pages": 1, "urls": {}},
-            "submissions": {"releases": [make_release(id=1), make_release(id=2)]},
-        }
+    async def test_submissions_releases(self, client, respx_mock):
         respx_mock.get("/users/trent_reznor/submissions").mock(
-            return_value=respx.MockResponse(200, json=body)
+            return_value=respx.MockResponse(200, json=_all_submissions())
         )
         lazy = client.users.get("trent_reznor")
         results = [item async for item in lazy.submissions.list()]
-        assert len(results) == 2
         assert all(isinstance(s, Release) for s in results)
+        assert [s.id for s in results] == [1, 2]
         assert results[0].year == 1994
 
     async def test_submissions_artists(self, client, respx_mock):
-        body = {
-            "pagination": {"page": 1, "pages": 1, "urls": {}},
-            "submissions": {"artists": [make_artist(id=1), make_artist(id=2)]},
-        }
         respx_mock.get("/users/trent_reznor/submissions").mock(
-            return_value=respx.MockResponse(200, json=body)
+            return_value=respx.MockResponse(200, json=_all_submissions())
         )
         lazy = client.users.get("trent_reznor")
         results = [item async for item in lazy.submissions.artists.list()]
-        assert len(results) == 2
         assert all(isinstance(a, Artist) for a in results)
+        assert [a.id for a in results] == [10, 11]
 
     async def test_submissions_labels(self, client, respx_mock):
-        body = {
-            "pagination": {"page": 1, "pages": 1, "urls": {}},
-            "submissions": {"labels": [make_label(id=1), make_label(id=2)]},
-        }
         respx_mock.get("/users/trent_reznor/submissions").mock(
-            return_value=respx.MockResponse(200, json=body)
+            return_value=respx.MockResponse(200, json=_all_submissions())
         )
         lazy = client.users.get("trent_reznor")
         results = [item async for item in lazy.submissions.labels.list()]
-        assert len(results) == 2
         assert all(isinstance(item, Label) for item in results)
+        assert [item.id for item in results] == [20, 21]
 
 
 class TestUserContributions:

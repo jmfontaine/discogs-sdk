@@ -130,11 +130,45 @@ class TestItemsPath:
             path="/users/trent_reznor/submissions",
             params={},
             model_cls=Release,
-            items_key="submissions",
             items_path=["submissions", "releases"],
         )
         results = list(page)
         assert len(results) == 2
+
+    def test_missing_items_path_key(self, client, respx_mock):
+        body = {"pagination": {"page": 1, "pages": 1, "urls": {}}}
+        respx_mock.get("/users/trent_reznor/submissions").mock(
+            return_value=respx.MockResponse(200, json=body)
+        )
+        page = SyncPage(
+            client=client,
+            path="/users/trent_reznor/submissions",
+            params={},
+            model_cls=Release,
+            items_path=["submissions", "releases"],
+        )
+        results = list(page)
+        assert results == []
+
+
+class TestItemsArguments:
+    @pytest.mark.parametrize(
+        "items",
+        [
+            pytest.param(
+                {"items_key": "releases", "items_path": ["submissions", "releases"]},
+                id="both",
+            ),
+            pytest.param({}, id="neither"),
+            pytest.param({"items_path": []}, id="empty-path"),
+            pytest.param(
+                {"items_key": "releases", "items_path": []}, id="key-and-empty"
+            ),
+        ],
+    )
+    def test_requires_exactly_one(self, client, items):
+        with pytest.raises(ValueError, match="items_key.*items_path"):
+            SyncPage(client=client, path="/releases", model_cls=Release, **items)
 
 
 class TestPaginationMetadata:
