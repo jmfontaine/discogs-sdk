@@ -1,7 +1,5 @@
 # Observability
 
-### Observability
-
 Every live response carries Discogs' `X-Discogs-Ratelimit`, `X-Discogs-Ratelimit-Used` and
 `X-Discogs-Ratelimit-Remaining` headers. `client.ratelimit` holds them as a `RateLimit(limit, used, remaining)`
 parsed from the most recent **network** response: a cache hit never touches it, and a response without the headers

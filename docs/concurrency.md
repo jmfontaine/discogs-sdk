@@ -1,7 +1,5 @@
 # Concurrency
 
-### Concurrency
-
 One client may be shared by several threads (`Discogs`) or tasks (`AsyncDiscogs`). A few things are tied to a
 context or an object rather than to the client.
 
@@ -16,6 +14,10 @@ the scope. Take a new copy for each call: one `Context` cannot run in two thread
 ```python
 import contextvars
 from concurrent.futures import ThreadPoolExecutor
+
+from discogs_sdk import Discogs
+
+client = Discogs(cache=True)
 
 
 def title(release_id):

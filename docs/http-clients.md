@@ -1,7 +1,5 @@
 # Custom HTTP clients
 
-### Custom HTTP clients
-
 An injected `http_client` must be an `httpx2` client — the SDK is built on [httpx2](https://github.com/pydantic/httpx2),
 Pydantic's maintained continuation of httpx. It owns its transport configuration and its lifecycle: `client.close()`
 never closes it. SDK credentials, User-Agent and media type are still applied per request, so they describe the request

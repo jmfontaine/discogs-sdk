@@ -1,5 +1,6 @@
 # Errors and retries
 
+## Rate limits and retries
 
 > [!NOTE]
 > Discogs allows 60 requests/minute authenticated and 25/minute unauthenticated, measured as a moving average over
@@ -20,10 +21,12 @@ Every transport failure surfaces as `DiscogsConnectionError`, chained to the und
 closed (`RemoteProtocolError`). Failures that would repeat identically — `LocalProtocolError`, `UnsupportedProtocol`,
 `ProxyError`, `DecodingError`, `TooManyRedirects` — are raised at once for every method.
 
-### Error handling
+## Error handling
 
 ```python
-from discogs_sdk import NotFoundError, RateLimitError, AuthenticationError
+from discogs_sdk import AuthenticationError, Discogs, NotFoundError, RateLimitError
+
+client = Discogs()
 
 try:
     release = client.releases.get(999999999)
@@ -98,7 +101,7 @@ non-empty `pagination.urls` that is not an object, and an items key that is not 
 array (or, for nested items, not an object on the way). An absent items key is an
 empty page.
 
-#### Exceptions outside `DiscogsError`
+### Exceptions outside `DiscogsError`
 
 Apart from the `ValueError`s that reject invalid arguments, such as incomplete
 credentials, the SDK lets three exceptions through on purpose, and
@@ -119,7 +122,7 @@ credentials, the SDK lets three exceptions through on purpose, and
   any request is sent, so there is no response to map.
 
 Transport failures are not among them: they surface as `DiscogsConnectionError`, as
-described under [Authentication](#authentication).
+described under [Rate limits and retries](#rate-limits-and-retries).
 
 Two unrelated classes are named `ValidationError`. `discogs_sdk.ValidationError` is
 the HTTP 422 `DiscogsAPIError` above and is not a `ValueError`;

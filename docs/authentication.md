@@ -1,7 +1,5 @@
 # Authentication
 
-### Authentication
-
 Set your personal access token from [your Discogs developer settings](https://www.discogs.com/settings/developers) as an environment variable:
 
 ```bash
@@ -31,7 +29,7 @@ when the client is constructed, and only that mode's credentials are used. The p
    `DISCOGS_CONSUMER_KEY`/`DISCOGS_CONSUMER_SECRET`, then unauthenticated.
 
 An explicitly selected but incomplete credential set raises `ValueError` rather than quietly falling back to a
-different account or mode. See [`examples/authentication.py`](https://github.com/jmfontaine/discogs-sdk/blob/main/examples/authentication.py) for the full OAuth flow.
+different account or mode. See [`examples/authentication.py`](../examples/authentication.py) for the full OAuth flow.
 
 > [!TIP]
 > Use a `.env` file with [python-dotenv](https://pypi.org/project/python-dotenv/) or

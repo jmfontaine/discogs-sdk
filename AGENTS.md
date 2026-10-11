@@ -189,11 +189,25 @@ Env vars: `DISCOGS_TOKEN`, `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `D
 
 ### Field Aliases
 
-Where the Discogs API uses inconsistent or cryptic field names (`uri150`, `anv`, `catno`, `extraartists`, etc.), models use clean Python names with `Field(validation_alias="api_name")`. Both names work for deserialization; attribute access uses the Python name. See the "Field naming" table in README.md.
+Where the Discogs API uses inconsistent or cryptic field names (`uri150`, `anv`, `catno`, `extraartists`, etc.), models use clean Python names with `Field(validation_alias="api_name")`. Both names work for deserialization; attribute access uses the Python name. See the "Field naming" table in `docs/models.md`.
 
 ### No Auto-Expansion of Embedded Objects
 
 Embedded objects like `SubLabel`, `ArtistCredit`, and `LabelCredit` stay minimal — they contain only what the API returns inline. They do **not** auto-fetch the full resource. This is deliberate: hidden HTTP calls are dangerous given the 60/min rate limit. Users who need the full object use `client.labels.get(sublabel.id)` explicitly, which is consistent with the SDK's lazy-loading contract (no HTTP until you ask for it).
+
+## User Docs
+
+- The user guide lives in `docs/`, one page per topic, indexed by `docs/README.md`. README.md keeps the pitch,
+  features, comparison, installation, a short quick start and a "Documentation" section linking every page
+- Pages render on GitHub as plain Markdown: CommonMark plus GitHub alerts (`> [!NOTE]`), no docs generator and no
+  generator-specific syntax. Pages link to each other relatively; README.md links to them by absolute URL
+- `tests/test_doc_links.py` checks without network I/O that every local link in README.md and `docs/` (and every
+  absolute `blob/main/` or `tree/main/` URL into this repository) names an existing file and, with a `#fragment`, an
+  existing heading. Moving a section means rewriting the links into it
+- Examples use Nine Inch Nails data and show both clients wherever their behaviour differs
+- Every Python block is executed by `tests/test_doc_examples.py`, one namespace per page; a page sets up its own
+  `client` rather than relying on one from another page
+- The vendored API reference lives in `reference/discogs_api/`, never under `docs/`
 
 ## Discogs API Documentation
 

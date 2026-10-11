@@ -1,4 +1,4 @@
-"""Find the link and image targets in a Markdown file.
+"""Find the link and image targets, and the heading anchors, in a Markdown file.
 
 Covers inline links and images (``[text](target)``, ``![alt](target)``),
 reference-style definitions (``[label]: target``, used or not) and the
@@ -9,8 +9,10 @@ what GitHub and PyPI render.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from html.parser import HTMLParser
+from itertools import pairwise
 
 from markdown_it import MarkdownIt
 
@@ -100,3 +102,28 @@ def find_links(text: str) -> list[Link]:
         line = _locate(lines, first, stop, definition["href"]) + 1
         found.append(Link(definition["href"], line))
     return sorted(found, key=lambda link: link.line)
+
+
+def find_anchors(text: str) -> set[str]:
+    """The ``#fragment`` GitHub gives each heading in *text*.
+
+    GitHub lower-cases the heading's text, drops everything but letters,
+    digits, ``_``, ``-`` and spaces, turns spaces into ``-``, and appends
+    ``-1``, ``-2``, … to repeats.
+    """
+    tokens = _PARSER.parse(text)
+    seen: dict[str, int] = {}
+    anchors: set[str] = set()
+    for heading, inline in pairwise(tokens):
+        if heading.type != "heading_open":
+            continue
+        title = "".join(
+            child.content
+            for child in inline.children or []
+            if child.type in ("text", "code_inline")
+        )
+        slug = re.sub(r"[^\w\- ]", "", title.strip().lower()).replace(" ", "-")
+        repeat = seen.get(slug, 0)
+        seen[slug] = repeat + 1
+        anchors.add(f"{slug}-{repeat}" if repeat else slug)
+    return anchors

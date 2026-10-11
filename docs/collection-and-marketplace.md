@@ -1,8 +1,13 @@
 # Collection and marketplace
 
-### Collection
+These examples need a personal token or OAuth: consumer credentials alone cannot reach user-specific resources.
+
+## Collection
 
 ```python
+from discogs_sdk import Discogs
+
+client = Discogs()  # reads DISCOGS_TOKEN from the environment
 user = client.users.get("your_username")
 
 # Folders
@@ -33,7 +38,7 @@ for want in user.wantlist.list():
     print(want.basic_information.title)
 ```
 
-### Marketplace
+## Marketplace
 
 ```python
 # Listings

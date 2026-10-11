@@ -473,10 +473,11 @@ class BaseClient:
     ) -> AuthMode:
         """Pick exactly one authentication mode and bind only that mode's credentials.
 
-        Precedence, documented in the README: an explicit personal token wins over
-        every environment credential; explicit OAuth access-token credentials select
-        OAuth; explicit consumer credentials select consumer auth without borrowing
-        environment access tokens; otherwise the environment resolves the mode.
+        Precedence, documented in docs/authentication.md: an explicit personal token
+        wins over every environment credential; explicit OAuth access-token
+        credentials select OAuth; explicit consumer credentials select consumer auth
+        without borrowing environment access tokens; otherwise the environment
+        resolves the mode.
         """
         env = os.environ.get
         self._token: str | None = None

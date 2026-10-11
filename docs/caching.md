@@ -1,6 +1,7 @@
 # Caching
 
-### Caching
+Caching is off by default. `cache=True` keeps responses in memory, or in SQLite under `cache_dir` when you give one;
+`cache_ttl` sets their lifetime in seconds (default one hour). See [Configuration](configuration.md).
 
 Only successful `GET`/`HEAD` responses are cached, and a `GET` body that is not valid JSON (a gateway's HTML page, an
 empty body) never is, so a bad response fails once instead of on every read; inventory export downloads, which are CSV,
@@ -46,9 +47,13 @@ that is a symlink or belongs to another user raises `PermissionError`. Entries k
 `client.no_cache()` bypasses the cache for the current execution context. Scopes nest, the previous state is
 restored even when the block raises, and each context carries its own scope, so leaving it in one thread or task
 never affects another (a pool worker, or a task created before the block, does not see it; see
-[Concurrency](#concurrency)):
+[Concurrency](concurrency.md)):
 
 ```python
+from discogs_sdk import Discogs
+
+client = Discogs(cache=True)  # in memory; pass cache_dir=... for SQLite
+
 with client.no_cache():
     fresh = client.releases.get(352665).title  # always hits the API
 ```
@@ -68,7 +73,7 @@ with client.cache_only():
         print(f"Not cached: {exc.method} {exc.url}")
 ```
 
-#### Custom backends
+## Custom backends
 
 The cache types are exported from `discogs_sdk`. To store responses elsewhere, subclass `ResponseCache` and implement
 four methods: `get(key)` returns a `CacheEntry`, the `(status_code, headers, body)` tuple, or `None` on a miss or an

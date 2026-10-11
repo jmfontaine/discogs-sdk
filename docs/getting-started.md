@@ -10,11 +10,15 @@ uv add discogs-sdk
 
 Requires Python 3.10+.
 
-## Quick start
+## Fetching resources
 
-### Fetching resources
+Set `DISCOGS_TOKEN` to a personal access token first ([Authentication](authentication.md) covers the other modes).
 
 ```python
+from discogs_sdk import Discogs
+
+client = Discogs()  # reads DISCOGS_TOKEN from the environment
+
 # Releases, artists, masters, labels
 release = client.releases.get(352665)
 print(release.title)  # lazy — HTTP fires here → "The Downward Spiral"
@@ -36,7 +40,7 @@ Each identifier you pass (username, order id, release id and so on) is sent as a
 single, percent-encoded path segment, so a `/`, `?` or `#` in it cannot reach a
 different endpoint. `"."` and `".."` raise `ValueError` before any request is made.
 
-### Search
+## Search
 
 ```python
 for result in client.search(query="Pretty Hate Machine", type="release", year="1989"):
@@ -44,7 +48,7 @@ for result in client.search(query="Pretty Hate Machine", type="release", year="1
     # [release] Nine Inch Nails - Pretty Hate Machine
 ```
 
-### Sub-resources
+## Sub-resources
 
 ```python
 # Community rating
@@ -60,7 +64,7 @@ for v in client.masters.get(3719).versions.list(format="Vinyl", country="US"):
     print(f"{v.title} [{v.format}]")
 ```
 
-### Async usage
+## Async usage
 
 ```python
 import asyncio

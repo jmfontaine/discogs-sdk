@@ -25,6 +25,9 @@ The Python name is the typed attribute. API names still resolve as attributes at
 checker treats them like any misspelled attribute, so read them through `getattr` where one is in play:
 
 ```python
+from discogs_sdk import Discogs
+
+client = Discogs()
 release = client.releases.get(352665)  # The Downward Spiral
 print(release.extra_artists)  # Python name, typed
 print(getattr(release, "extraartists"))  # API name, runtime only — same value
