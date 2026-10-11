@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
+from types import NoneType
+from typing import Any, NamedTuple
 from unittest.mock import patch
 
 import httpx2
@@ -17,8 +20,16 @@ from discogs_sdk._exceptions import (
     RateLimitError,
 )
 from discogs_sdk._sync._paginator import SyncPage
+from discogs_sdk.models.marketplace import Listing
 from discogs_sdk.models.release import Release
-from tests.conftest import BASE_URL, make_listing, make_paginated_response, make_release
+from discogs_sdk.models.wantlist import Want
+from tests.conftest import (
+    BASE_URL,
+    make_listing_created,
+    make_paginated_response,
+    make_release,
+    make_want,
+)
 
 
 @pytest.fixture
@@ -70,17 +81,20 @@ class TestRetryOn429:
         assert mock_sleep.call_args[0][0] == float(seconds)
 
     def test_exhausts_retries_raises_rate_limit_error(self, client, respx_mock):
-        respx_mock.get("/releases/1").mock(
+        route = respx_mock.get("/releases/1").mock(
             return_value=respx.MockResponse(
                 429, json={"message": "Rate limited"}, headers={"Retry-After": "10"}
             ),
         )
 
-        with patch("time.sleep"):
+        with patch("time.sleep") as mock_sleep:
             lazy = client.releases.get(1)
             with pytest.raises(RateLimitError) as exc_info:
                 lazy.title  # noqa: B018
             assert exc_info.value.retry_after == "10"
+
+        assert route.call_count == 4
+        assert mock_sleep.call_count == 3
 
 
 class TestRetryAfterCap:
@@ -154,16 +168,19 @@ class TestRetryOn5xx:
             assert lazy.title == "The Downward Spiral"
 
     def test_exhausts_retries_raises_api_error(self, client, respx_mock):
-        respx_mock.get("/releases/1").mock(
+        route = respx_mock.get("/releases/1").mock(
             return_value=respx.MockResponse(
                 500, json={"message": "Internal Server Error"}
             ),
         )
 
-        with patch("time.sleep"):
+        with patch("time.sleep") as mock_sleep:
             lazy = client.releases.get(1)
             with pytest.raises(DiscogsAPIError):
                 lazy.title  # noqa: B018
+
+        assert route.call_count == 4
+        assert mock_sleep.call_count == 3
 
 
 class TestRetryOnConnectionError:
@@ -201,47 +218,78 @@ class TestRetryOnConnectionError:
 
     def test_exhausts_retries_raises_connection_error(self, respx_mock):
         client = Discogs(token="test-token", max_retries=1)
-        respx_mock.get("/releases/1").mock(
+        route = respx_mock.get("/releases/1").mock(
             side_effect=httpx2.ConnectError("Connection refused")
         )
 
-        with patch("time.sleep"):
+        with patch("time.sleep") as mock_sleep:
             lazy = client.releases.get(1)
             with pytest.raises(DiscogsConnectionError, match="Connection refused"):
                 lazy.title  # noqa: B018
 
+        assert route.call_count == 2
+        assert mock_sleep.call_count == 1
+
     def test_timeout_exhausts_retries_raises_connection_error(self, respx_mock):
         client = Discogs(token="test-token", max_retries=1)
-        respx_mock.get("/releases/1").mock(
+        route = respx_mock.get("/releases/1").mock(
             side_effect=httpx2.TimeoutException("Timed out")
         )
 
-        with patch("time.sleep"):
+        with patch("time.sleep") as mock_sleep:
             lazy = client.releases.get(1)
             with pytest.raises(DiscogsConnectionError, match="Timed out"):
                 lazy.title  # noqa: B018
+
+        assert route.call_count == 2
+        assert mock_sleep.call_count == 1
 
 
 class TestMaxRetriesZero:
     def test_no_retry_on_429(self, respx_mock):
         client = Discogs(token="test-token", max_retries=0)
-        respx_mock.get("/releases/1").mock(
+        route = respx_mock.get("/releases/1").mock(
             return_value=respx.MockResponse(429, json={"message": "Rate limited"}),
         )
 
-        lazy = client.releases.get(1)
-        with pytest.raises(RateLimitError):
-            lazy.title  # noqa: B018
+        with patch("time.sleep") as mock_sleep:
+            lazy = client.releases.get(1)
+            with pytest.raises(RateLimitError):
+                lazy.title  # noqa: B018
+
+        assert route.call_count == 1
+        mock_sleep.assert_not_called()
+
+    def test_no_retry_on_5xx(self, respx_mock):
+        client = Discogs(token="test-token", max_retries=0)
+        route = respx_mock.get("/releases/1").mock(
+            return_value=respx.MockResponse(
+                503, json={"message": "Service Unavailable"}
+            ),
+        )
+
+        with patch("time.sleep") as mock_sleep:
+            lazy = client.releases.get(1)
+            with pytest.raises(DiscogsAPIError) as exc_info:
+                lazy.title  # noqa: B018
+
+        assert exc_info.value.status_code == 503
+        assert route.call_count == 1
+        mock_sleep.assert_not_called()
 
     def test_no_retry_on_connect_error(self, respx_mock):
         client = Discogs(token="test-token", max_retries=0)
-        respx_mock.get("/releases/1").mock(
+        route = respx_mock.get("/releases/1").mock(
             side_effect=httpx2.ConnectError("Connection refused")
         )
 
-        lazy = client.releases.get(1)
-        with pytest.raises(DiscogsConnectionError):
-            lazy.title  # noqa: B018
+        with patch("time.sleep") as mock_sleep:
+            lazy = client.releases.get(1)
+            with pytest.raises(DiscogsConnectionError):
+                lazy.title  # noqa: B018
+
+        assert route.call_count == 1
+        mock_sleep.assert_not_called()
 
 
 class TestRetryCoversLazy:
@@ -279,6 +327,66 @@ class TestRetryCoversPaginator:
             )
             results = list(page)
             assert len(results) == 1
+
+
+class Mutation(NamedTuple):
+    """A mutating SDK call, the route it sends to and the success it expects."""
+
+    method: str
+    path: str
+    status: int
+    body: dict[str, Any] | None
+    call: Callable[[Discogs], object]
+    model: type
+
+
+MUTATIONS = [
+    pytest.param(
+        Mutation(
+            "POST",
+            "/marketplace/listings",
+            201,
+            make_listing_created(),
+            lambda client: client.marketplace.listings.create(
+                release_id=352665, condition="Mint (M)", price=29.99
+            ),
+            Listing,
+        ),
+        id="POST",
+    ),
+    pytest.param(
+        Mutation(
+            "PUT",
+            "/users/trent_reznor/wants/352665",
+            201,
+            make_want(352665),
+            lambda client: client.users.get("trent_reznor").wantlist.create(
+                release_id=352665
+            ),
+            Want,
+        ),
+        id="PUT",
+    ),
+    pytest.param(
+        Mutation(
+            "DELETE",
+            "/marketplace/listings/1",
+            204,
+            None,
+            lambda client: client.marketplace.listings.delete(1),
+            NoneType,
+        ),
+        id="DELETE",
+    ),
+]
+# Failures that prove the request never reached the server, and failures that may
+# follow a request the server already received.
+PRE_SEND_ERRORS = [httpx2.ConnectError, httpx2.ConnectTimeout, httpx2.PoolTimeout]
+MID_SEND_ERRORS = [httpx2.WriteError, httpx2.WriteTimeout]
+
+
+def error_name(error: type[Exception]) -> str:
+    return error.__name__
 
 
 class TestWriteRetrySafety:
@@ -337,11 +445,13 @@ class TestWriteRetrySafety:
 
         assert route.call_count == 1
 
-    def test_connection_failure_before_send_is_retried(self, client, respx_mock):
+    @pytest.mark.parametrize("error", PRE_SEND_ERRORS, ids=error_name)
+    @pytest.mark.parametrize("mutation", MUTATIONS)
+    def test_failure_before_send_is_retried(self, client, respx_mock, mutation, error):
         responses = iter(
             [
-                httpx2.ConnectError("Connection refused"),
-                respx.MockResponse(201, json=make_listing()),
+                error("never sent"),
+                respx.MockResponse(mutation.status, json=mutation.body),
             ]
         )
 
@@ -351,15 +461,91 @@ class TestWriteRetrySafety:
                 raise result
             return result
 
-        route = respx_mock.post("/marketplace/listings").mock(side_effect=side_effect)
+        route = respx_mock.request(mutation.method, mutation.path).mock(
+            side_effect=side_effect
+        )
 
         with patch("time.sleep") as mock_sleep:
-            client.marketplace.listings.create(
-                release_id=352665, condition="Mint (M)", price=29.99
-            )
+            result = mutation.call(client)
 
+        assert isinstance(result, mutation.model)
         assert route.call_count == 2
         assert mock_sleep.call_count == 1
+
+    @pytest.mark.parametrize("error", PRE_SEND_ERRORS, ids=error_name)
+    @pytest.mark.parametrize("mutation", MUTATIONS)
+    def test_failure_before_send_exhausts_retries(
+        self, client, respx_mock, mutation, error
+    ):
+        original = error("never sent")
+        route = respx_mock.request(mutation.method, mutation.path).mock(
+            side_effect=original
+        )
+
+        with (
+            patch("time.sleep") as mock_sleep,
+            pytest.raises(DiscogsConnectionError) as exc_info,
+        ):
+            mutation.call(client)
+
+        assert exc_info.value.__cause__ is original
+        assert route.call_count == 4
+        assert mock_sleep.call_count == 3
+
+    @pytest.mark.parametrize("error", MID_SEND_ERRORS, ids=error_name)
+    @pytest.mark.parametrize("mutation", MUTATIONS)
+    def test_failure_while_sending_is_not_retried(
+        self, client, respx_mock, mutation, error
+    ):
+        original = error("request partly sent")
+        route = respx_mock.request(mutation.method, mutation.path).mock(
+            side_effect=original
+        )
+
+        with (
+            patch("time.sleep") as mock_sleep,
+            pytest.raises(DiscogsConnectionError) as exc_info,
+        ):
+            mutation.call(client)
+
+        assert exc_info.value.__cause__ is original
+        assert route.call_count == 1
+        mock_sleep.assert_not_called()
+
+    @pytest.mark.parametrize("mutation", MUTATIONS)
+    def test_rate_limited_mutation_is_not_replayed(self, client, respx_mock, mutation):
+        route = respx_mock.request(mutation.method, mutation.path).mock(
+            return_value=respx.MockResponse(
+                429, json={"message": "Rate limited"}, headers={"Retry-After": "10"}
+            )
+        )
+
+        with (
+            patch("time.sleep") as mock_sleep,
+            pytest.raises(RateLimitError) as exc_info,
+        ):
+            mutation.call(client)
+
+        assert exc_info.value.retry_after == "10"
+        assert route.call_count == 1
+        mock_sleep.assert_not_called()
+
+    def test_put_is_not_replayed_after_a_server_error(self, client, respx_mock):
+        route = respx_mock.put("/releases/352665/rating/trent_reznor").mock(
+            return_value=respx.MockResponse(
+                503, json={"message": "Service Unavailable"}
+            )
+        )
+
+        with (
+            patch("time.sleep") as mock_sleep,
+            pytest.raises(DiscogsAPIError) as exc_info,
+        ):
+            client.releases.get(352665).rating.update("trent_reznor", 5)
+
+        assert exc_info.value.status_code == 503
+        assert route.call_count == 1
+        mock_sleep.assert_not_called()
 
     def test_read_error_is_mapped_and_retried_for_reads(self, client, respx_mock):
         responses = iter(
@@ -407,12 +593,13 @@ class TestTransportErrorBoundary:
         route = respx_mock.get("/releases/1").mock(side_effect=original)
 
         with (
-            patch("time.sleep"),
+            patch("time.sleep") as mock_sleep,
             pytest.raises(DiscogsConnectionError) as exc_info,
         ):
             client.releases.get(1).title  # noqa: B018
 
         assert route.call_count == 3
+        assert mock_sleep.call_count == 2
         assert exc_info.value.__cause__ is original
 
     def test_dropped_keep_alive_is_retried_for_reads(self, client, respx_mock):
