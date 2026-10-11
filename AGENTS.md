@@ -329,6 +329,9 @@ page or the upload API — there is no `pip yank`), then bump the patch version 
 - CI installs with `uv sync --locked` and exports the wheel jobs' test stack with `uv export --locked`, so a
   `pyproject.toml` dependency change without `uv lock` in the same commit fails the build. Only the `lowest` job
   re-resolves, on purpose (`--resolution lowest-direct`)
+- Pushing a change under `.github/workflows/` needs the `workflow` scope on the `gh` token: agent sessions
+  push over HTTPS through `gh auth git-credential`, even though `origin` is an SSH URL, and GitHub rejects such a
+  push without that scope. `gh auth status` lists the scopes; `gh auth refresh -h github.com -s workflow` adds it
 - All public API exports go through `src/discogs_sdk/__init__.py`
 - New resources: add to `_async/resources/`, wire into `_async/_client.py`, export from `__init__.py`, then regenerate sync
 - New models: add to `models/`, export from `models/__init__.py` and `__init__.py`
