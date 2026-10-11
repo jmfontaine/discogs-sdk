@@ -265,6 +265,9 @@ page or the upload API — there is no `pip yank`), then bump the patch version 
 - `examples/` contains runnable usage examples (quickstart, auth, database, collection, marketplace, async)
 - All examples in docs, README, docstrings, and `examples/` must use Nine Inch Nails related data (artist 3857, release 352665, master 3719, label 647 Nothing Records, etc.)
 - Run `git` commands directly, never with `git -C`
+- Never commit on `main`. Work starts on a branch, named after the existing ones
+  (`fix/issue-<N>-<slug>` for an issue, otherwise `ci/`, `docs/`, … with a slug), and
+  lands through a pull request
 - `main` accepts only signed commits that GitHub verifies, and rejects force pushes and
   deletion (ruleset "Protect default branch"). GitHub's "Rebase and merge" drops commit
   signatures, so the rule blocks it: a pull request lands by fast-forwarding `main` to its
