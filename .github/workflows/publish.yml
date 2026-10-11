@@ -4,9 +4,10 @@ on:
   push:
     tags: ["v*"]
 
+# Every job gets a read-only token; the two that need more say so themselves,
+# so nothing that installs and runs third-party code holds a write scope.
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 
 jobs:
   quality:
@@ -174,6 +175,10 @@ jobs:
     runs-on: ubuntu-26.04
     needs: [quality, test, wheel, sdist]
     environment: pypi
+    permissions:
+      contents: read
+      # PyPI trusted publishing: the job mints an OIDC token for the upload.
+      id-token: write
     steps:
       - name: Download distributions
         # The exact artifacts the wheel and sdist jobs installed — never rebuilt
@@ -189,6 +194,9 @@ jobs:
     name: GitHub Release
     runs-on: ubuntu-26.04
     needs: [publish]
+    permissions:
+      # gh release create needs to write the release.
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -202,4 +210,8 @@ jobs:
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" --notes-file "${{ steps.changelog.outputs.changelog }}"
+          # Passed as variables, never expanded into the script: a tag name may
+          # contain characters the shell would interpret.
+          TAG: ${{ github.ref_name }}
+          NOTES_FILE: ${{ steps.changelog.outputs.changelog }}
+        run: gh release create "$TAG" --notes-file "$NOTES_FILE"
