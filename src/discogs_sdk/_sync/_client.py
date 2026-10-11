@@ -146,9 +146,11 @@ class Discogs(BaseClient):
                 ``"html"`` returns HTML, ``"plaintext"`` returns plain text.
             on_request: Called once per request with a ``RequestEvent``: after a
                 cache hit, or after the final network response before any error
-                is raised. Invoked synchronously from the calling task, so keep
-                it cheap and never block in it. Exceptions it raises propagate
-                unchanged.
+                is raised. Invoked synchronously in the thread or task that made
+                the request, so keep it cheap and never block in it. Concurrent
+                requests report in completion order, and from several threads
+                the callback can run in several of them at once. Exceptions it
+                raises propagate unchanged.
         """
         super().__init__(
             token=token,
@@ -407,8 +409,11 @@ class Discogs(BaseClient):
         """Bypass the response cache for the current execution context.
 
         Scopes nest, and the exact previous state is restored on exit, including
-        when the block raises. Concurrent tasks and threads each carry their own
-        state, so one task leaving a scope never re-enables another's cache.
+        when the block raises. Each thread carries its own state, so one thread
+        leaving a scope never re-enables another's cache. Work submitted to a
+        thread pool runs in the worker's own context, not the one holding the
+        scope: enter it inside the worker, or submit
+        ``contextvars.copy_context().run`` with the copy taken inside the block.
         """
         token = _CACHE_BYPASS.set(_CACHE_BYPASS.get() | {id(self)})
         try:
@@ -423,7 +428,8 @@ class Discogs(BaseClient):
         A request the cache cannot serve - a miss, an expired entry, a non-GET,
         a job status read (``exports.get()``, ``uploads.get()``), a disabled
         cache or an enclosing ``no_cache()`` - raises ``CacheMissError`` before
-        any network I/O. Scopes nest and restore exactly like ``no_cache()``.
+        any network I/O. Scopes nest and restore exactly like ``no_cache()``
+        and, like it, do not follow work submitted to other threads.
         """
         token = _CACHE_ONLY.set(_CACHE_ONLY.get() | {id(self)})
         try:

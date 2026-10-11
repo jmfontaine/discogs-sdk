@@ -367,7 +367,9 @@ class BaseClient:
 
         Only network responses carrying all three ``X-Discogs-Ratelimit*`` headers
         update it; cache hits and responses without the headers leave the last
-        known value in place.
+        known value in place. With concurrent requests it holds the value from
+        whichever response completed last, not necessarily the lowest
+        ``remaining``: a pacing hint, not a global count.
         """
         return self._ratelimit
 

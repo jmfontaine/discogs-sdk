@@ -45,6 +45,11 @@ class SyncPage(Generic[T]):
     A body of any other shape raises ``DiscogsError`` and leaves the iterator
     where it was. An absent ``pagination`` means no next page, and an absent
     items key, at any depth, is an empty page.
+
+    A page is a single-pass iterator for one consumer. Several tasks or threads
+    iterating it race on its position and can fetch and yield a page twice, and
+    an exhausted page yields nothing more; call ``.list()`` or ``search()``
+    again for each consumer and each pass.
     """
 
     def __init__(

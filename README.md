@@ -409,7 +409,9 @@ that is a symlink or belongs to another user raises `PermissionError`. Entries k
 `Last-Modified` response headers.
 
 `client.no_cache()` bypasses the cache for the current execution context. Scopes nest, the previous state is
-restored even when the block raises, and concurrent tasks or threads each carry their own state:
+restored even when the block raises, and each context carries its own scope, so leaving it in one thread or task
+never affects another (a pool worker, or a task created before the block, does not see it; see
+[Concurrency](#concurrency)):
 
 ```python
 with client.no_cache():
@@ -467,6 +469,47 @@ title = client.releases.get(352665).title  # lazy — the GET fires here
 if client.ratelimit and client.ratelimit.remaining < 10:
     time.sleep(60)
 ```
+
+### Concurrency
+
+One client may be shared by several threads (`Discogs`) or tasks (`AsyncDiscogs`). A few things are tied to a
+context or an object rather than to the client.
+
+`no_cache()` and `cache_only()` apply to the current execution context only. A task copies its context when it is
+created, so a task created before the block does not see the scope. A pool worker runs in its own context, so
+`with client.no_cache(): pool.map(...)` still serves the workers from the cache; on a free-threaded 3.14+ build, where
+a new thread starts with a copy of its creator's context, a worker spawned inside the block keeps the scope for its
+lifetime instead. Either way, enter the scope inside the worker, or run the work in a copy of the context taken inside
+the scope. Take a new copy for each call: one `Context` cannot run in two threads at once, and sharing it raises
+`RuntimeError`.
+
+```python
+import contextvars
+from concurrent.futures import ThreadPoolExecutor
+
+
+def title(release_id):
+    return client.releases.get(release_id).title
+
+
+with ThreadPoolExecutor() as pool:
+    with client.no_cache():
+        # copy_context() runs here, inside the scope
+        future = pool.submit(contextvars.copy_context().run, title, 352665)
+    print(future.result())  # The Downward Spiral, fetched from the API
+```
+
+A page returned by `.list()` or `search()` is a single-pass iterator for one consumer. Several threads or tasks
+iterating the same page race on its position and can fetch a page twice and yield its items twice, and a page that
+is exhausted yields nothing on a second pass. Call `.list()` or `search()` again for each consumer and each pass.
+
+`on_request` runs on the thread or task that made the request, once that request completes, so events arrive in
+completion order rather than start order, and with several threads the callback can run in several of them at once.
+`client.ratelimit` is the value from whichever live response completed last, not necessarily the one with the lowest
+`remaining`: under concurrency it is a hint for pacing, not a global count.
+
+The cache that `cache=True` builds locks internally. A custom `ResponseCache` shared across threads needs its own
+locking, because the client calls its methods without synchronisation.
 
 ### Custom HTTP clients
 
