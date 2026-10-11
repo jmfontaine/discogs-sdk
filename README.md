@@ -317,10 +317,12 @@ See [Authentication](#authentication) for how a credential mode is selected.
 
 ### Caching
 
-Only successful `GET`/`HEAD` responses are cached. Entries are keyed by method, fully resolved URL, the effective
-`Accept` representation, and a non-reversible digest of the selected mode's credentials, so two clients sharing one
-cache — or one SQLite directory — never serve each other's private responses, and unauthenticated traffic gets its
-own namespace. No token or secret is stored in a key.
+Only successful `GET`/`HEAD` responses are cached, and a `GET` body that is not valid JSON (a gateway's HTML page, an
+empty body) never is, so a bad response fails once instead of on every read; inventory export downloads, which are CSV,
+are cached as they are. A body that is valid JSON but the wrong shape for its model is still cached until it expires.
+Entries are keyed by method, fully resolved URL, the effective `Accept` representation, and a non-reversible digest of
+the selected mode's credentials, so two clients sharing one cache — or one SQLite directory — never serve each other's
+private responses, and unauthenticated traffic gets its own namespace. No token or secret is stored in a key.
 
 A cache built from `cache=True` belongs to the client, and `client.close()` closes it. A `ResponseCache` instance you
 pass in stays yours, like an injected `http_client`: `client.close()` never closes it, so one cache can outlive any of

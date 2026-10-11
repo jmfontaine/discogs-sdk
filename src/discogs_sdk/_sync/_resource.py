@@ -38,7 +38,9 @@ class SyncAPIResource:
         return self._request("GET", path, params=params)
 
     def _get_binary(self, path: str) -> bytes:
-        response = self._client._send("GET", self._client._build_url(path))
+        response = self._client._send(
+            "GET", self._client._build_url(path), expect_json=False
+        )
         return response.content
 
     def _post(

@@ -442,6 +442,103 @@ class TestCacheBranch:
         client.clear_cache()  # should not raise
 
 
+def _entry_count(cache: MemoryCache | SQLiteCache) -> int:
+    if isinstance(cache, MemoryCache):
+        return len(cache._store)
+    assert cache._db is not None
+    return cache._db.execute("SELECT count(*) FROM cache_entries").fetchone()[0]
+
+
+@pytest.fixture(params=["memory", "sqlite"])
+def backend(request, tmp_path):
+    cache = (
+        MemoryCache(ttl=600)
+        if request.param == "memory"
+        else SQLiteCache(ttl=600, cache_dir=tmp_path)
+    )
+    yield cache
+    cache.close()
+
+
+# A gateway error page served with a 200, as some proxies do.
+_HTML = b"<html>oops</html>"
+
+
+class TestNonJsonBodiesAreNotCached:
+    """A 2xx GET body that is not JSON would fail to parse on every cache hit."""
+
+    @pytest.mark.parametrize(
+        ("body", "content_type"),
+        [(_HTML, "text/html"), (b"", "application/json")],
+        ids=["html", "empty"],
+    )
+    def test_bad_body_is_not_stored_and_the_next_read_refetches(
+        self, backend, body, content_type
+    ):
+        events = []
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/352665").mock(
+                side_effect=[
+                    respx.MockResponse(
+                        200, content=body, headers={"Content-Type": content_type}
+                    ),
+                    respx.MockResponse(200, json=make_release()),
+                ]
+            )
+            client = Discogs(token="t", cache=backend, on_request=events.append)
+            with pytest.raises(json.JSONDecodeError):
+                client.releases.get(352665).title  # noqa: B018 — triggers resolve
+            assert events[0].stored is False
+            assert _entry_count(backend) == 0
+
+            assert client.releases.get(352665).title == "The Downward Spiral"
+            assert route.call_count == 2
+            client.close()
+
+    def test_valid_json_is_stored_and_served_from_the_cache(self, backend):
+        events = []
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            client = Discogs(token="t", cache=backend, on_request=events.append)
+            client.releases.get(352665).title  # noqa: B018 — triggers resolve
+            assert client.releases.get(352665).title == "The Downward Spiral"
+            assert route.call_count == 1
+            client.close()
+        assert [(e.stored, e.attempts) for e in events] == [(True, 1), (False, 0)]
+
+    def test_export_download_is_cached_byte_for_byte(self, backend):
+        csv = b"listing_id,artist,title\n1,Nine Inch Nails,The Downward Spiral\n"
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/inventory/export/1/download").respond(
+                200, content=csv, headers={"Content-Type": "text/csv"}
+            )
+            client = Discogs(token="t", cache=backend)
+            assert client.exports.download(1) == csv
+            assert client.exports.download(1) == csv
+            assert route.call_count == 1
+            client.close()
+
+    def test_new_client_on_the_same_directory_refetches(self, tmp_path):
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/352665").mock(
+                side_effect=[
+                    respx.MockResponse(
+                        200, content=_HTML, headers={"Content-Type": "text/html"}
+                    ),
+                    respx.MockResponse(200, json=make_release()),
+                ]
+            )
+            first = Discogs(token="t", cache=True, cache_dir=tmp_path)
+            with pytest.raises(json.JSONDecodeError):
+                first.releases.get(352665).title  # noqa: B018 — triggers resolve
+            first.close()
+
+            second = Discogs(token="t", cache=True, cache_dir=tmp_path)
+            assert second.releases.get(352665).title == "The Downward Spiral"
+            assert route.call_count == 2
+            second.close()
+
+
 class TestFailingSQLiteCache:
     """A broken cache database never turns a successful request into an error."""
 

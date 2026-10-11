@@ -136,6 +136,15 @@ def parse_retry_after(value: str | None) -> float | None:
     return max((when - datetime.now(timezone.utc)).total_seconds(), 0.0)
 
 
+def is_json(content: bytes) -> bool:
+    """Whether *content* parses the way ``httpx2.Response.json()`` parses it."""
+    try:
+        json.loads(content)
+    except ValueError:  # JSONDecodeError and UnicodeDecodeError alike
+        return False
+    return True
+
+
 def error_message(body: dict[str, Any] | str) -> str:
     """Bounded summary of an error body for the exception message.
 

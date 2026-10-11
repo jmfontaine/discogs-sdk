@@ -36,6 +36,7 @@ from discogs_sdk._base_client import (
     MAX_RETRY_AFTER,
     BaseClient,
     MediaType,
+    is_json,
     may_retry_status,
     may_retry_transport_error,
     parse_retry_after,
@@ -193,7 +194,14 @@ class AsyncDiscogs(BaseClient):
         json: dict[str, Any] | None = None,
         params: dict[str, Any] | None = None,
         files: dict[str, Any] | None = None,
+        expect_json: bool = True,
     ) -> httpx2.Response:
+        """Send a request through the cache and the retry policy.
+
+        *expect_json* says the caller parses the body as JSON, so a 2xx ``GET``
+        body that is not valid JSON is returned but never cached. Pass ``False``
+        for an endpoint whose body is not JSON (a CSV download).
+        """
         build_kwargs: dict[str, Any] = {}
         if json is not None:
             build_kwargs["json"] = json
@@ -323,7 +331,19 @@ class AsyncDiscogs(BaseClient):
                     retryable = False
             if not retryable:
                 stored = False
-                if use_cache and 200 <= response.status_code < 300:
+                # A GET body the caller will parse as JSON is stored only if it is
+                # JSON. Only the syntax is checked: JSON of the wrong shape for the
+                # caller's model is still cached, because no model is known here,
+                # and fails validation on every hit until it expires.
+                if (
+                    use_cache
+                    and 200 <= response.status_code < 300
+                    and not (
+                        expect_json
+                        and method.upper() == "GET"
+                        and not is_json(response.content)
+                    )
+                ):
                     assert self._cache is not None  # narrowed by use_cache
                     cache_headers = {
                         k: v
