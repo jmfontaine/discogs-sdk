@@ -46,7 +46,7 @@ class TestSinglePage:
         assert len(results) == 3
         assert all(isinstance(r, Release) for r in results)
 
-    def test_stops_with_stop_iteration(self, client, respx_mock):
+    def test_stops_after_single_page(self, client, respx_mock):
         respx_mock.get("/releases").mock(
             return_value=respx.MockResponse(
                 200, json=make_paginated_response("releases", [make_release()])
@@ -61,6 +61,7 @@ class TestSinglePage:
         )
         results = list(page)
         assert len(results) == 1
+        assert respx_mock.calls.call_count == 1
 
 
 class TestMultiPage:
@@ -102,6 +103,24 @@ class TestMultiPage:
             f"{RELEASES}?page=1",
             RELEASES_PAGE_2,
         ]
+
+
+class TestEmptyPage:
+    def test_empty_yields_nothing(self, client, respx_mock):
+        respx_mock.get("/releases").mock(
+            return_value=respx.MockResponse(
+                200, json=make_paginated_response("releases", [])
+            )
+        )
+        page = SyncPage(
+            client=client,
+            path="/releases",
+            params={},
+            model_cls=Release,
+            items_key="releases",
+        )
+        results = list(page)
+        assert results == []
 
 
 class TestEmptyNextPage:
@@ -364,6 +383,25 @@ class TestPageParam:
         assert page.per_page == 10
         request = respx_mock.calls.last.request
         assert request.url.params["per_page"] == "10"
+
+
+class TestCustomItemsKey:
+    def test_custom_key(self, client, respx_mock):
+        respx_mock.get("/wants").mock(
+            return_value=respx.MockResponse(
+                200,
+                json=make_paginated_response(
+                    "wants", [{"id": 1, "basic_information": {"id": 1}}]
+                ),
+            )
+        )
+        from discogs_sdk.models.wantlist import Want
+
+        page = SyncPage(
+            client=client, path="/wants", params={}, model_cls=Want, items_key="wants"
+        )
+        results = list(page)
+        assert len(results) == 1
 
 
 class TestErrors:

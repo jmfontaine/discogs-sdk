@@ -288,6 +288,19 @@ class TestOrderMessages:
             )
         )
         lazy = client.marketplace.orders.get("1-1")
+        result = await lazy.messages.create(message="Shipped!")
+        assert result.message == "Shipped!"
+        # `status` is dropped, not sent as null.
+        assert json.loads(route.calls.last.request.content) == {"message": "Shipped!"}
+        assert not route.calls.last.request.url.params
+
+    async def test_create_message_with_status(self, client, respx_mock):
+        route = respx_mock.post("/marketplace/orders/1-1/messages").mock(
+            return_value=respx.MockResponse(
+                200, json=make_order_message(message="Shipped!")
+            )
+        )
+        lazy = client.marketplace.orders.get("1-1")
         result = await lazy.messages.create(message="Shipped!", status="Shipped")
         assert isinstance(result, OrderMessage)
         assert result.message == "Shipped!"

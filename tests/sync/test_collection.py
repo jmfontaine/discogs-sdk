@@ -170,6 +170,17 @@ class TestFolderReleases:
             folder.releases.create(release_id=999)
 
 
+class TestFolderReleaseRef:
+    def test_get_returns_ref_no_http(self, client, respx_mock):
+        lazy = client.users.get("trent_reznor")
+        folder = lazy.collection.folders.get(0)
+        ref = folder.releases.get(400027)
+        assert respx_mock.calls.call_count == 0
+        # ref has instances accessor
+        _ = ref.instances
+        assert respx_mock.calls.call_count == 0
+
+
 class TestDeepChaining:
     def test_deep_chain_no_http(self, client, respx_mock):
         """folders.get(3).releases.get(rid).instances.get(iid).fields — no HTTP."""

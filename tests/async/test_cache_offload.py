@@ -54,7 +54,7 @@ def router():
         yield router
 
 
-class TestCacheCallsLeaveTheLoop:
+class TestCacheCalls:
     async def test_lookup_store_and_clear_run_on_worker_threads(self, router):
         router.get("/releases/352665").respond(200, json=make_release())
         router.post(_FOLDER).respond(200, json=make_collection_folder())
@@ -79,7 +79,7 @@ class TestCacheCallsLeaveTheLoop:
         await client.close()
         assert [trace for _, _, trace in cache.calls] == ["request-1"] * 3
 
-    async def test_no_cache_still_bypasses_the_cache(self, router):
+    async def test_no_cache_bypasses_the_cache(self, router):
         route = router.get("/releases/352665").respond(200, json=make_release())
         cache = ThreadRecordingCache()
         client = AsyncDiscogs(token="t", cache=cache)
@@ -90,7 +90,7 @@ class TestCacheCallsLeaveTheLoop:
         assert route.call_count == 2
         assert cache.ops() == ["get", "set"]
 
-    async def test_cache_only_still_serves_only_from_the_cache(self, router):
+    async def test_cache_only_serves_only_from_the_cache(self, router):
         route = router.get("/releases/352665").respond(200, json=make_release())
         cache = ThreadRecordingCache()
         client = AsyncDiscogs(token="t", cache=cache)

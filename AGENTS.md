@@ -145,6 +145,10 @@ Env vars: `DISCOGS_TOKEN`, `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `D
 - Shared payload factories in `tests/conftest.py` (`make_release()`, `make_artist()`, etc.)
 - Async tests in `tests/async/`, sync tests in `tests/sync/` (both hand-maintained). Tests of shared, client-agnostic
   code (`BaseClient`, `build_oauth_header`, the exceptions) live once in `tests/`, not in both trees
+- A test added to one tree needs a twin with the same file, class and function name in the other.
+  `tests/test_sync_async_parity.py` fails on any test without one, unless its `ALLOWED` list exempts it with a
+  reason (await-only behaviour, the tasks/threads pairs, tests of shared models). It also fails on an allow-list
+  entry that is no longer needed
 - `tests/test_examples_behavior.py` runs `examples/collection.py`, `marketplace.py`, `database.py` and
   `advanced.py` as scripts under a strict respx router and pins every request they send as
   `(method, path, body)`. Changing a request in one of them, or adding or dropping one, means updating

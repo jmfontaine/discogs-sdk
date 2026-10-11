@@ -34,11 +34,23 @@ class TestReleasesGet:
 
 
 class TestReleaseSubResources:
-    def test_all_sub_resources_no_http(self, client, respx_mock):
+    def test_rating_accessible_without_http(self, client, respx_mock):
         lazy = client.releases.get(400027)
         _ = lazy.rating
+        assert respx_mock.calls.call_count == 0
+
+    def test_stats_accessible_without_http(self, client, respx_mock):
+        lazy = client.releases.get(400027)
         _ = lazy.stats
+        assert respx_mock.calls.call_count == 0
+
+    def test_price_suggestions_accessible_without_http(self, client, respx_mock):
+        lazy = client.releases.get(400027)
         _ = lazy.price_suggestions
+        assert respx_mock.calls.call_count == 0
+
+    def test_marketplace_stats_accessible_without_http(self, client, respx_mock):
+        lazy = client.releases.get(400027)
         _ = lazy.marketplace_stats
         assert respx_mock.calls.call_count == 0
 
@@ -123,11 +135,13 @@ class TestReleasePriceSuggestions:
         assert conditions["Mint (M)"].value == 25.00
         assert conditions["Mint (M)"].currency == "USD"
 
-    def test_price_suggestions_getitem_missing(self, client, respx_mock):
+    def test_price_suggestions_getitem(self, client, respx_mock):
+        body = {"Mint (M)": {"currency": "USD", "value": 25.00}}
         respx_mock.get("/marketplace/price_suggestions/400027").mock(
-            return_value=respx.MockResponse(200, json={})
+            return_value=respx.MockResponse(200, json=body)
         )
         result = client.releases.get(400027).price_suggestions.get()
+        assert result["Mint (M)"].value == 25.00
         with pytest.raises(KeyError):
             result["No Such Condition"]
 

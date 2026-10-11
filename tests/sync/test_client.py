@@ -13,7 +13,7 @@ import respx
 
 import discogs_sdk._sync
 from discogs_sdk import CacheEntry, Discogs, MemoryCache, ResponseCache, SQLiteCache
-from discogs_sdk._exceptions import AuthenticationError, DiscogsAPIError
+from discogs_sdk._exceptions import AuthenticationError, DiscogsAPIError, NotFoundError
 from discogs_sdk._sync._paginator import SyncPage
 from tests.conftest import (
     BASE_URL,
@@ -374,6 +374,34 @@ class TestCacheBranch:
             "etag": '"abc"',
             "last-modified": "Sat, 10 Oct 2026 00:00:00 GMT",
         }
+
+    def test_post_not_cached(self):
+        with mock_router() as router:
+            route = router.post("/some/endpoint").mock(
+                return_value=respx.MockResponse(200, json={})
+            )
+            # A successful write clears the cache, so a stored POST response would
+            # never be served back; only the cache's own traffic shows the bypass.
+            cache = SpyCache()
+            client = Discogs(token="t", cache=cache)
+            client._send("POST", f"{BASE_URL}/some/endpoint")
+            client._send("POST", f"{BASE_URL}/some/endpoint")
+            assert route.call_count == 2
+            assert cache.looked_up_keys == []
+            assert cache.stored_keys == []
+            client.close()
+
+    def test_non_2xx_not_cached(self):
+        with mock_router() as router:
+            route = router.get("/releases/404").mock(
+                return_value=respx.MockResponse(404, json={"message": "not found"})
+            )
+            client = Discogs(token="t", cache=True, max_retries=0)
+            for _ in range(2):
+                with pytest.raises(NotFoundError):
+                    client._send("GET", f"{BASE_URL}/releases/404")
+            assert route.call_count == 2
+            client.close()
 
     def test_no_cache_context_manager(self):
         with mock_router() as router:

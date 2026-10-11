@@ -196,7 +196,7 @@ class TestExportsDownload:
         result = await client.exports.download(1)
         assert result == b"csv,data,here"
 
-    async def test_download_error_uses_text(self, client, respx_mock):
+    async def test_download_error(self, client, respx_mock):
         respx_mock.get("/inventory/export/999/download").mock(
             return_value=respx.MockResponse(404, text="Not Found")
         )

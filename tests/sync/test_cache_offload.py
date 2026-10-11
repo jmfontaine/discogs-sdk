@@ -52,7 +52,7 @@ def router():
         yield router
 
 
-class TestCacheCallsStayOnTheCallingThread:
+class TestCacheCalls:
     def test_lookup_store_and_clear_run_on_the_calling_thread(self, router):
         router.get("/releases/352665").respond(200, json=make_release())
         router.post(_FOLDER).respond(200, json=make_collection_folder())

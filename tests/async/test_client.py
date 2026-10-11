@@ -383,10 +383,15 @@ class TestCacheBranch:
             route = router.post("/some/endpoint").mock(
                 return_value=respx.MockResponse(200, json={})
             )
-            client = AsyncDiscogs(token="t", cache=True)
+            # A successful write clears the cache, so a stored POST response would
+            # never be served back; only the cache's own traffic shows the bypass.
+            cache = SpyCache()
+            client = AsyncDiscogs(token="t", cache=cache)
             await client._send("POST", f"{BASE_URL}/some/endpoint")
             await client._send("POST", f"{BASE_URL}/some/endpoint")
             assert route.call_count == 2
+            assert cache.looked_up_keys == []
+            assert cache.stored_keys == []
             await client.close()
 
     async def test_non_2xx_not_cached(self):

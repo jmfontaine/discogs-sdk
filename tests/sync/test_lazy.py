@@ -109,6 +109,14 @@ class TestSubResources:
         r2 = lazy.rating
         assert r1 is r2
 
+    def test_multiple_sub_resources(self, client, respx_mock):
+        lazy = client.releases.get(400027)
+        _ = lazy.rating
+        _ = lazy.stats
+        _ = lazy.price_suggestions
+        _ = lazy.marketplace_stats
+        assert respx_mock.calls.call_count == 0
+
 
 class TestReadOnly:
     def test_field_assignment_raises_before_any_request(self, client, respx_mock):

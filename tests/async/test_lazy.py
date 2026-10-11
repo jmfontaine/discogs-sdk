@@ -20,13 +20,6 @@ class TestCreation:
         _lazy = client.releases.get(400027)
         assert respx_mock.calls.call_count == 0
 
-    def test_repr_before_resolve(self, client):
-        lazy = client.releases.get(400027)
-        r = repr(lazy)
-        assert "AsyncLazyResource" in r
-        assert "Release" in r
-        assert "/releases/400027" in r
-
 
 class TestResolve:
     async def test_await_triggers_http(self, client, respx_mock):
@@ -48,15 +41,6 @@ class TestResolve:
         await lazy
         await lazy
         assert respx_mock.calls.call_count == 1
-
-    async def test_repr_after_resolve(self, client, respx_mock):
-        respx_mock.get("/releases/400027").mock(
-            return_value=respx.MockResponse(200, json=make_release())
-        )
-        lazy = client.releases.get(400027)
-        await lazy
-        r = repr(lazy)
-        assert "AsyncLazyResource" not in r
 
     async def test_error_raises(self, client, respx_mock):
         respx_mock.get("/releases/999").mock(
@@ -318,6 +302,24 @@ class TestReadOnly:
         with pytest.raises(AttributeError, match="'rating'.*read-only"):
             release.rating = None
         assert release.rating is rating
+
+
+class TestRepr:
+    def test_repr_before_resolve(self, client):
+        lazy = client.releases.get(400027)
+        r = repr(lazy)
+        assert "AsyncLazyResource" in r
+        assert "Release" in r
+        assert "/releases/400027" in r
+
+    async def test_repr_after_resolve(self, client, respx_mock):
+        respx_mock.get("/releases/400027").mock(
+            return_value=respx.MockResponse(200, json=make_release())
+        )
+        lazy = client.releases.get(400027)
+        await lazy
+        r = repr(lazy)
+        assert "AsyncLazyResource" not in r
 
 
 class TestTypedSurface:
