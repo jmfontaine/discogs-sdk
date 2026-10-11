@@ -219,11 +219,7 @@ def _sub_resources(router: MockRouter) -> None:
     )
 
 
-def _collection(router: MockRouter) -> None:
-    _folders(router)
-    router.post(FOLDERS).respond(
-        201, json=make_collection_folder(id=2, name="Industrial", count=0)
-    )
+def _folder_zero_releases(router: MockRouter) -> None:
     router.get(f"{FOLDERS}/0/releases").respond(
         200,
         json=make_paginated_response(
@@ -238,27 +234,47 @@ def _collection(router: MockRouter) -> None:
             ],
         ),
     )
+
+
+def _collection_value(router: MockRouter) -> None:
+    router.get(f"{COLLECTION_USER}/collection/value").respond(
+        200, json=make_collection_value()
+    )
+
+
+def _want_writes(router: MockRouter) -> None:
+    router.put(WANT).respond(201, json=make_want(id=352665))
+    router.post(WANT).respond(
+        200, json=make_want(id=352665, notes="Original pressing", rating=4)
+    )
+
+
+def _collection(router: MockRouter) -> None:
+    _folders(router)
+    router.post(FOLDERS).respond(
+        201, json=make_collection_folder(id=2, name="Industrial", count=0)
+    )
+    _folder_zero_releases(router)
     router.post(FOLDER_RELEASE).respond(
         201,
         json=make_collection_instance_created(instance_id=20, username="trent_reznor"),
     )
     router.post(f"{FOLDER_RELEASE}/instances/20/fields/1").respond(204)
-    router.get(f"{COLLECTION_USER}/collection/value").respond(
-        200, json=make_collection_value()
-    )
-    router.put(WANT).respond(201, json=make_want(id=352665))
-    router.post(WANT).respond(
-        200, json=make_want(id=352665, notes="Original pressing", rating=4)
-    )
+    _collection_value(router)
+    _want_writes(router)
     _wants(router)
+
+
+def _listing_create(router: MockRouter) -> None:
+    router.post("/marketplace/listings").respond(
+        201, json=make_listing_created(listing_id=41578241)
+    )
 
 
 def _marketplace(router: MockRouter) -> None:
     # The listing proxy for 123456789 and the fee proxy are never read, so
     # neither sends a request.
-    router.post("/marketplace/listings").respond(
-        201, json=make_listing_created(listing_id=41578241)
-    )
+    _listing_create(router)
     router.post("/marketplace/listings/41578241").respond(204)
     router.delete("/marketplace/listings/41578241").respond(204)
     router.get("/marketplace/orders").respond(
@@ -406,6 +422,35 @@ DOC_ROUTES: dict[str, DocRoutes] = {
         routes=(_release,),
         # Field naming, then original API values
         requests=(RELEASE_GET, RELEASE_GET),
+    ),
+    "docs/migrating-from-python3-discogs-client.md": DocRoutes(
+        routes=(
+            _release,
+            _search,
+            _identity,
+            _folder_zero_releases,
+            _want_writes,
+            _listing_create,
+            _collection_value,
+        ),
+        requests=(
+            # Before and after
+            RELEASE_GET,
+            SEARCH_GET,
+            "GET /oauth/identity",
+            f"GET {FOLDERS}/0/releases",
+            # The writes from the table
+            f"PUT {WANT}",
+            f"POST {WANT}",
+            "POST /marketplace/listings",
+            # Default timeout: an injected httpx2 client
+            RELEASE_GET,
+            # User objects; the rate-limit guard sends nothing
+            "GET /oauth/identity",
+            f"GET {COLLECTION_USER}/collection/value",
+            # Exceptions
+            RELEASE_GET,
+        ),
     ),
     "docs/observability.md": DocRoutes(routes=(_release,), requests=(RELEASE_GET,)),
     "docs/pagination.md": DocRoutes(

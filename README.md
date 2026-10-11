@@ -58,6 +58,10 @@ lazily, paginate automatically, support OAuth 1.0a and back off on HTTP 429, so 
 † No inventory export or upload, release ratings or have/want stats, collection fields, folder creation,
 contributions or submissions.
 
+Coming from python3-discogs-client? The
+[migration guide](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/migrating-from-python3-discogs-client.md)
+maps each of its idioms to discogs-sdk and names the behaviour that differs.
+
 ## Quick start
 
 Create a personal access token in [your Discogs developer settings](https://www.discogs.com/settings/developers) and
@@ -129,6 +133,7 @@ The full guide lives in [`docs/`](https://github.com/jmfontaine/discogs-sdk/tree
 - [Concurrency](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/concurrency.md) — sharing a client across threads and tasks
 - [Custom HTTP clients](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/http-clients.md) — injecting an `httpx2` client
 - [Models](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/models.md) — field naming, timestamps, original API values
+- [Migrating from python3-discogs-client](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/migrating-from-python3-discogs-client.md) — idiom-by-idiom translation and behaviour differences
 
 ## Examples
 

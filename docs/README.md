@@ -11,3 +11,4 @@
 9. [Concurrency](concurrency.md): sharing a client across threads and tasks
 10. [Custom HTTP clients](http-clients.md): injecting an `httpx2` client
 11. [Models](models.md): field naming, timestamps, original API values
+12. [Migrating from python3-discogs-client](migrating-from-python3-discogs-client.md): idiom-by-idiom translation and behaviour differences
