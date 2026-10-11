@@ -7,7 +7,7 @@ Covers:
   - Environment variables
 """
 
-from discogs_sdk import Discogs
+from discogs_sdk import AuthenticationError, Discogs, DiscogsAPIError
 from discogs_sdk.oauth import (
     AccessToken,
     RequestToken,
@@ -48,13 +48,21 @@ print(f"Visit: {request_token.authorize_url}")
 verifier = input("Enter the verifier code: ")
 
 # Step 4: Exchange for an access token.
-access: AccessToken = get_access_token(
-    consumer_key="YOUR_CONSUMER_KEY",
-    consumer_secret="YOUR_CONSUMER_SECRET",
-    request_token=request_token.oauth_token,
-    request_token_secret=request_token.oauth_token_secret,
-    verifier=verifier,
-)
+# Both helpers raise DiscogsError subclasses: AuthenticationError (401),
+# other DiscogsAPIError statuses, DiscogsConnectionError when no response
+# arrives. The exchange is sent once and never retried.
+try:
+    access: AccessToken = get_access_token(
+        consumer_key="YOUR_CONSUMER_KEY",
+        consumer_secret="YOUR_CONSUMER_SECRET",
+        request_token=request_token.oauth_token,
+        request_token_secret=request_token.oauth_token_secret,
+        verifier=verifier,
+    )
+except AuthenticationError as exc:
+    raise SystemExit(f"Discogs rejected the credentials or verifier: {exc}") from exc
+except DiscogsAPIError as exc:
+    raise SystemExit(f"Token exchange failed: {exc}") from exc
 
 # Step 5: Create a client with full OAuth credentials.
 client = Discogs(

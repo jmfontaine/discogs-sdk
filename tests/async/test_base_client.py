@@ -14,6 +14,7 @@ from discogs_sdk._base_client import (
     USER_AGENT,
     BaseClient,
     build_oauth_header,
+    maybe_raise,
 )
 from discogs_sdk._exceptions import (
     AuthenticationError,
@@ -240,72 +241,61 @@ class TestBuildOAuthHeader:
 
 class TestMaybeRaise:
     def test_2xx_passes(self):
-        c = BaseClient(token="t")
-        c._maybe_raise(200, {"ok": True})  # should not raise
+        maybe_raise(200, {"ok": True})  # should not raise
 
     def test_401_raises_authentication_error(self):
-        c = BaseClient(token="t")
         with pytest.raises(AuthenticationError) as exc_info:
-            c._maybe_raise(401, {"message": "Unauthorized"})
+            maybe_raise(401, {"message": "Unauthorized"})
         assert exc_info.value.status_code == 401
         assert "Unauthorized" in str(exc_info.value)
 
     def test_403_raises_forbidden_error(self):
-        c = BaseClient(token="t")
         with pytest.raises(ForbiddenError) as exc_info:
-            c._maybe_raise(403, {"message": "Forbidden"})
+            maybe_raise(403, {"message": "Forbidden"})
         assert exc_info.value.status_code == 403
         assert "Forbidden" in str(exc_info.value)
 
     def test_404_raises_not_found(self):
-        c = BaseClient(token="t")
         with pytest.raises(NotFoundError) as exc_info:
-            c._maybe_raise(404, {"message": "Not Found"})
+            maybe_raise(404, {"message": "Not Found"})
         assert exc_info.value.status_code == 404
 
     def test_422_raises_validation_error(self):
-        c = BaseClient(token="t")
         with pytest.raises(ValidationError) as exc_info:
-            c._maybe_raise(422, {"message": "Invalid rating"})
+            maybe_raise(422, {"message": "Invalid rating"})
         assert exc_info.value.status_code == 422
 
     def test_429_raises_rate_limit(self):
-        c = BaseClient(token="t")
         with pytest.raises(RateLimitError) as exc_info:
-            c._maybe_raise(429, {"message": "Rate limited"})
+            maybe_raise(429, {"message": "Rate limited"})
         assert exc_info.value.status_code == 429
         assert exc_info.value.retry_after is None
 
     def test_429_with_retry_after(self):
-        c = BaseClient(token="t")
         with pytest.raises(RateLimitError) as exc_info:
-            c._maybe_raise(429, {"message": "Rate limited"}, retry_after="30")
+            maybe_raise(429, {"message": "Rate limited"}, retry_after="30")
         assert exc_info.value.retry_after == "30"
 
     def test_500_raises_generic_api_error(self):
-        c = BaseClient(token="t")
         with pytest.raises(DiscogsAPIError) as exc_info:
-            c._maybe_raise(500, {"message": "Internal Server Error"})
+            maybe_raise(500, {"message": "Internal Server Error"})
         assert exc_info.value.status_code == 500
 
     def test_dict_body_extracts_message(self):
-        c = BaseClient(token="t")
         with pytest.raises(DiscogsAPIError) as exc_info:
-            c._maybe_raise(400, {"message": "Bad Request"})
+            maybe_raise(400, {"message": "Bad Request"})
         assert "Bad Request" in str(exc_info.value)
 
     def test_string_body_passed_through(self):
-        c = BaseClient(token="t")
         with pytest.raises(DiscogsAPIError) as exc_info:
-            c._maybe_raise(400, "raw error text")
+            maybe_raise(400, "raw error text")
         assert "raw error text" in str(exc_info.value)
         assert exc_info.value.response_body == "raw error text"
 
     def test_attributes_set(self):
-        c = BaseClient(token="t")
         body = {"message": "test"}
         with pytest.raises(DiscogsAPIError) as exc_info:
-            c._maybe_raise(418, body)
+            maybe_raise(418, body)
         assert exc_info.value.status_code == 418
         assert exc_info.value.response_body == body
 
@@ -319,17 +309,15 @@ class TestErrorMessage:
         ids=["none", "nested", "empty"],
     )
     def test_non_string_or_empty_message_falls_back_to_body(self, body):
-        c = BaseClient(token="t")
         with pytest.raises(DiscogsAPIError) as exc_info:
-            c._maybe_raise(400, body)
+            maybe_raise(400, body)
         assert str(exc_info.value) == f"400: {body}"
         assert exc_info.value.response_body == body
 
     def test_message_at_limit_is_unchanged(self):
-        c = BaseClient(token="t")
         message = "x" * MAX_ERROR_MESSAGE_LENGTH
         with pytest.raises(DiscogsAPIError) as exc_info:
-            c._maybe_raise(400, {"message": message})
+            maybe_raise(400, {"message": message})
         assert exc_info.value.args[0] == message
 
     @pytest.mark.parametrize(
@@ -342,9 +330,8 @@ class TestErrorMessage:
         ids=["message", "dict-without-message", "text"],
     )
     def test_oversized_message_is_truncated(self, body, expected):
-        c = BaseClient(token="t")
         with pytest.raises(DiscogsAPIError) as exc_info:
-            c._maybe_raise(502, body)
+            maybe_raise(502, body)
         message = exc_info.value.args[0]
         assert MAX_ERROR_MESSAGE_LENGTH == 500
         assert len(message) == 500
@@ -353,10 +340,9 @@ class TestErrorMessage:
         assert exc_info.value.response_body == body
 
     def test_oversized_429_keeps_retry_after(self):
-        c = BaseClient(token="t")
         body = {"message": "slow down " * 60}
         with pytest.raises(RateLimitError) as exc_info:
-            c._maybe_raise(429, body, retry_after="30")
+            maybe_raise(429, body, retry_after="30")
         assert len(exc_info.value.args[0]) == 500
         assert exc_info.value.args[0].endswith("…")
         assert exc_info.value.retry_after == "30"

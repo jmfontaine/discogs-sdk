@@ -64,7 +64,7 @@ The sync generator keeps only the `else` branch.
 
 ### Shared Base (`_base_client.py`)
 
-All non-I/O logic lives in `BaseClient`: URL building, header construction, auth, retry calculation, error mapping. Both client classes inherit from it.
+All non-I/O client logic lives in `_base_client.py`: `BaseClient` holds URL building, header construction, auth and retry calculation; the module-level `raise_for_response` maps error statuses to exceptions for both clients and the OAuth helpers. Both client classes inherit from `BaseClient`.
 
 ### Lazy Loading
 

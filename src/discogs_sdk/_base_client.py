@@ -136,7 +136,7 @@ def parse_retry_after(value: str | None) -> float | None:
     return max((when - datetime.now(timezone.utc)).total_seconds(), 0.0)
 
 
-def _error_message(body: dict[str, Any] | str) -> str:
+def error_message(body: dict[str, Any] | str) -> str:
     """Bounded summary of an error body for the exception message.
 
     A dict body's ``message`` is used only when it is a non-empty string; otherwise
@@ -152,6 +152,73 @@ def _error_message(body: dict[str, Any] | str) -> str:
     if len(message) > MAX_ERROR_MESSAGE_LENGTH:
         message = message[: MAX_ERROR_MESSAGE_LENGTH - 1] + "…"
     return message
+
+
+def raise_for_response(response: httpx2.Response) -> None:
+    """Single HTTP-error boundary, applied before any endpoint JSON parsing.
+
+    A failing response is decoded as JSON when possible; otherwise its text is
+    preserved verbatim, including an empty body, so gateway HTML and blank
+    error pages surface as ``DiscogsAPIError`` rather than a JSON decode error.
+    """
+    if response.status_code < 400:
+        return
+
+    body: dict[str, Any] | str
+    try:
+        decoded = response.json()
+    except ValueError:
+        body = response.text
+    else:
+        body = decoded if isinstance(decoded, dict) else response.text
+
+    maybe_raise(
+        response.status_code,
+        body,
+        retry_after=response.headers.get("Retry-After"),
+        ratelimit=RateLimit.from_headers(response.headers),
+    )
+
+
+def maybe_raise(
+    status_code: int,
+    body: dict[str, Any] | str,
+    *,
+    retry_after: str | None = None,
+    ratelimit: RateLimit | None = None,
+) -> None:
+    """Raise the ``DiscogsAPIError`` subclass matching an error *status_code*."""
+    if status_code < 400:
+        return
+
+    message = error_message(body)
+
+    error_cls: type[DiscogsAPIError]
+    match status_code:
+        case 401:
+            error_cls = AuthenticationError
+        case 403:
+            error_cls = ForbiddenError
+        case 404:
+            error_cls = NotFoundError
+        case 422:
+            error_cls = ValidationError
+        case 429:
+            raise RateLimitError(
+                message,
+                status_code=429,
+                response_body=body,
+                retry_after=retry_after,
+                ratelimit=ratelimit,
+            )
+        case _:
+            error_cls = DiscogsAPIError
+
+    raise error_cls(
+        message,
+        status_code=status_code,
+        response_body=body,
+    )
 
 
 try:
@@ -476,68 +543,3 @@ class BaseClient:
         # Exponential backoff (2^attempt) capped at 60s, plus random jitter to
         # avoid thundering herd
         return min(2**attempt, 60) + random.random()
-
-    def _raise_for_response(self, response: httpx2.Response) -> None:
-        """Single HTTP-error boundary, applied before any endpoint JSON parsing.
-
-        A failing response is decoded as JSON when possible; otherwise its text is
-        preserved verbatim, including an empty body, so gateway HTML and blank
-        error pages surface as ``DiscogsAPIError`` rather than a JSON decode error.
-        """
-        if response.status_code < 400:
-            return
-
-        body: dict[str, Any] | str
-        try:
-            decoded = response.json()
-        except ValueError:
-            body = response.text
-        else:
-            body = decoded if isinstance(decoded, dict) else response.text
-
-        self._maybe_raise(
-            response.status_code,
-            body,
-            retry_after=response.headers.get("Retry-After"),
-            ratelimit=RateLimit.from_headers(response.headers),
-        )
-
-    def _maybe_raise(
-        self,
-        status_code: int,
-        body: dict[str, Any] | str,
-        *,
-        retry_after: str | None = None,
-        ratelimit: RateLimit | None = None,
-    ) -> None:
-        if status_code < 400:
-            return
-
-        message = _error_message(body)
-
-        error_cls: type[DiscogsAPIError]
-        match status_code:
-            case 401:
-                error_cls = AuthenticationError
-            case 403:
-                error_cls = ForbiddenError
-            case 404:
-                error_cls = NotFoundError
-            case 422:
-                error_cls = ValidationError
-            case 429:
-                raise RateLimitError(
-                    message,
-                    status_code=429,
-                    response_body=body,
-                    retry_after=retry_after,
-                    ratelimit=ratelimit,
-                )
-            case _:
-                error_cls = DiscogsAPIError
-
-        raise error_cls(
-            message,
-            status_code=status_code,
-            response_body=body,
-        )

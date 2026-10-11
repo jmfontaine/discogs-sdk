@@ -39,6 +39,7 @@ from discogs_sdk._base_client import (
     may_retry_status,
     may_retry_transport_error,
     parse_retry_after,
+    raise_for_response,
 )
 from discogs_sdk._cache import MemoryCache, ResponseCache, SQLiteCache
 from discogs_sdk._events import RateLimit, RequestEvent
@@ -355,7 +356,7 @@ class AsyncDiscogs(BaseClient):
                 )
                 # The retry policy is done deciding: this is the final response,
                 # so map failures here, before any endpoint parses the body.
-                self._raise_for_response(response)
+                raise_for_response(response)
                 return response
 
             delay = self._retry_delay(attempt, retry_after=retry_after)

@@ -261,6 +261,13 @@ DiscogsError
     └── RateLimitError       (429)
 ```
 
+The OAuth helpers in `discogs_sdk.oauth` (`get_request_token`, `get_access_token`
+and their `async_` variants) raise from the same hierarchy: an error status maps as
+above (401 → `AuthenticationError`, 400 → `DiscogsAPIError`, …), a transport failure
+raises `DiscogsConnectionError`, and a successful response missing either
+`oauth_token` or `oauth_token_secret` raises `DiscogsAPIError` naming any
+`oauth_problem`. They never retry: the access-token exchange is sent at most once.
+
 `str(exc)` on a `DiscogsAPIError` is a short summary, `"<status>: <message>"`. The
 message is the body's `message` when that is a non-empty string, otherwise the body
 itself, cut to 500 characters so a gateway error page does not flood logs. The full
