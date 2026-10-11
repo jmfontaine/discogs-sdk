@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import httpx2
 import pytest
 import respx
@@ -169,6 +171,26 @@ class TestCacheIsolation:
                 client._build_oauth_header_for_request()
                 != client._build_oauth_header_for_request()
             )
+            client.close()
+
+    def test_oauth_cache_hit_builds_no_header(self):
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            router.get("/oauth/identity").respond(200, json=make_identity())
+            client = Discogs(
+                consumer_key="ck",
+                consumer_secret="cs",
+                access_token="at",
+                access_token_secret="ats",
+                cache=True,
+            )
+            client.user.identity()
+            with patch.object(
+                client,
+                "_build_oauth_header_for_request",
+                wraps=client._build_oauth_header_for_request,
+            ) as build:
+                client.user.identity()
+            build.assert_not_called()
             client.close()
 
     def test_cache_keys_never_contain_credentials(self):

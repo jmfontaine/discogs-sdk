@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from unittest.mock import patch
 
 import httpx2
@@ -480,3 +481,98 @@ class TestTransportErrorBoundary:
         assert route.call_count == 1
         assert exc_info.value.__cause__ is error
         mock_sleep.assert_not_called()
+
+
+def oauth_client() -> Discogs:
+    return Discogs(
+        consumer_key="ck",
+        consumer_secret="cs",
+        access_token="at",
+        access_token_secret="ats",
+    )
+
+
+def oauth_params(call: respx.models.Call) -> dict[str, str]:
+    return dict(re.findall(r'(\w+)="([^"]*)"', call.request.headers["Authorization"]))
+
+
+def fail_once(first):
+    """Raise or return *first* for the first request, then a release."""
+    responses = iter([first, respx.MockResponse(200, json=make_release())])
+
+    def side_effect(request):
+        result = next(responses)
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    return side_effect
+
+
+class TestRetrySigning:
+    """Every network attempt carries its own OAuth nonce and timestamp."""
+
+    @pytest.mark.parametrize(
+        "first",
+        [
+            respx.MockResponse(503, json={"message": "Unavailable"}),
+            httpx2.ConnectError("Connection refused"),
+        ],
+        ids=["503", "connect-error"],
+    )
+    def test_retry_gets_a_fresh_nonce(self, respx_mock, first):
+        client = oauth_client()
+        route = respx_mock.get("/releases/352665").mock(side_effect=fail_once(first))
+
+        with patch("time.sleep"):
+            client._send("GET", f"{BASE_URL}/releases/352665")
+
+        assert route.call_count == 2
+        nonces = [oauth_params(call)["oauth_nonce"] for call in route.calls]
+        assert nonces[0] != nonces[1]
+
+    def test_retry_gets_the_current_timestamp(self, respx_mock):
+        client = oauth_client()
+        route = respx_mock.get("/releases/352665").mock(
+            side_effect=fail_once(respx.MockResponse(503))
+        )
+        clock = [1_700_000_000.0]
+
+        def advance(delay):
+            clock[0] += 120
+
+        with (
+            patch("time.sleep", side_effect=advance),
+            patch("time.time", lambda: clock[0]),
+        ):
+            client._send("GET", f"{BASE_URL}/releases/352665")
+
+        timestamps = [oauth_params(call)["oauth_timestamp"] for call in route.calls]
+        assert timestamps == ["1700000000", "1700000120"]
+
+    @pytest.mark.parametrize(
+        ("make_client", "authorization"),
+        [
+            (lambda: Discogs(token="t"), "Discogs token=t"),
+            (
+                lambda: Discogs(consumer_key="ck", consumer_secret="cs"),
+                "Discogs key=ck, secret=cs",
+            ),
+        ],
+        ids=["token", "consumer"],
+    )
+    def test_static_credentials_are_resent_unchanged(
+        self, respx_mock, make_client, authorization
+    ):
+        client = make_client()
+        route = respx_mock.get("/releases/352665").mock(
+            side_effect=fail_once(respx.MockResponse(503))
+        )
+
+        with patch("time.sleep"):
+            client._send("GET", f"{BASE_URL}/releases/352665")
+
+        assert [call.request.headers["Authorization"] for call in route.calls] == [
+            authorization,
+            authorization,
+        ]

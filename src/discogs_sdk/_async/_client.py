@@ -200,16 +200,14 @@ class AsyncDiscogs(BaseClient):
         # Per-request headers win over an injected client's defaults, so SDK
         # credentials and media type always describe the request we asked for.
         headers = self._build_headers()
-        if self._uses_oauth:
-            headers["Authorization"] = self._build_oauth_header_for_request()
         build_kwargs["headers"] = headers
 
         # build_request() takes no auth, so it only ever sees build_kwargs.
         kwargs = dict(build_kwargs)
         if self._auth_mode != "none":
             # Explicit auth=None disables the client's own handler for this
-            # request, so it cannot overwrite the header we just set. Omitted
-            # entirely when unauthenticated, preserving custom-client auth.
+            # request, so it cannot overwrite the Authorization header we set.
+            # Omitted entirely when unauthenticated, preserving custom-client auth.
             kwargs["auth"] = None
 
         use_cache = (
@@ -257,6 +255,11 @@ class AsyncDiscogs(BaseClient):
 
         for attempt in range(self.max_retries + 1):
             logger.debug("HTTP request: %s %s", method, url)
+            if self._uses_oauth:
+                # A nonce is single-use and the timestamp ages with every retry
+                # delay, so each attempt is signed afresh just before it is sent.
+                # kwargs["headers"] is this same dict.
+                headers["Authorization"] = self._build_oauth_header_for_request()
             t0 = time.monotonic()  # Unaffected by system clock adjustments (NTP, DST)
             try:
                 response = await self._http_client.request(method, url, **kwargs)

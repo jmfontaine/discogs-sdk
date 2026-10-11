@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from unittest.mock import patch
 
 import httpx2
 import pytest
@@ -179,6 +180,26 @@ class TestCacheIsolation:
                 client._build_oauth_header_for_request()
                 != client._build_oauth_header_for_request()
             )
+            await client.close()
+
+    async def test_oauth_cache_hit_builds_no_header(self):
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            router.get("/oauth/identity").respond(200, json=make_identity())
+            client = AsyncDiscogs(
+                consumer_key="ck",
+                consumer_secret="cs",
+                access_token="at",
+                access_token_secret="ats",
+                cache=True,
+            )
+            await client.user.identity()
+            with patch.object(
+                client,
+                "_build_oauth_header_for_request",
+                wraps=client._build_oauth_header_for_request,
+            ) as build:
+                await client.user.identity()
+            build.assert_not_called()
             await client.close()
 
     async def test_cache_keys_never_contain_credentials(self):
