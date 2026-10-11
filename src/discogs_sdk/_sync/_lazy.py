@@ -23,6 +23,10 @@ class LazyResource(Generic[_M]):
     starts with one, so the sync proxy raises ``AttributeError`` for them, resolved
     or not, instead of fetching the model to answer a tool's probe.
 
+    Proxies are read-only views. Assigning a name that does not begin with ``_``
+    raises ``AttributeError``, before or after resolution, because the value would
+    never reach Discogs and would shadow the model's own for every later read.
+
     The dynamic ``__getattr__`` fallback is hidden from type checkers: the data
     fields a consumer may read are declared on the generated field mixins, so a
     misspelled field is a static error instead of an ``Any``.
@@ -77,6 +81,18 @@ class LazyResource(Generic[_M]):
             # Otherwise, resolve the model via HTTP and delegate
             model = self._resolve()
             return getattr(model, name)
+
+        # Hidden from type checkers like __getattr__: a declared __setattr__ would
+        # make them accept assignment to any name, misspellings included.
+
+        def __setattr__(self, name: str, value: Any) -> None:
+            # An instance attribute would shadow the model for good, since
+            # __getattr__ only runs on a miss. SDK state is all "_"-prefixed, and
+            # cached_property writes to __dict__ directly, so neither comes here
+            # with a public name.
+            if not name.startswith("_"):
+                raise AttributeError(f"Cannot set '{name}': lazy proxies are read-only")
+            object.__setattr__(self, name, value)
 
         def __getitem__(self, key: str) -> Any:
             resolved = self._resolve()

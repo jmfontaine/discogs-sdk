@@ -130,6 +130,10 @@ master = client.masters.get(3719)
 label = client.labels.get(647)
 ```
 
+These lazy resources are read-only views: assigning to one of their attributes raises `AttributeError`, since the
+value would never reach Discogs. Where the API accepts writes, they go through a resource method such as
+`release.rating.update()` or `user.wantlist.update()`.
+
 ### Search
 
 ```python

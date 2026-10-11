@@ -117,6 +117,39 @@ class TestSubResources:
         assert respx_mock.calls.call_count == 0
 
 
+class TestReadOnly:
+    async def test_field_assignment_raises_before_any_request(self, client, respx_mock):
+        respx_mock.get("/releases/400027").mock(
+            return_value=respx.MockResponse(200, json=make_release())
+        )
+        lazy = client.releases.get(400027)
+        with pytest.raises(AttributeError, match="'title'.*read-only"):
+            lazy.title = "x"
+        assert respx_mock.calls.call_count == 0
+        await lazy
+        assert lazy.title == "The Downward Spiral"
+
+    async def test_field_assignment_raises_after_await(self, client, respx_mock):
+        respx_mock.get("/releases/400027").mock(
+            return_value=respx.MockResponse(200, json=make_release())
+        )
+        lazy = client.releases.get(400027)
+        await lazy
+        with pytest.raises(AttributeError, match="'title'.*read-only"):
+            lazy.title = "x"
+        assert lazy.title == "The Downward Spiral"
+
+    def test_sub_resource_assignment_raises(self, client):
+        artist = client.artists.get(3857)
+        with pytest.raises(AttributeError, match="'releases'.*read-only"):
+            artist.releases = None
+        release = client.releases.get(400027)
+        rating = release.rating
+        with pytest.raises(AttributeError, match="'rating'.*read-only"):
+            release.rating = None
+        assert release.rating is rating
+
+
 class TestTypedSurface:
     async def test_await_returns_the_concrete_model(self, client, respx_mock):
         respx_mock.get("/releases/400027").mock(
