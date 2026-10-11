@@ -697,19 +697,20 @@ LIST_SUMMARY: dict[str, Any] = {
 }
 
 EXPORT: dict[str, Any] = {
-    "created_ts": "2018-07-01T12:00:00-07:00",
+    # Naive, as the reference and the live API send it (no offset).
+    "created_ts": "2018-07-01T12:00:00",
     "download_url": f"{BASE_URL}/inventory/export/599632/download",
     "filename": "trent_reznor-inventory-20180701-1200.csv",
-    "finished_ts": "2018-07-01T12:00:30-07:00",
+    "finished_ts": "2018-07-01T12:00:30",
     "id": 599632,
     "status": "success",
     "url": f"{BASE_URL}/inventory/export/599632",
 }
 
 UPLOAD: dict[str, Any] = {
-    "created_ts": "2019-03-27T18:44:00-07:00",
+    "created_ts": "2019-03-27T18:44:00",
     "filename": "inventory.csv",
-    "finished_ts": "2019-03-27T18:44:30-07:00",
+    "finished_ts": "2019-03-27T18:44:30",
     "id": 599632,
     "results": "CSV file contains 1 records.<p>Processed 1 records.",
     "status": "success",

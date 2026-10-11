@@ -12,6 +12,7 @@ from discogs_sdk.models._common import (
     SleeveCondition,
     UserSummary,
 )
+from discogs_sdk.models._timestamp import Timestamp
 
 # Carriers the order-tracking endpoint accepts, per the Marketplace reference.
 TrackingCarrier = Literal[
@@ -92,6 +93,9 @@ class Listing(SDKModel):
     ``external_id``, ``format_quantity``, ``location``, ``quantity`` and
     ``weight`` are returned only to the listing owner, and ``in_cart`` only to
     an authenticated user, so they stay ``None`` for everyone else.
+
+    ``posted`` is an aware ``datetime`` parsed from ISO 8601 with an offset;
+    ``raw["posted"]`` holds the string as sent.
     """
 
     # Listing detail returns "id"; the creation acknowledgement returns "listing_id".
@@ -106,7 +110,7 @@ class Listing(SDKModel):
     location: str | None = None
     original_price: OriginalPrice | None = None
     original_shipping_price: OriginalPrice | None = None
-    posted: str | None = None
+    posted: Timestamp = None
     price: Price | None = None
     quantity: int | None = None
     release: ListingRelease | None = None
@@ -129,14 +133,20 @@ class OrderItem(SDKModel):
 
 
 class Order(SDKModel):
+    """A Marketplace order.
+
+    ``created`` and ``last_activity`` are aware ``datetime`` values parsed from
+    ISO 8601 with an offset; ``raw`` holds the strings as sent.
+    """
+
     id: str
     additional_instructions: str | None = None
     archived: bool | None = None
     buyer: UserSummary | None = None
-    created: str | None = None
+    created: Timestamp = None
     fee: Price | None = None
     items: list[OrderItem] | None = None
-    last_activity: str | None = None
+    last_activity: Timestamp = None
     messages_url: str | None = None
     next_status: list[str] | None = None
     resource_url: str | None = None
@@ -150,6 +160,12 @@ class Order(SDKModel):
 
 
 class OrderMessage(SDKModel):
+    """A message or status event on a Marketplace order.
+
+    ``timestamp`` is an aware ``datetime`` parsed from ISO 8601 with an offset;
+    ``raw["timestamp"]`` holds the string as sent.
+    """
+
     actor: UserSummary | None = None
     from_user: UserSummary | None = Field(default=None, validation_alias="from")
     message: str | None = None
@@ -160,7 +176,7 @@ class OrderMessage(SDKModel):
     refund: MessageRefund | None = None
     status_id: int | None = None
     subject: str | None = None
-    timestamp: str | None = None
+    timestamp: Timestamp = None
     type: str | None = None
 
 

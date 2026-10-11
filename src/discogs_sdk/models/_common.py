@@ -1,8 +1,17 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    ModelWrapValidatorHandler,
+    PrivateAttr,
+    model_validator,
+)
 
 Condition = Literal[
     "Mint (M)",
@@ -45,6 +54,23 @@ CurrencyCode = Literal[
 ]
 
 
+class _RawPayload:
+    """Holder for :attr:`SDKModel.raw` that never affects model equality.
+
+    Pydantic compares private attributes in ``__eq__``. The payload records where
+    a model came from, not what it holds, so a model must still equal its own
+    ``model_validate(model.model_dump())`` round-trip, whose input differs.
+    """
+
+    def __init__(self, data: Mapping[str, Any]) -> None:
+        self.data = data
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, _RawPayload)
+
+    __hash__ = None  # type: ignore[assignment]
+
+
 class SDKModel(BaseModel):
     # Accept both the canonical Python field name and the API alias, so a model
     # survives ``model_validate(model_dump())`` and can be built from keyword
@@ -55,6 +81,41 @@ class SDKModel(BaseModel):
         validate_by_name=True,
     )
 
+    _raw: _RawPayload = PrivateAttr(default_factory=lambda: _RawPayload({}))
+
+    @property
+    def raw(self) -> Mapping[str, Any]:
+        """The mapping this model was validated from, as the API sent it.
+
+        Fields normalize what Discogs sends: renamed keys (``catno`` becomes
+        ``catalog_number``) and parsed timestamps (``"2005-01-03T23:17:26-08:00"``
+        becomes a ``datetime``). ``raw`` keeps the original, so
+        ``release.raw["date_added"]`` is the string exactly as received. Nested
+        models expose their own part of the payload.
+
+        It is the decoded response itself, not a copy: changing it changes what
+        later reads see, and it is not a frozen record of the response. Holding
+        a model keeps the whole payload in memory. A model built from keyword
+        arguments or from ``model_validate(model.model_dump())`` reports that
+        input instead; one from ``model_construct()`` reports ``{}``. ``raw`` is
+        left out of ``model_dump()`` and of equality.
+        """
+        return self._raw.data
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _keep_raw(
+        cls, data: Any, handler: ModelWrapValidatorHandler[SDKModel]
+    ) -> SDKModel:
+        # A wrap validator makes pydantic decode JSON input to Python before
+        # validating it. The SDK always validates ``response.json()``, so that
+        # decoding happens anyway.
+        model = handler(data)
+        # A model instance passed in is returned as is and keeps its own payload.
+        if isinstance(data, Mapping):
+            model._raw = _RawPayload(data)
+        return model
+
     @model_validator(mode="after")
     def _drop_losing_field_names(self) -> SDKModel:
         # When an input supplies both spellings, pydantic validates the alias into
@@ -62,8 +123,7 @@ class SDKModel(BaseModel):
         # override the field in ``model_dump()``. With names accepted, that is the
         # only way a declared field name reaches the extras, so drop it. A caller
         # passing ``by_name=False`` to one validation is not covered: its lone
-        # Python-name key is dropped too. A "wrap" validator could tell the cases
-        # apart, but it would make pydantic convert JSON input to Python first.
+        # Python-name key is dropped too.
         extra = self.__pydantic_extra__
         if extra and type(self).model_config.get("validate_by_name"):
             for name in extra.keys() & type(self).model_fields.keys():

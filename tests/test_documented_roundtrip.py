@@ -10,6 +10,9 @@ the corresponding field is declared on the model.
 
 from __future__ import annotations
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 import pytest
 import respx
 
@@ -526,7 +529,11 @@ class TestUserNamespaceRoundTrip:
         )
         result = await client.exports.get(599632)
         assert isinstance(result, Export)
-        assert result.created_at == EXPORT["created_ts"]
+        # Sent without an offset: read as Discogs server (Pacific) time.
+        assert result.created_at == datetime(
+            2018, 7, 1, 12, 0, tzinfo=ZoneInfo("America/Los_Angeles")
+        )
+        assert result.raw["created_ts"] == EXPORT["created_ts"]
 
     async def test_exports_list(self, client, respx_mock):
         respx_mock.get("/inventory/export").mock(
@@ -543,7 +550,10 @@ class TestUserNamespaceRoundTrip:
         )
         result = await client.uploads.get(599632)
         assert isinstance(result, Upload)
-        assert result.finished_at == UPLOAD["finished_ts"]
+        assert result.finished_at == datetime(
+            2019, 3, 27, 18, 44, 30, tzinfo=ZoneInfo("America/Los_Angeles")
+        )
+        assert result.raw["finished_ts"] == UPLOAD["finished_ts"]
 
     async def test_uploads_list(self, client, respx_mock):
         respx_mock.get("/inventory/upload").mock(

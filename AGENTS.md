@@ -98,6 +98,11 @@ Every caller-supplied value in a request path, `int` ids included, goes through 
 
 Pydantic `BaseModel` with `extra="allow"`. Uses `Literal` types over `Enum` for forward compatibility. Located in `src/discogs_sdk/models/`.
 
+Every model derives from `SDKModel`, which keeps the mapping it was validated from in `raw`, so a normalized value
+(a renamed key, a parsed timestamp) never hides what the API sent. Type a timestamp field as `Timestamp`
+(`models/_timestamp.py`), never `str` or `datetime`; see "Timestamps Come in Several Shapes" below for what it
+assumes.
+
 ### Auth
 
 Three modes: personal token, consumer key/secret, OAuth 1.0a. Credentials resolve via: constructor arg > env var. OAuth helpers live in `src/discogs_sdk/oauth.py` (public API).
@@ -213,6 +218,33 @@ A successful write is not immediately visible to the next read. Measured 2026-09
 `PUT` had acknowledged was still missing from `GET /users/{u}/wants` after 17s and present after
 37s; deletes lag the same way. Anything that reads back a write has to poll (see `eventually()` in
 `tests/integration/conftest.py`).
+
+### Timestamps Come in Several Shapes, Some Without an Offset
+
+Measured 2026-10-11:
+
+- Release timestamps follow the seasons: `-08:00` on winter dates (352665 `date_added`
+  `2005-01-03T23:17:26-08:00`, release 3 `date_changed` `2025-12-10T09:04:39-08:00`), `-07:00` on
+  summer ones. That fits `America/Los_Angeles` but was only sampled on releases. The vendored
+  reference examples are unreliable here: several winter dates there show `-07:00`.
+- Inventory export `created_ts` and `finished_ts` carry no offset. An export requested at `14:07:34Z`
+  (local clock agreeing with the server's `Date` header to the second) came back as
+  `2026-10-11T07:07:34`, i.e. UTC−7. One summer sample; winter behaviour is unmeasured. Inventory
+  uploads use the same fields per the reference but were not measured, since an upload creates
+  listings.
+
+Other shapes in the reference: a space instead of `T` (`registered`, `2011-08-30 14:21:45-07:00`),
+and `-00:00` in a test payload, which pydantic reads as UTC.
+
+What the SDK does with this (`models/_timestamp.py`): every timestamp field is an aware `datetime`.
+A supplied offset is kept as sent. A naive value is read as `America/Los_Angeles` time and stored with
+the fixed offset in force then, never a `ZoneInfo`: during the repeated hour a `ZoneInfo` datetime
+compares unequal to its own JSON round-trip (PEP 495). The zone is an **assumption** drawn from the
+measurements above; Discogs does not document it. In the hour repeated when daylight saving ends,
+it picks the first (PDT) occurrence. A value that does not
+parse becomes `None` with a warning on the `discogs_sdk` logger, and `""` becomes `None` silently.
+The original payload stays reachable through `model.raw`. If a winter export or an upload ever
+disagrees, revisit the assumption.
 
 ### Marketplace Listing Edit Restrictions
 

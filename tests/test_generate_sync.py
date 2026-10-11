@@ -358,6 +358,26 @@ class TestFieldMixins:
         )
         models = tmp_path / "models"
         models.mkdir()
+        (models / "_common.py").write_text(
+            _source(
+                """
+                from collections.abc import Mapping
+                from typing import Any
+
+
+                class SDKModel(BaseModel):
+                    model_config: ClassVar[ConfigDict] = ConfigDict()
+                    _raw: Payload
+
+                    @property
+                    def raw(self) -> Mapping[str, Any]:
+                        return self._raw
+
+                    def _validate(self) -> None:
+                        pass
+                """
+            )
+        )
         (models / "things.py").write_text(
             _source(
                 """
@@ -381,8 +401,39 @@ class TestFieldMixins:
 
     def test_model_deriving_from_sdk_model_renders(self, tree: Path) -> None:
         rendered = gen._render_field_mixins()
-        assert "class SoloFields:" in rendered
+        assert "class SoloFields(SDKModelFields):" in rendered
         assert "title: str" in rendered
+
+    def test_base_model_mixin_declares_only_public_members(self, tree: Path) -> None:
+        rendered = gen._render_field_mixins()
+        base = rendered.split("class SDKModelFields:")[1].split("class SoloFields")[0]
+        assert "def raw(self) -> Mapping[str, Any]" in base
+        assert "_raw" not in base.replace("def raw", "")
+        assert "_validate" not in base
+        assert "model_config" not in base
+
+    def test_annotation_names_are_imported_from_where_models_import_them(
+        self, tree: Path
+    ) -> None:
+        rendered = gen._render_field_mixins()
+        assert "from collections.abc import Mapping" in rendered
+        assert "from typing import Any" in rendered
+
+    def test_field_names_are_never_imported(self, tree: Path) -> None:
+        # ``Final`` is imported by the module and names a field, but no
+        # annotation uses it, so the generated module must not import it.
+        (tree / "models" / "things.py").write_text(
+            _source(
+                """
+                from typing import Final
+
+
+                class Solo(SDKModel):
+                    Final: int
+                """
+            )
+        )
+        assert "import Final" not in gen._render_field_mixins()
 
     def test_proxied_model_with_another_base_fails(
         self, tree: Path, capsys: pytest.CaptureFixture[str]

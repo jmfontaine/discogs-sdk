@@ -72,6 +72,9 @@ NAME_MAP: dict[str, str] = {
 MODELS = ROOT / "src" / "discogs_sdk" / "models"
 FIELDS_MODULE = MODELS / "_lazy_fields.py"
 FIELDS_IMPORT = "discogs_sdk.models._lazy_fields"
+# Base class of every proxied model. Its public members (``raw``) reach every
+# mixin through a shared base mixin.
+BASE_MODEL = "SDKModel"
 
 FIELDS_HEADER = '''# This file is auto-generated from the model definitions.
 # Do not edit directly — edit the models in discogs_sdk/models/ instead.
@@ -263,15 +266,30 @@ def _model_declarations() -> tuple[
     single source of truth: annotated fields keep their annotation, and properties
     and dunder methods keep their signature with an elided body. Only the class's
     own body is read; inherited members are not.
+
+    The index maps every name a model module defines to that module, and every
+    name it imports (``Any``, ``Mapping``) to where it imports it from; a
+    definition wins over an import of the same name.
     """
     members: dict[str, list[str]] = {}
     symbols: dict[str, str] = {}
+    imported: dict[str, str] = {}
     bases: dict[str, list[str]] = {}
     for model_file in sorted(MODELS.glob("*.py")):
         if model_file == FIELDS_MODULE:
             continue
         module = f"discogs_sdk.models.{model_file.stem}"
-        for node in ast.parse(model_file.read_text()).body:
+        tree = ast.parse(model_file.read_text())
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.ImportFrom)
+                and node.module
+                and node.module != "__future__"
+                and not node.level
+            ):
+                for alias in node.names:
+                    imported.setdefault(alias.asname or alias.name, node.module)
+        for node in tree.body:
             if isinstance(node, ast.Assign):
                 for target in node.targets:
                     if isinstance(target, ast.Name):
@@ -292,14 +310,76 @@ def _model_declarations() -> tuple[
                     stub.body = [ast.Expr(value=ast.Constant(value=...))]
                     rendered.append(ast.unparse(stub))
             members[node.name] = rendered
+    for name, source in imported.items():
+        symbols.setdefault(name, source)
     return members, symbols, bases
+
+
+def _referenced_names(declaration: str) -> set[str]:
+    """Names a rendered member's annotations and signature refer to.
+
+    The member's own name is left out, so a field that shares a name with an
+    imported symbol never pulls that symbol into the generated imports.
+    """
+    node = ast.parse(declaration).body[0]
+    if isinstance(node, ast.AnnAssign):
+        roots: list[ast.AST] = [node.annotation]
+    elif isinstance(node, ast.FunctionDef):
+        roots = [*node.decorator_list, node.args]
+        if node.returns:
+            roots.append(node.returns)
+    else:
+        return set()
+    return {
+        name.id
+        for root in roots
+        for name in ast.walk(root)
+        if isinstance(name, ast.Name)
+    }
+
+
+def _is_public_member(declaration: str) -> bool:
+    """Whether a rendered base-model member is part of the consumer surface.
+
+    Private names (validators, the ``_raw`` slot) and ``ClassVar`` settings such
+    as ``model_config`` are pydantic machinery, not data a consumer reads.
+    """
+    node = ast.parse(declaration).body[0]
+    if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+        name = node.target.id
+        if ast.unparse(node.annotation).startswith("ClassVar"):
+            return False
+    elif isinstance(node, ast.FunctionDef):
+        name = node.name
+    else:
+        return False
+    return not name.startswith("_")
+
+
+def _mixin_block(model: str, declarations: list[str], base: str | None) -> str:
+    """Render the ``TYPE_CHECKING``-only mixin declaring *model*'s members."""
+    body = (
+        "\n".join(
+            f"        {line}" for decl in declarations for line in decl.splitlines()
+        )
+        or "        pass"
+    )
+    bases = f"({base})" if base else ""
+    return (
+        f"class {model}Fields{bases}:\n"
+        f'    """Members of :class:`{model}`."""\n\n'
+        f"    if TYPE_CHECKING:\n{body}\n"
+    )
 
 
 def _render_field_mixins() -> str:
     """Render the member-declaration module from the model definitions."""
     members, symbols, bases = _model_declarations()
-    blocks: list[str] = []
-    needed: set[str] = set()
+    base_declarations = [
+        decl for decl in members[BASE_MODEL] if _is_public_member(decl)
+    ]
+    blocks = [_mixin_block(BASE_MODEL, base_declarations, None)]
+    declared = list(base_declarations)
     for model in _proxied_models():
         if model not in members:
             print(
@@ -309,33 +389,18 @@ def _render_field_mixins() -> str:
             sys.exit(1)
         # The mixin renders the model's own body only, so it would silently miss
         # members inherited from another model.
-        if other := [base for base in bases[model] if base != "SDKModel"]:
+        if other := [base for base in bases[model] if base != BASE_MODEL]:
             print(
                 f"ERROR: proxied model {model} ({symbols[model]}) derives from "
                 f"{', '.join(other)}; its field mixin would lack the inherited "
-                "members. Derive it from SDKModel only.",
+                f"members. Derive it from {BASE_MODEL} only.",
                 file=sys.stderr,
             )
             sys.exit(1)
-        declarations = members[model]
-        body = (
-            "\n".join(
-                f"        {line}" for decl in declarations for line in decl.splitlines()
-            )
-            or "        pass"
-        )
-        for decl in declarations:
-            needed.update(
-                name.id
-                for name in ast.walk(ast.parse(decl))
-                if isinstance(name, ast.Name)
-            )
-        blocks.append(
-            f"class {model}Fields:\n"
-            f'    """Members of :class:`{model}`."""\n\n'
-            f"    if TYPE_CHECKING:\n{body}\n"
-        )
+        declared.extend(members[model])
+        blocks.append(_mixin_block(model, members[model], f"{BASE_MODEL}Fields"))
 
+    needed = {name for decl in declared for name in _referenced_names(decl)}
     imports = sorted({(symbols[name], name) for name in needed if name in symbols})
     import_block = "\n".join(
         f"    from {module} import {name}" for module, name in imports

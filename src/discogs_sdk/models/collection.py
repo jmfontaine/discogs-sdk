@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from discogs_sdk.models._common import BasicInformation, SDKModel
+from discogs_sdk.models._timestamp import Timestamp
 
 
 class CollectionNote(SDKModel):
@@ -18,9 +19,15 @@ class CollectionFolder(SDKModel):
 
 
 class CollectionItem(SDKModel):
+    """A release in a collection folder.
+
+    ``date_added`` is an aware ``datetime`` parsed from ISO 8601 with an offset;
+    ``raw["date_added"]`` holds the string as sent.
+    """
+
     id: int
     basic_information: BasicInformation | None = None
-    date_added: str | None = None
+    date_added: Timestamp = None
     folder_id: int | None = None
     instance_id: int | None = None
     notes: list[CollectionNote] | None = None

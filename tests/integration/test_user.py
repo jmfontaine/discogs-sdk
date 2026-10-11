@@ -1,5 +1,7 @@
 """Integration tests for user endpoints (read-only)."""
 
+from datetime import datetime
+
 import pytest
 
 from discogs_sdk.models.user import Identity
@@ -22,4 +24,6 @@ class TestUserProfile:
         # Accessing a data attribute triggers lazy resolution
         assert user.username == username
         assert isinstance(user.id, int)
-        assert isinstance(user.registered, str)
+        assert isinstance(user.registered, datetime)
+        assert user.registered.tzinfo is not None
+        assert isinstance(user.raw["registered"], str)

@@ -42,6 +42,10 @@ dependencies = [
   "pydantic>=2.12",
   "pydantic>=2.14; python_version=='3.15'",
   "typing-extensions>=4",
+  # Never imported: zoneinfo falls back to it for America/Los_Angeles (naive API
+  # timestamps, models/_timestamp.py) where the OS has no tz database (Windows,
+  # Alpine, distroless).
+  "tzdata>=2024.1",
 ]
 urls.Homepage = "https://github.com/jmfontaine/discogs-sdk"
 urls.Issues = "https://github.com/jmfontaine/discogs-sdk/issues"
@@ -110,6 +114,7 @@ lint.per-file-ignores."tests/test_model_aliases.py" = [ "B009" ]
 
 [tool.deptry]
 per_rule_ignores.DEP001 = [ "tomllib" ]
+per_rule_ignores.DEP002 = [ "tzdata" ]
 
 [tool.pyproject-fmt]
 column_width = 88
@@ -141,8 +146,9 @@ ignore_bodies_if_inherits_from = [ "SDKModel", "UserSummary" ]
 ignore_names = [
   "_cacheable",
   "_clean_discogs_env",
-  # Pydantic calls the validator; nothing else references it.
+  # Pydantic calls the validators; nothing else references them.
   "_drop_losing_field_names",
+  "_keep_raw",
   "fast_sqlite_busy_timeout",
   "model_config",
   "prices",

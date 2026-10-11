@@ -3,6 +3,7 @@ from __future__ import annotations
 from pydantic import Field
 
 from discogs_sdk.models._common import SDKModel
+from discogs_sdk.models._timestamp import Timestamp
 
 
 class Identity(SDKModel):
@@ -13,6 +14,13 @@ class Identity(SDKModel):
 
 
 class User(SDKModel):
+    """A user profile.
+
+    ``registered`` arrives as ISO 8601 with an offset, sometimes with a space
+    instead of ``T`` (``2011-08-30 14:21:45-07:00``); either way it is an aware
+    ``datetime``, and ``raw["registered"]`` holds the string as sent.
+    """
+
     id: int
     avatar_url: str | None = None
     banner_url: str | None = None
@@ -36,7 +44,7 @@ class User(SDKModel):
     profile: str | None = None
     rank: int | None = None
     rating_avg: float | None = None
-    registered: str | None = None
+    registered: Timestamp = None
     releases_contributed: int | None = None
     releases_rated: int | None = None
     resource_url: str | None = None

@@ -15,6 +15,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+    from typing import Any
+
     from discogs_sdk.models._common import (
         ArtistCredit,
         Community,
@@ -33,6 +36,7 @@ if TYPE_CHECKING:
         UserSummary,
         Video,
     )
+    from discogs_sdk.models._timestamp import Timestamp
     from discogs_sdk.models.list_ import ListItem
     from discogs_sdk.models.marketplace import (
         ListingRelease,
@@ -45,7 +49,16 @@ if TYPE_CHECKING:
     from discogs_sdk.models.release import RatingInfo
 
 
-class ArtistFields:
+class SDKModelFields:
+    """Members of :class:`SDKModel`."""
+
+    if TYPE_CHECKING:
+
+        @property
+        def raw(self) -> Mapping[str, Any]: ...
+
+
+class ArtistFields(SDKModelFields):
     """Members of :class:`Artist`."""
 
     if TYPE_CHECKING:
@@ -62,7 +75,7 @@ class ArtistFields:
         urls: list[str] | None
 
 
-class CollectionFolderFields:
+class CollectionFolderFields(SDKModelFields):
     """Members of :class:`CollectionFolder`."""
 
     if TYPE_CHECKING:
@@ -72,7 +85,7 @@ class CollectionFolderFields:
         resource_url: str | None
 
 
-class CollectionValue_Fields:
+class CollectionValue_Fields(SDKModelFields):
     """Members of :class:`CollectionValue_`."""
 
     if TYPE_CHECKING:
@@ -81,7 +94,7 @@ class CollectionValue_Fields:
         minimum: str | None
 
 
-class CommunityRatingFields:
+class CommunityRatingFields(SDKModelFields):
     """Members of :class:`CommunityRating`."""
 
     if TYPE_CHECKING:
@@ -89,20 +102,20 @@ class CommunityRatingFields:
         release_id: int
 
 
-class ExportFields:
+class ExportFields(SDKModelFields):
     """Members of :class:`Export`."""
 
     if TYPE_CHECKING:
         id: int
-        created_at: str | None
+        created_at: Timestamp
         download_url: str | None
         filename: str | None
-        finished_at: str | None
+        finished_at: Timestamp
         status: str | None
         url: str | None
 
 
-class FeeFields:
+class FeeFields(SDKModelFields):
     """Members of :class:`Fee`."""
 
     if TYPE_CHECKING:
@@ -110,7 +123,7 @@ class FeeFields:
         value: float
 
 
-class LabelFields:
+class LabelFields(SDKModelFields):
     """Members of :class:`Label`."""
 
     if TYPE_CHECKING:
@@ -127,22 +140,22 @@ class LabelFields:
         urls: list[str] | None
 
 
-class List_Fields:
+class List_Fields(SDKModelFields):
     """Members of :class:`List_`."""
 
     if TYPE_CHECKING:
         id: int
-        created_at: str | None
+        created_at: Timestamp
         description: str | None
         items: list[ListItem] | None
-        modified_at: str | None
+        modified_at: Timestamp
         name: str
         public: bool | None
         resource_url: str | None
         url: str | None
 
 
-class ListingFields:
+class ListingFields(SDKModelFields):
     """Members of :class:`Listing`."""
 
     if TYPE_CHECKING:
@@ -157,7 +170,7 @@ class ListingFields:
         location: str | None
         original_price: OriginalPrice | None
         original_shipping_price: OriginalPrice | None
-        posted: str | None
+        posted: Timestamp
         price: Price | None
         quantity: int | None
         release: ListingRelease | None
@@ -171,7 +184,7 @@ class ListingFields:
         weight: float | None
 
 
-class MarketplaceReleaseStatsFields:
+class MarketplaceReleaseStatsFields(SDKModelFields):
     """Members of :class:`MarketplaceReleaseStats`."""
 
     if TYPE_CHECKING:
@@ -180,7 +193,7 @@ class MarketplaceReleaseStatsFields:
         num_for_sale: int | None
 
 
-class MasterFields:
+class MasterFields(SDKModelFields):
     """Members of :class:`Master`."""
 
     if TYPE_CHECKING:
@@ -203,7 +216,7 @@ class MasterFields:
         year: int | None
 
 
-class OrderFields:
+class OrderFields(SDKModelFields):
     """Members of :class:`Order`."""
 
     if TYPE_CHECKING:
@@ -211,10 +224,10 @@ class OrderFields:
         additional_instructions: str | None
         archived: bool | None
         buyer: UserSummary | None
-        created: str | None
+        created: Timestamp
         fee: Price | None
         items: list[OrderItem] | None
-        last_activity: str | None
+        last_activity: Timestamp
         messages_url: str | None
         next_status: list[str] | None
         resource_url: str | None
@@ -227,7 +240,7 @@ class OrderFields:
         uri: str | None
 
 
-class PriceSuggestionsFields:
+class PriceSuggestionsFields(SDKModelFields):
     """Members of :class:`PriceSuggestions`."""
 
     if TYPE_CHECKING:
@@ -237,7 +250,7 @@ class PriceSuggestionsFields:
         def __getitem__(self, condition: str) -> Price: ...
 
 
-class ReleaseFields:
+class ReleaseFields(SDKModelFields):
     """Members of :class:`Release`."""
 
     if TYPE_CHECKING:
@@ -247,8 +260,8 @@ class ReleaseFields:
         companies: list[Company] | None
         country: str | None
         data_quality: str | None
-        date_added: str | None
-        date_changed: str | None
+        date_added: Timestamp
+        date_changed: Timestamp
         estimated_weight: int | None
         extra_artists: list[ArtistCredit] | None
         format_quantity: int | None
@@ -276,7 +289,7 @@ class ReleaseFields:
         year: int | None
 
 
-class ReleaseStatsFields:
+class ReleaseStatsFields(SDKModelFields):
     """Members of :class:`ReleaseStats`."""
 
     if TYPE_CHECKING:
@@ -284,20 +297,20 @@ class ReleaseStatsFields:
         num_want: int | None
 
 
-class UploadFields:
+class UploadFields(SDKModelFields):
     """Members of :class:`Upload`."""
 
     if TYPE_CHECKING:
         id: int
-        created_at: str | None
+        created_at: Timestamp
         filename: str | None
-        finished_at: str | None
+        finished_at: Timestamp
         results: str | None
         status: str | None
         type: str | None
 
 
-class UserFields:
+class UserFields(SDKModelFields):
     """Members of :class:`User`."""
 
     if TYPE_CHECKING:
@@ -323,7 +336,7 @@ class UserFields:
         profile: str | None
         rank: int | None
         rating_avg: float | None
-        registered: str | None
+        registered: Timestamp
         releases_contributed: int | None
         releases_rated: int | None
         resource_url: str | None
@@ -335,7 +348,7 @@ class UserFields:
         wantlist_url: str | None
 
 
-class UserReleaseRatingFields:
+class UserReleaseRatingFields(SDKModelFields):
     """Members of :class:`UserReleaseRating`."""
 
     if TYPE_CHECKING:

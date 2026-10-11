@@ -16,6 +16,10 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 
 VALID = """
+from collections.abc import Mapping
+from datetime import datetime
+from typing import Any
+
 from discogs_sdk import AsyncDiscogs, Discogs
 from discogs_sdk.models.artist import Artist
 from discogs_sdk.models.release import Release
@@ -25,6 +29,9 @@ def sync_usage(client: Discogs) -> None:
     title: str = client.releases.get(352665).title
     year: int | None = client.releases.get(352665).year
     print(title, year)
+    added: datetime | None = client.releases.get(352665).date_added
+    payload: Mapping[str, Any] = client.releases.get(352665).raw
+    print(added, payload)
     for release in client.artists.get(3857).releases.list(sort="year"):
         release_title: str = release.title
         print(release_title)

@@ -15,17 +15,24 @@ from discogs_sdk.models._common import (
     Track,
     Video,
 )
+from discogs_sdk.models._timestamp import Timestamp
 
 
 class Release(SDKModel):
+    """A release.
+
+    ``date_added`` and ``date_changed`` are aware ``datetime`` values parsed
+    from ISO 8601 with an offset; ``raw`` holds the strings as sent.
+    """
+
     id: int
     artists: list[ArtistCredit] | None = None
     community: Community | None = None
     companies: list[Company] | None = None
     country: str | None = None
     data_quality: str | None = None
-    date_added: str | None = None
-    date_changed: str | None = None
+    date_added: Timestamp = None
+    date_changed: Timestamp = None
     estimated_weight: int | None = None
     extra_artists: list[ArtistCredit] | None = Field(
         default=None, validation_alias="extraartists"
