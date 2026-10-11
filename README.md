@@ -300,6 +300,39 @@ non-empty `pagination.urls` that is not an object, and an items key that is not 
 array (or, for nested items, not an object on the way). An absent items key is an
 empty page.
 
+#### Exceptions outside `DiscogsError`
+
+Apart from the `ValueError`s that reject invalid arguments, such as incomplete
+credentials, the SDK lets three exceptions through on purpose, and
+`except DiscogsError` catches none of them:
+
+- `json.JSONDecodeError` (a `ValueError`) when a 2xx response that the SDK reads as
+  JSON has a body that is not JSON; a body that is not even UTF-8 raises
+  `UnicodeDecodeError`, also a `ValueError`. Error statuses are mapped before the
+  endpoint parses the body, and a success is not an API error, so the SDK raises the
+  parse failure instead of a fallback value.
+- `pydantic.ValidationError` (a `ValueError`) when a 2xx JSON body does not fit the
+  model, such as a release whose `id` is not a number. The response was a success,
+  so this is a parsing failure rather than an API error. Only a list page's envelope
+  is checked by the SDK itself, as described above; its items go to Pydantic like
+  any other model.
+- `FileNotFoundError` (an `OSError`) from `client.uploads.create()`, `change()` or
+  `delete()` when `file` names a path that does not exist. The file is read before
+  any request is sent, so there is no response to map.
+
+Transport failures are not among them: they surface as `DiscogsConnectionError`, as
+described under [Authentication](#authentication).
+
+Two unrelated classes are named `ValidationError`. `discogs_sdk.ValidationError` is
+the HTTP 422 `DiscogsAPIError` above and is not a `ValueError`;
+`pydantic.ValidationError` is the model parsing failure. Imported under the same
+name, one silently shadows the other, so alias them:
+
+```python
+from discogs_sdk import ValidationError as ApiValidationError
+from pydantic import ValidationError as ModelValidationError
+```
+
 ## Examples
 
 The [`examples/`](examples/) directory has runnable scripts for every feature:
