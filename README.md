@@ -352,16 +352,22 @@ The [`examples/`](examples/) directory has runnable scripts for every feature:
 | `access_token_secret` | `None` | OAuth access token secret |
 | `access_token` | `None` | OAuth access token |
 | `base_url` | `https://api.discogs.com` | API base URL; pagination `next` links are rebased onto it, and a link to any origin other than it or `https://api.discogs.com` raises `DiscogsError` |
-| `cache_dir` | `None` | Directory for SQLite cache; in-memory when omitted |
-| `cache_ttl` | `3600.0` | Cache time-to-live in seconds |
-| `cache` | `False` | Enable response caching, or pass a custom `ResponseCache` instance; an injected instance is never closed by the client |
+| `cache_dir` | `None` | Directory for SQLite cache; in-memory when omitted. Used only with `cache=True` |
+| `cache_ttl` | `3600.0` | Cache time-to-live in seconds. Used only with `cache=True` |
+| `cache` | `False` | `True` builds the built-in backend from `cache_dir` and `cache_ttl`; or pass a custom `ResponseCache` instance, which carries its own TTL and storage and is never closed by the client |
 | `consumer_key` | `None` | OAuth consumer key |
 | `consumer_secret` | `None` | OAuth consumer secret |
 | `http_client` | `None` | Custom `httpx2.Client` or `httpx2.AsyncClient` |
 | `max_retries` | `3` | Max retries, `>= 0` (`0` disables retries, a negative value raises `ValueError`); reads retry on 429/5xx, network errors, timeouts and dropped connections, mutations only on pre-send failures. A `Retry-After` above 60s raises immediately instead |
+| `media_type` | `"discogs"` | Format of text fields: `"discogs"` (Discogs markup), `"html"` or `"plaintext"`; sent in the `Accept` header, and cached responses are kept apart per value |
 | `on_request` | `None` | Callback receiving a `RequestEvent` per request |
-| `timeout` | `30.0` | Request timeout in seconds |
+| `timeout` | `30.0` | Request timeout in seconds for the HTTP client the SDK creates; an injected `http_client` keeps its own (see [Custom HTTP clients](#custom-http-clients)) |
 | `token` | `None` | Personal access token |
+| `user_agent` | `discogs-sdk/<version> +https://github.com/jmfontaine/discogs-sdk` | `User-Agent` header; a non-empty value replaces the default entirely |
+
+With `cache=False`, the default, `cache_dir` and `cache_ttl` are ignored and no cache or directory is created; a
+`ResponseCache` instance ignores them too. `cache_ttl=0` is accepted and expires every entry at once, so each read
+refetches: it is not a way to say "no limit".
 
 See [Authentication](#authentication) for how a credential mode is selected.
 
@@ -411,8 +417,9 @@ with client.no_cache():
 ```
 
 `client.cache_only()` is the mirror image: inside the scope a request the cache cannot serve — a miss, an expired
-entry, a non-`GET`, a job status read, a disabled cache or an enclosing `no_cache()` — raises `CacheMissError` before
-any network I/O. It nests and restores exactly like `no_cache()`, so you can try everything for free first:
+entry, a non-`GET`, a job status read, a disabled cache, an injected `http_client` without SDK credentials or an
+enclosing `no_cache()` — raises `CacheMissError` before any network I/O. It nests and restores exactly like
+`no_cache()`, so you can try everything for free first:
 
 ```python
 from discogs_sdk import CacheMissError
@@ -466,9 +473,16 @@ if client.ratelimit and client.ratelimit.remaining < 10:
 An injected `http_client` must be an `httpx2` client — the SDK is built on [httpx2](https://github.com/pydantic/httpx2),
 Pydantic's maintained continuation of httpx. It owns its transport configuration and its lifecycle: `client.close()`
 never closes it. SDK credentials, User-Agent and media type are still applied per request, so they describe the request
-without mutating your client's defaults, and its own `httpx2.Auth` cannot replace credentials you gave the SDK. When the
-SDK has no credentials of its own, your client's authentication is preserved and its responses are not cached, because
-the SDK cannot tell whose account they belong to.
+without mutating your client's defaults, and its own `httpx2.Auth` cannot replace credentials you gave the SDK.
+
+An injected client's timeout is part of that transport configuration. The `timeout` argument only configures a client
+the SDK creates, so `Discogs(http_client=httpx2.Client(timeout=99.0), timeout=1.0)` sends every request with the
+injected client's 99-second timeout, even though `client.timeout` reports `1.0`. To control the timeout of an injected
+client, set it on that client.
+
+When the SDK has no credentials of its own, your client's authentication is preserved and its responses are never
+cached, even with `cache=True`, because the SDK cannot tell whose account they belong to. Inside `cache_only()` every
+request from such a client therefore raises `CacheMissError`.
 
 ## Field naming
 
