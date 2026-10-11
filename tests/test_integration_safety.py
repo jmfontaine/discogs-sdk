@@ -67,6 +67,20 @@ def sleeps(monkeypatch):
     return requested
 
 
+def in_turn(*bodies):
+    """A respx side effect serving each JSON body once, then the last for good.
+
+    Stands in for a listing that lags behind a write and then catches up.
+    """
+    remaining = list(bodies)
+
+    def respond(_request):
+        body = remaining.pop(0) if len(remaining) > 1 else remaining[0]
+        return respx.MockResponse(200, json=body)
+
+    return respond
+
+
 @pytest.fixture
 def client():
     with Discogs(token="test-token") as discogs:
@@ -140,8 +154,12 @@ class TestFolderSweep:
                     ]
                 },
             )
-            router.get(FOLDER_PATH).respond(
-                200, json=make_paginated_response("releases", [CREATED_INSTANCE])
+            # The instance is gone once deleted, and the next read shows that.
+            router.get(FOLDER_PATH).mock(
+                side_effect=in_turn(
+                    make_paginated_response("releases", [CREATED_INSTANCE]),
+                    make_paginated_response("releases", []),
+                )
             )
             router.delete(f"{FOLDER_PATH}/{CRUD_RELEASE_ID}/instances/20").respond(204)
             router.delete(f"{FOLDERS_PATH}/{SCRATCH_FOLDER_ID}").respond(204)
@@ -157,6 +175,75 @@ class TestFolderSweep:
                 f"{FOLDER_PATH}/{CRUD_RELEASE_ID}/instances/20",
                 f"{FOLDERS_PATH}/{SCRATCH_FOLDER_ID}",
             ]
+
+    def test_instance_already_gone_does_not_stop_the_sweep(self, client, sleeps):
+        """A stale listing can still show the copy the test just removed."""
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            router.get(FOLDERS_PATH).respond(
+                200,
+                json={
+                    "folders": [
+                        make_collection_folder(id=1, name="Uncategorized"),
+                        make_collection_folder(id=7, name="Vinyl"),
+                        make_collection_folder(
+                            id=SCRATCH_FOLDER_ID, name=f"{TEST_FOLDER_PREFIX} scratch"
+                        ),
+                    ]
+                },
+            )
+            router.get(FOLDER_PATH).mock(
+                side_effect=in_turn(
+                    make_paginated_response("releases", [CREATED_INSTANCE]),
+                    make_paginated_response("releases", []),
+                )
+            )
+            router.delete(f"{FOLDER_PATH}/{CRUD_RELEASE_ID}/instances/20").respond(
+                404, json={"message": "Instance not found."}
+            )
+            router.delete(f"{FOLDERS_PATH}/{SCRATCH_FOLDER_ID}").respond(204)
+
+            delete_test_folders(client, USERNAME)
+
+            deleted = [
+                call.request.url.path
+                for call in router.calls
+                if call.request.method == "DELETE"
+            ]
+            assert deleted == [
+                f"{FOLDER_PATH}/{CRUD_RELEASE_ID}/instances/20",
+                f"{FOLDERS_PATH}/{SCRATCH_FOLDER_ID}",
+            ]
+            assert sleeps == []
+
+    def test_folder_that_never_shows_empty_is_left_for_the_next_run(
+        self, client, sleeps
+    ):
+        with respx.mock(
+            base_url=BASE_URL, using="httpcore2", assert_all_called=False
+        ) as router:
+            router.get(FOLDERS_PATH).respond(
+                200,
+                json={
+                    "folders": [
+                        make_collection_folder(
+                            id=SCRATCH_FOLDER_ID, name=f"{TEST_FOLDER_PREFIX} scratch"
+                        )
+                    ]
+                },
+            )
+            router.get(FOLDER_PATH).respond(
+                200, json=make_paginated_response("releases", [CREATED_INSTANCE])
+            )
+            router.delete(f"{FOLDER_PATH}/{CRUD_RELEASE_ID}/instances/20").respond(204)
+            folder_deleted = router.delete(
+                f"{FOLDERS_PATH}/{SCRATCH_FOLDER_ID}"
+            ).respond(204)
+
+            with pytest.raises(AssertionError, match=f"'{TEST_FOLDER_PREFIX} scratch'"):
+                delete_test_folders(client, USERNAME)
+
+            assert folder_deleted.call_count == 0
+            assert sleeps == [10.0] * 5
 
 
 class TestCollectionLifecycle:
@@ -191,8 +278,38 @@ class TestCollectionLifecycle:
             ]
             assert deleted_paths == [f"{FOLDER_PATH}/{CRUD_RELEASE_ID}/instances/20"]
 
+    def test_waits_for_a_listing_that_lags_behind_the_create(
+        self, client, scratch_folder, sleeps
+    ):
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            router.post(f"{FOLDER_PATH}/{CRUD_RELEASE_ID}").respond(
+                201,
+                json=make_collection_instance_created(
+                    instance_id=20, release_id=CRUD_RELEASE_ID
+                ),
+            )
+            router.get(FOLDER_PATH).mock(
+                side_effect=in_turn(
+                    make_paginated_response("releases", [EXISTING_INSTANCE]),
+                    make_paginated_response("releases", [EXISTING_INSTANCE]),
+                    make_paginated_response(
+                        "releases", [EXISTING_INSTANCE, CREATED_INSTANCE]
+                    ),
+                )
+            )
+            deleted = router.delete(
+                f"{FOLDER_PATH}/{CRUD_RELEASE_ID}/instances/20"
+            ).respond(204)
+
+            collection_workflow.TestCollectionReleases().test_add_and_remove_release(
+                client, USERNAME, scratch_folder
+            )
+
+            assert deleted.call_count == 1
+            assert sleeps == [10.0] * 2
+
     def test_verification_failure_still_removes_only_the_created_instance(
-        self, client, scratch_folder
+        self, client, scratch_folder, sleeps
     ):
         with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             router.post(f"{FOLDER_PATH}/{CRUD_RELEASE_ID}").respond(
@@ -209,12 +326,13 @@ class TestCollectionLifecycle:
                 f"{FOLDER_PATH}/{CRUD_RELEASE_ID}/instances/20"
             ).respond(204)
 
-            with pytest.raises(AssertionError):
+            with pytest.raises(AssertionError, match="never showed up"):
                 collection_workflow.TestCollectionReleases().test_add_and_remove_release(
                     client, USERNAME, scratch_folder
                 )
 
             assert deleted.call_count == 1
+            assert sleeps == [10.0] * 5
 
     def test_failed_creation_deletes_nothing(self, client, scratch_folder):
         with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
@@ -230,6 +348,39 @@ class TestCollectionLifecycle:
                 )
 
             assert [call.request.method for call in router.calls] == ["POST"]
+
+
+class TestFolderLifecycle:
+    def test_waits_for_a_folder_listing_that_lags_behind_the_create(
+        self, client, sleeps
+    ):
+        created = make_collection_folder(
+            id=99, name=f"{TEST_FOLDER_PREFIX} lifecycle", count=0
+        )
+        existing = [
+            make_collection_folder(id=0, name="All"),
+            make_collection_folder(id=1, name="Uncategorized"),
+        ]
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            router.post(FOLDERS_PATH).respond(201, json=created)
+            router.get(FOLDERS_PATH).mock(
+                side_effect=in_turn(
+                    {"folders": existing}, {"folders": [*existing, created]}
+                )
+            )
+            router.delete(f"{FOLDERS_PATH}/99").respond(204)
+
+            collection_workflow.TestCollectionFolders().test_create_list_delete_folder(
+                client, USERNAME
+            )
+
+            deleted = [
+                call.request.url.path
+                for call in router.calls
+                if call.request.method == "DELETE"
+            ]
+            assert deleted == [f"{FOLDERS_PATH}/99"]
+            assert sleeps == [10.0]
 
 
 WANTLIST_PATH = f"/users/{USERNAME}/wants"
@@ -282,14 +433,11 @@ class TestWantlistLifecycle:
 
     def test_absent_want_completes_the_cycle_and_leaves_nothing_behind(self, client):
         with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
-            listings = iter(
-                [
+            router.get(WANTLIST_PATH).mock(
+                side_effect=in_turn(
                     make_paginated_response("wants", []),
                     make_paginated_response("wants", [{"id": CRUD_RELEASE_ID}]),
-                ]
-            )
-            router.get(WANTLIST_PATH).mock(
-                side_effect=lambda _: respx.MockResponse(200, json=next(listings))
+                )
             )
             created = router.put(f"{WANTLIST_PATH}/{CRUD_RELEASE_ID}").respond(
                 201, json={"id": CRUD_RELEASE_ID, "notes": ""}

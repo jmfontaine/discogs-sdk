@@ -9,7 +9,7 @@ only tagged debris that the next run sweeps. Nothing touches folder 1
 import pytest
 
 from discogs_sdk.models.collection import CollectionFolder, CollectionItem
-from tests.integration.conftest import CRUD_RELEASE_ID, TEST_FOLDER_PREFIX
+from tests.integration.conftest import CRUD_RELEASE_ID, TEST_FOLDER_PREFIX, eventually
 
 pytestmark = pytest.mark.integration
 
@@ -25,7 +25,11 @@ class TestCollectionFolders:
         try:
             assert isinstance(folder, CollectionFolder)
             assert folder.name == name
-            assert folder.id in [f.id for f in folders.list()]
+            # Like every read-back of a write, the listing may lag behind it.
+            assert eventually(lambda: folder.id in [f.id for f in folders.list()]), (
+                f"Folder {folder.id} never showed up in the folder listing "
+                "after being created"
+            )
         finally:
             folders.delete(folder.id)
 
@@ -46,8 +50,20 @@ class TestCollectionReleases:
         instance_id = created.instance_id
 
         try:
-            items = list(releases.list())
-            mine = [item for item in items if item.instance_id == instance_id]
+            # Scan only the scratch folder, and only for the instance created
+            # here; keep what the last attempt found for the checks below.
+            mine: list[CollectionItem] = []
+
+            def instance_listed() -> bool:
+                mine[:] = [
+                    item for item in releases.list() if item.instance_id == instance_id
+                ]
+                return bool(mine)
+
+            assert eventually(instance_listed), (
+                f"Instance {instance_id} never showed up in folder "
+                f"{scratch_folder.id} after being added"
+            )
             assert len(mine) == 1
             assert isinstance(mine[0], CollectionItem)
             assert mine[0].basic_information is not None

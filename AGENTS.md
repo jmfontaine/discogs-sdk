@@ -155,7 +155,10 @@ Env vars: `DISCOGS_TOKEN`, `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `D
   skips locally and *fails* under `GITHUB_ACTIONS`, so the scheduled job cannot go green on a test
   that never ran. (`CI` is unusable for that check — dev shells set it.) Writes stay inside the
   suite's own scratch folder, never folder 1 (Uncategorized), so a leftover is always
-  distinguishable from a real copy. One window is not covered: a run killed between the want's
+  distinguishable from a real copy. Every read-back of a write polls through `eventually()`, and
+  the sweep takes a 404 on an instance delete as already done and waits for an emptied folder to
+  list empty before deleting it; a folder that never does fails the sweep and waits for the next
+  run. One window is not covered: a run killed between the want's
   create and its tagging `update()` leaves an untagged entry that no later run will claim.
   `tests/test_integration_safety.py` runs those flows and the sweep against mocks to prove nothing
   else is deleted. An autouse fixture there replaces the `time` name in
