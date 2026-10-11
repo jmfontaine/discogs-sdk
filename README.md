@@ -132,7 +132,7 @@ The full guide lives in [`docs/`](https://github.com/jmfontaine/discogs-sdk/tree
 - [Observability](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/observability.md) — `client.ratelimit` and `on_request` events
 - [Concurrency](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/concurrency.md) — sharing a client across threads and tasks
 - [Custom HTTP clients](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/http-clients.md) — injecting an `httpx2` client
-- [Models](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/models.md) — field naming, timestamps, original API values
+- [Models](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/models.md) — field naming, search result links, timestamps, original API values
 - [Migrating from python3-discogs-client](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/migrating-from-python3-discogs-client.md) — idiom-by-idiom translation and behaviour differences
 - [Endpoint map](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/endpoints.md) — which SDK call reaches which Discogs endpoint
 - [AI coding agents](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/ai-agents.md) — installing the packaged agent skill, and a rules snippet for other agents

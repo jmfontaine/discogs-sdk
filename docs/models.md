@@ -39,6 +39,28 @@ An API name that is a Python keyword, such as `from`, is reachable only through 
 An API name resolves to the same normalized value as the Python name, so `getattr(export, "created_ts")` is a
 `datetime` too. To read what Discogs sent, use [`raw`](#original-api-values).
 
+## Search result links
+
+Every Discogs entity (release, master, artist, label, listing, order, user, list) carries an absolute `uri` linking to
+its page, such as `https://www.discogs.com/release/352665`. `/database/search` results are the exception: Discogs
+sends a site-relative path such as `/release/352665`. `SearchResult.uri` normalizes the value rather than renaming the
+key: a path starting with `/` gets `https://www.discogs.com` prefixed and is otherwise kept as sent, percent-encoding
+included. An absolute value and a missing one (`None`) are unchanged, and `raw["uri"]` keeps the relative path:
+
+```python
+from discogs_sdk import SearchResult
+
+result = SearchResult.model_validate(
+    {
+        "id": 352665,
+        "title": "Nine Inch Nails - The Downward Spiral",
+        "uri": "/release/352665",
+    }
+)
+print(result.uri)  # 'https://www.discogs.com/release/352665'
+print(result.raw["uri"])  # '/release/352665'
+```
+
 ## Timestamps
 
 Discogs sends timestamps as strings in several shapes:

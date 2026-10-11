@@ -10,7 +10,7 @@
 8. [Observability](observability.md): `client.ratelimit` and `on_request` events
 9. [Concurrency](concurrency.md): sharing a client across threads and tasks
 10. [Custom HTTP clients](http-clients.md): injecting an `httpx2` client
-11. [Models](models.md): field naming, timestamps, original API values
+11. [Models](models.md): field naming, search result links, timestamps, original API values
 12. [Migrating from python3-discogs-client](migrating-from-python3-discogs-client.md): idiom-by-idiom translation and behaviour differences
 13. [Endpoint map](endpoints.md): which SDK call reaches which Discogs endpoint, with verbs, access chains and return types
 14. [AI coding agents](ai-agents.md): installing the packaged agent skill, and a rules snippet for other agents

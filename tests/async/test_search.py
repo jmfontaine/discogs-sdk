@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 import respx
 
 from discogs_sdk import AsyncDiscogs
@@ -12,6 +13,7 @@ from tests.conftest import (
     make_search_result,
     mock_router,
 )
+from tests.documented_payloads import SEARCH_RESULT
 
 
 class TestSearch:
@@ -144,3 +146,45 @@ class TestSearchResultModel:
         )
         results = [item async for item in client.search(query="t")]
         assert results[0].model_extra["_unknown_extra_field"] == "test"
+
+
+class TestSearchResultUri:
+    async def _search_one(self, client, respx_mock, item):
+        respx_mock.get("/database/search").mock(
+            return_value=respx.MockResponse(
+                200, json=make_paginated_response("results", [item])
+            )
+        )
+        return await anext(client.search(query="t"))
+
+    async def test_documented_relative_uri_is_made_absolute(self, client, respx_mock):
+        result = await self._search_one(client, respx_mock, SEARCH_RESULT)
+        assert result.uri == "https://www.discogs.com/release/352665"
+        assert result.raw["uri"] == "/release/352665"
+
+    async def test_percent_encoded_path_is_prefixed_unchanged(self, client, respx_mock):
+        path = "/Nine-Inch-Nails-Ghosts-I%E2%80%93IV/release/352665"
+        item = {**make_search_result(), "uri": path}
+        result = await self._search_one(client, respx_mock, item)
+        assert result.uri == f"https://www.discogs.com{path}"
+        assert result.raw["uri"] == path
+
+    @pytest.mark.parametrize(
+        "uri",
+        ["https://www.discogs.com/release/352665", None],
+        ids=["absolute", "null"],
+    )
+    async def test_absolute_or_null_uri_is_unchanged(self, client, respx_mock, uri):
+        item = {**make_search_result(), "uri": uri}
+        result = await self._search_one(client, respx_mock, item)
+        assert result.uri == uri
+
+    async def test_missing_uri_stays_none(self, client, respx_mock):
+        result = await self._search_one(client, respx_mock, make_search_result())
+        assert result.uri is None
+
+    async def test_round_trip_keeps_the_absolute_uri(self, client, respx_mock):
+        result = await self._search_one(client, respx_mock, SEARCH_RESULT)
+        restored = SearchResult.model_validate(result.model_dump())
+        assert restored == result
+        assert restored.uri == "https://www.discogs.com/release/352665"

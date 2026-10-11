@@ -1,8 +1,12 @@
 from __future__ import annotations
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from discogs_sdk.models._common import SDKModel
+
+# Every other entity's ``uri`` is absolute; search results send a site-relative
+# path (``/release/352665``) that this host completes.
+_SITE_URL = "https://www.discogs.com"
 
 
 class SearchCommunity(SDKModel):
@@ -29,3 +33,13 @@ class SearchResult(SDKModel):
     type: str | None = None
     uri: str | None = None
     year: str | None = None
+
+    @field_validator("uri")
+    @classmethod
+    def _absolute_uri(cls, value: str | None) -> str | None:
+        # Prefix the path exactly as sent, percent-encoding included; ``raw``
+        # keeps the relative value. An absolute value passes through, so a
+        # dumped model validates back unchanged.
+        if value is not None and value.startswith("/"):
+            return _SITE_URL + value
+        return value
