@@ -5,7 +5,7 @@ Three independent checks:
 
 1. Every route in the local Discogs API reference is reachable through the SDK,
    and the SDK calls no route the reference does not document. The reference
-   lives in ``docs/discogs_api/`` and is git-ignored, so this runs only where
+   lives in ``reference/discogs_api/`` and is git-ignored, so this runs only where
    that copy is present.
 
    Scope: routes only. The reference puts several operations on one route and
@@ -47,7 +47,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 ASYNC_SRC = ROOT / "src" / "discogs_sdk" / "_async"
-API_DOCS = ROOT / "docs" / "discogs_api"
+API_DOCS = ROOT / "reference" / "discogs_api"
 
 # ``tests`` is a package at the repo root; make it importable regardless of the
 # working directory this script is invoked from.

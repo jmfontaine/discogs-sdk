@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refresh docs/discogs_api from the official Discogs API reference.
+"""Refresh reference/discogs_api from the official Discogs API reference.
 
 Usage:
     just update-api-docs           # report drift without writing
@@ -7,7 +7,7 @@ Usage:
     just update-api-docs --check   # report drift, exit 1 when files differ
     just update-api-docs --write   # overwrite the local reference
 
-docs/discogs_api is git-ignored, so overwriting it cannot be undone. Writing is
+reference/discogs_api is git-ignored, so overwriting it cannot be undone. Writing is
 therefore opt-in: without --write this script only reports what would change.
 """
 
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
 DOCS_URL = "https://www.discogs.com/developers"
-OUTPUT_DIR = Path(__file__).resolve().parent.parent / "docs" / "discogs_api"
+OUTPUT_DIR = Path(__file__).resolve().parent.parent / "reference" / "discogs_api"
 
 # KLUDGE: Cloudflare serves a JS challenge to clients whose TLS handshake does
 # not look like a browser, so httpx2, curl, and urllib get a 403. curl_cffi
@@ -269,7 +269,7 @@ def main() -> int:
     mode.add_argument(
         "--write",
         action="store_true",
-        help="overwrite docs/discogs_api; required to change any file",
+        help="overwrite reference/discogs_api; required to change any file",
     )
     parser.add_argument(
         "--diff", action="store_true", help="print a unified diff for each change"
@@ -320,7 +320,7 @@ def main() -> int:
         return 1
     if not args.write:
         print(
-            f"\n{len(changes)} page(s) differ, none written. docs/discogs_api is "
+            f"\n{len(changes)} page(s) differ, none written. reference/discogs_api is "
             "git-ignored, so overwriting it cannot be undone; rerun with --write "
             "to apply."
         )

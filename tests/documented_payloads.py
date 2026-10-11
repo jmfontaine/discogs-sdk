@@ -1,6 +1,6 @@
 """One full-shape response body per example in the official API reference.
 
-Every key here appears in the matching example in ``docs/discogs_api/``; the
+Every key here appears in the matching example in ``reference/discogs_api/``; the
 values are rewritten with Nine Inch Nails data because that reference copy is
 git-ignored for copyright reasons and cannot be vendored. The registry at the
 bottom records where each body came from, so

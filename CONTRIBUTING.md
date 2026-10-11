@@ -53,7 +53,7 @@ just type-check         # Run type checker
 
 Run `just --list` to see all available commands.
 
-`just check-endpoints` compares the routes the SDK calls against the local API reference in `docs/discogs_api/`,
+`just check-endpoints` compares the routes the SDK calls against the local API reference in `reference/discogs_api/`,
 failing on a documented route the SDK never reaches and on a route the SDK calls that the reference does not
 document. It checks routes only — not per-route operations, and not query or body parameters, which the reference
 describes in prose. It is not part of `just qa`, because that reference copy is git-ignored and so is absent in CI.

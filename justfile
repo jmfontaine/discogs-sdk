@@ -125,7 +125,7 @@ test-integration *args:
 test-unauthenticated *args:
     uv run pytest -m 'integration and unauthenticated' {{ args }}
 
-# Compare docs/discogs_api/ with the official API reference (--diff, --check, --write)
+# Compare reference/discogs_api/ with the official API reference (--diff, --check, --write)
 update-api-docs *args:
     uv run python scripts/update_api_docs.py {{ args }}
 

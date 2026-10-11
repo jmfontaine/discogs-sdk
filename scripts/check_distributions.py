@@ -28,7 +28,7 @@ WHEEL_REQUIRED = (
 )
 # Project-only trees: useful in the repository and in the sdist, wrong in the
 # importable distribution.
-WHEEL_FORBIDDEN_ROOTS = ("tests", "scripts", "examples", "docs")
+WHEEL_FORBIDDEN_ROOTS = ("tests", "scripts", "examples", "docs", "reference")
 
 SDIST_REQUIRED = (
     "pyproject.toml",
