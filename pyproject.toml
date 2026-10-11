@@ -84,9 +84,10 @@ dev = [
 # registers respx's "httpcore2" mocker, which is what `using="httpcore2"` in
 # `mock_router` (tests/conftest.py) selects; respx's built-in mockers only
 # target httpx/httpcore.
-# markdown-it-py parses README.md for tests/test_doc_links.py; a CommonMark
-# parser finds links that regular expressions miss (an image inside a link, a
-# definition inside a block quote or wrapped onto the next line).
+# markdown-it-py parses the Markdown docs for tests/test_doc_links.py and
+# tests/test_doc_examples.py; a CommonMark parser finds links that regular
+# expressions miss (an image inside a link, a definition inside a block quote
+# or wrapped onto the next line) and fences exactly as GitHub does.
 test = [
   "markdown-it-py>=3",
   "pytest>=8.3",

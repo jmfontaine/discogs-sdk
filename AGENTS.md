@@ -153,6 +153,12 @@ Env vars: `DISCOGS_TOKEN`, `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `D
   `advanced.py` as scripts under a strict respx router and pins every request they send as
   `(method, path, body)`. Changing a request in one of them, or adding or dropping one, means updating
   its routes and expected sequence there
+- `tests/test_doc_examples.py` runs every ` ```python ` block in README.md and `docs/**/*.md`, in order, one
+  namespace per document (pre-seeded with `client = Discogs(token="test")`), under a strict respx router with
+  home and the working directory in a temporary directory. `DOC_ROUTES` there lists the routes each document's
+  examples request; register a route only for a request an example actually sends (an unread lazy proxy sends
+  none). A failure names the file and line. Skip a block only with `<!-- doc-test: skip (reason) -->` on the line
+  right before its fence
 - `pytest-asyncio` with `asyncio_mode="auto"` — no need for `@pytest.mark.asyncio`
 - Integration tests marked with `@pytest.mark.integration`, excluded by default
 - `.github/workflows/integration.yml` runs the live suite weekly (and on manual dispatch) in two
