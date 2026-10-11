@@ -19,6 +19,7 @@ from tests.conftest import (
     make_collection_instance_created,
     make_paginated_response,
 )
+from tests.integration import conftest as integration_conftest
 from tests.integration import test_collection as collection_workflow
 from tests.integration import test_wantlist as wantlist_workflow
 from tests.integration.conftest import (
@@ -32,6 +33,8 @@ USERNAME = "trent_reznor"
 SCRATCH_FOLDER_ID = 42
 FOLDERS_PATH = f"/users/{USERNAME}/collection/folders"
 FOLDER_PATH = f"{FOLDERS_PATH}/{SCRATCH_FOLDER_ID}/releases"
+# Carries the prefix, but not at the start: a folder the owner named, not ours.
+NEAR_MISS_FOLDER_ID = 8
 
 EXISTING_INSTANCE = {
     "id": CRUD_RELEASE_ID,
@@ -47,6 +50,21 @@ CREATED_INSTANCE = {
     "folder_id": SCRATCH_FOLDER_ID,
     "basic_information": {"id": CRUD_RELEASE_ID, "title": "Pretty Hate Machine"},
 }
+
+
+@pytest.fixture(autouse=True)
+def sleeps(monkeypatch):
+    """The delays ``eventually()`` asked for, none of them slept for real.
+
+    Only the ``time`` name inside the integration conftest is replaced.
+    Patching ``time.sleep`` by dotted path would replace it process-wide, the
+    SDK's own retry sleeps included.
+    """
+    requested: list[float] = []
+    monkeypatch.setattr(
+        integration_conftest, "time", SimpleNamespace(sleep=requested.append)
+    )
+    return requested
 
 
 @pytest.fixture
@@ -65,7 +83,9 @@ class TestFolderSweep:
     """The sweep that reclaims debris is the suite's one unattended deletion."""
 
     def test_deletes_only_folders_this_suite_owns(self, client):
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with respx.mock(
+            base_url=BASE_URL, using="httpcore2", assert_all_called=False
+        ) as router:
             router.get(FOLDERS_PATH).respond(
                 200,
                 json={
@@ -74,15 +94,27 @@ class TestFolderSweep:
                         make_collection_folder(id=1, name="Uncategorized"),
                         make_collection_folder(id=7, name="Vinyl"),
                         make_collection_folder(
+                            id=NEAR_MISS_FOLDER_ID,
+                            name="Old discogs-sdk integration stuff",
+                        ),
+                        make_collection_folder(
                             id=SCRATCH_FOLDER_ID, name=f"{TEST_FOLDER_PREFIX} scratch"
                         ),
                     ]
                 },
             )
-            router.get(FOLDER_PATH).respond(
+            scratch_listed = router.get(FOLDER_PATH).respond(
                 200, json=make_paginated_response("releases", [])
             )
             router.delete(f"{FOLDERS_PATH}/{SCRATCH_FOLDER_ID}").respond(204)
+            # Mocked so that touching the near miss fails the assertions below
+            # rather than respx's unmatched-request guard.
+            near_miss_listed = router.get(
+                f"{FOLDERS_PATH}/{NEAR_MISS_FOLDER_ID}/releases"
+            ).respond(200, json=make_paginated_response("releases", []))
+            near_miss_deleted = router.delete(
+                f"{FOLDERS_PATH}/{NEAR_MISS_FOLDER_ID}"
+            ).respond(204)
 
             delete_test_folders(client, USERNAME)
 
@@ -91,7 +123,10 @@ class TestFolderSweep:
                 for call in router.calls
                 if call.request.method == "DELETE"
             ]
+            assert scratch_listed.called
             assert deleted == [f"{FOLDERS_PATH}/{SCRATCH_FOLDER_ID}"]
+            assert near_miss_listed.call_count == 0
+            assert near_miss_deleted.call_count == 0
 
     def test_empties_a_leftover_folder_before_deleting_it(self, client):
         with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
@@ -290,6 +325,29 @@ class TestWantlistLifecycle:
                 )
 
             assert deleted.call_count == 1
+
+    def test_want_that_never_shows_up_fails_and_is_still_removed(self, client, sleeps):
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            # Every read, the pre-check and each poll alike, comes back empty.
+            router.get(WANTLIST_PATH).respond(
+                200, json=make_paginated_response("wants", [])
+            )
+            router.put(f"{WANTLIST_PATH}/{CRUD_RELEASE_ID}").respond(
+                201, json={"id": CRUD_RELEASE_ID, "notes": ""}
+            )
+            router.post(f"{WANTLIST_PATH}/{CRUD_RELEASE_ID}").respond(
+                200, json=LEFTOVER_WANT
+            )
+            deleted = router.delete(f"{WANTLIST_PATH}/{CRUD_RELEASE_ID}").respond(204)
+
+            with pytest.raises(AssertionError, match="never showed up"):
+                wantlist_workflow.TestWantlistCRUD().test_add_list_delete(
+                    client, USERNAME
+                )
+
+            assert deleted.call_count == 1
+            # Every attempt but the last is followed by eventually()'s delay.
+            assert sleeps == [10.0] * 5
 
     def test_own_leftover_want_is_reclaimed_rather_than_blocking_the_run(self, client):
         """A want the suite tagged is debris from a killed run, not user data."""

@@ -158,7 +158,10 @@ Env vars: `DISCOGS_TOKEN`, `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `D
   distinguishable from a real copy. One window is not covered: a run killed between the want's
   create and its tagging `update()` leaves an untagged entry that no later run will claim.
   `tests/test_integration_safety.py` runs those flows and the sweep against mocks to prove nothing
-  else is deleted
+  else is deleted. An autouse fixture there replaces the `time` name in
+  `tests/integration/conftest.py` with a stub that records `eventually()`'s delays, so a failed poll
+  fails in milliseconds. To stub `eventually()`, patch that name, never `time.sleep` by dotted path:
+  that replaces the function process-wide, the SDK's own retry sleeps included
 
 ## Design Decisions
 
