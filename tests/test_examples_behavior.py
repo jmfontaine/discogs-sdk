@@ -4,8 +4,8 @@ The four examples that write to the API run here end to end under a strict respx
 router: every request they make must be routed, every route must be used, and
 the test pins the exact sequence of method, path and body. Editing a write in
 an example (its arguments, its order, its cleanup) therefore fails a test here
-instead of in a user's terminal. The remaining classes cover SDK behaviour an
-example relies on.
+instead of in a user's terminal. The other classes cover SDK behaviour an
+example relies on, and the listing lifecycle of marketplace.py on its own.
 """
 
 from __future__ import annotations
@@ -106,6 +106,44 @@ class TestCustomTransportLifecycle:
         assert request.headers["Authorization"] == "Discogs token=secret-token"
         assert request.headers["X-App-Trace"] == "example"
         assert custom_http.is_closed is True
+
+
+class TestListingLifecycle:
+    """examples/marketplace.py: update and delete the listing the create acknowledged."""
+
+    def test_update_and_delete_use_the_acknowledged_listing_id(self, respx_mock):
+        # Run the example's own Listings section, so a stale attribute in it fails.
+        example = EXAMPLES_DIR / "marketplace.py"
+        source = example.read_text()
+        start = source.index("# ━━ Listings")
+        # Blank lines in front keep tracebacks on the example's real line numbers.
+        listings_section = (
+            "\n" * source.count("\n", 0, start)
+            + source[start : source.index("# ━━ Orders")]
+        )
+        respx_mock.get("/marketplace/listings/123456789").respond(
+            200, json=make_listing(id=123456789)
+        )
+        respx_mock.post("/marketplace/listings").respond(
+            201, json=make_listing_created(listing_id=41578241)
+        )
+        respx_mock.post("/marketplace/listings/41578241").respond(204)
+        respx_mock.delete("/marketplace/listings/41578241").respond(204)
+
+        with Discogs(token="t") as client:
+            exec(  # noqa: S102
+                compile(listings_section, str(example), "exec"), {"client": client}
+            )
+
+        methods_and_paths = [
+            (call.request.method, call.request.url.path) for call in respx_mock.calls
+        ]
+        assert methods_and_paths == [
+            ("GET", "/marketplace/listings/123456789"),
+            ("POST", "/marketplace/listings"),
+            ("POST", "/marketplace/listings/41578241"),
+            ("DELETE", "/marketplace/listings/41578241"),
+        ]
 
 
 Sent = tuple[str, str, Any]
