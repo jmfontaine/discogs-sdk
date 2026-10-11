@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from respx.mocks import Mocker
 
 from discogs_sdk._cache import MemoryCache
 
@@ -22,7 +23,9 @@ BASE_URL = "https://api.discogs.com"
 # `isinstance(..., httpx.Response)` and reject an `httpx2.Response` outright
 # (https://github.com/lundberg/respx/issues/324), and its built-in mockers patch
 # httpx/httpcore, so the default `using` would silently intercept nothing. The
-# `httpcore2` mocker comes from the `pytest-httpx2` plugin. Note the asymmetry:
+# `httpcore2` mocker comes from the `pytest-httpx2` plugin, so a script outside
+# pytest must `import pytest_httpx2` first; `require_httpcore2_mocker` below
+# stops the run if pytest did not load it. Note the asymmetry:
 # `side_effect` exceptions must stay `httpx2.*`, because a legacy
 # `httpx.ConnectError` surfaces unchanged and escapes the SDK's retry handlers.
 # Once #324 lands, drop `respx.MockResponse` for `httpx2.Response`; `using=` and
@@ -35,6 +38,31 @@ _DISCOGS_ENV_VARS = (
     "DISCOGS_CONSUMER_SECRET",
     "DISCOGS_TOKEN",
 )
+
+
+def require_httpcore2_mocker() -> None:
+    """Raise ``RuntimeError`` unless respx's ``httpcore2`` mocker is registered.
+
+    respx resolves ``using=`` against ``Mocker.registry`` and silently patches
+    nothing for an unknown name, so a mocked test would reach the real Discogs API.
+    """
+    if "httpcore2" not in Mocker.registry:
+        raise RuntimeError(
+            'respx\'s "httpcore2" mocker is not registered, so '
+            'respx.mock(using="httpcore2") would intercept nothing and send '
+            "requests to the real Discogs API. The pytest-httpx2 plugin registers "
+            "it: install the test dependencies (`uv sync`) and do not disable the "
+            "plugin with `-p no:pytest_httpx2`."
+        )
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _require_httpcore2_mocker():
+    """Abort the run before the first test body if respx cannot patch httpx2."""
+    try:
+        require_httpcore2_mocker()
+    except RuntimeError as exc:
+        pytest.exit(str(exc), returncode=pytest.ExitCode.USAGE_ERROR)
 
 
 @pytest.fixture(autouse=True)

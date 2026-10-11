@@ -146,6 +146,7 @@ ignore_bodies_if_inherits_from = [ "SDKModel", "UserSummary" ]
 ignore_names = [
   "_cacheable",
   "_clean_discogs_env",
+  "_require_httpcore2_mocker",
   # Pydantic calls the validators; nothing else references them.
   "_drop_losing_field_names",
   "_keep_raw",

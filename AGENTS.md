@@ -118,7 +118,10 @@ Env vars: `DISCOGS_TOKEN`, `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `D
 - HTTP mocking uses `respx` at the transport level via `respx_mock` fixture. Because the SDK runs on httpx2,
   every `respx.mock(...)` call must pass `using="httpcore2"` — respx's built-in mockers only patch httpx/httpcore
   and would silently intercept nothing. That mocker is registered by `pytest-httpx2` (respx's httpx2 companion,
-  same author), which loads as a pytest plugin
+  same author), which loads as a pytest plugin. Code outside pytest (an ad-hoc script, a REPL) must
+  `import pytest_httpx2` before `respx.mock(using="httpcore2")`, or respx patches nothing and the requests reach
+  the real API. Inside pytest, a session-scoped autouse fixture in `tests/conftest.py` aborts the run before the
+  first test when the mocker is missing (plugin not installed, or disabled with `-p no:pytest_httpx2`)
 - Build mocked responses with `respx.MockResponse(...)`, never `httpx2.Response(...)`: respx's `return_value` and
   `side_effect` guards hard-code `isinstance(..., httpx.Response)` and reject httpx2 responses outright
   ([respx#324](https://github.com/lundberg/respx/issues/324)). Exceptions are the opposite — `side_effect` must
