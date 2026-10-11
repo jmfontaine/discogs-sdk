@@ -208,6 +208,9 @@ Embedded objects like `SubLabel`, `ArtistCredit`, and `LabelCredit` stay minimal
 - Every Python block is executed by `tests/test_doc_examples.py`, one namespace per page; a page sets up its own
   `client` rather than relying on one from another page
 - The vendored API reference lives in `reference/discogs_api/`, never under `docs/`
+- `context7.json` tells [Context7](https://context7.com) to index README.md and `docs/` only, and its `rules` tell
+  agents which library this is. `excludeFiles` replaces Context7's default list, so keep the defaults in it. Validate
+  a change with `uvx check-jsonschema --schemafile https://context7.com/schema/context7.json context7.json`
 
 ## Discogs API Documentation
 
