@@ -407,6 +407,12 @@ A cache built from `cache=True` belongs to the client, and `client.close()` clos
 pass in stays yours, like an injected `http_client`: `client.close()` never closes it, so one cache can outlive any of
 the clients sharing it. Call its `close()` yourself once every client using it is done.
 
+The built-in caches drop an expired entry when the same request looks it up again, and remove every expired entry at
+least once per 100 stores; the SQLite cache also does when it opens, so `cache.db` does not carry expired rows over
+from earlier runs. Entries still within `cache_ttl` stay, so the cache's size is bounded by the TTL times the rate of
+new responses, not by a fixed count. Deleted rows free pages inside `cache.db` for reuse; the file itself does not
+shrink.
+
 The SQLite cache never fails a request. If its database is locked by another process, read-only, full or corrupt,
 it logs a warning on the `discogs_sdk` logger and carries on: a lookup counts as a miss and a store is skipped, so the
 response still reaches you. Using the cache after it has been closed raises `RuntimeError`. The database runs in WAL

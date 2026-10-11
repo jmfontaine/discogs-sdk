@@ -19,6 +19,11 @@ logger = logging.getLogger("discogs_sdk")
 # Type alias for cached response tuples: (status_code, headers, body)
 CacheEntry = tuple[int, dict[str, str], bytes]
 
+# A read drops its own expired entry, but nobody may ask for a key again, so the
+# built-in backends also sweep every expired entry once per this many stores.
+_SWEEP_INTERVAL = 100
+_SWEEP_SQL = "DELETE FROM cache_entries WHERE expires_at <= ?"
+
 # Files SQLite keeps next to the database: the rollback journal and the WAL pair.
 _SIDECAR_SUFFIXES = ("-journal", "-wal", "-shm")
 _NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
@@ -108,6 +113,12 @@ class ResponseCache(ABC):
     """Abstract base for response caches.
 
     Subclasses implement storage; the base class owns the TTL contract.
+
+    The built-in backends drop an expired entry when its key is read, and also
+    remove every expired entry at least once per 100 stores (``SQLiteCache``
+    also does when it opens). Entries still within the TTL are kept, so their
+    number is bounded by the TTL times the store rate, not by a fixed count.
+    Subclasses choose their own policy: no method here requires a sweep.
     """
 
     def __init__(self, ttl: float) -> None:
@@ -139,6 +150,7 @@ class MemoryCache(ResponseCache):
         super().__init__(ttl)
         self._lock = threading.Lock()
         self._store: dict[str, tuple[float, int, dict[str, str], bytes]] = {}
+        self._stores = 0
 
     def get(self, key: str) -> CacheEntry | None:
         with self._lock:
@@ -155,12 +167,14 @@ class MemoryCache(ResponseCache):
         self, key: str, status_code: int, headers: dict[str, str], body: bytes
     ) -> None:
         with self._lock:
-            self._store[key] = (
-                time.monotonic() + self._ttl,
-                status_code,
-                headers,
-                body,
-            )
+            now = time.monotonic()
+            self._store[key] = (now + self._ttl, status_code, headers, body)
+            self._stores += 1
+            if self._stores >= _SWEEP_INTERVAL:
+                self._stores = 0
+                expired = [k for k, e in self._store.items() if e[0] <= now]
+                for expired_key in expired:
+                    del self._store[expired_key]
 
     def clear(self) -> None:
         with self._lock:
@@ -214,6 +228,8 @@ class SQLiteCache(ResponseCache):
         except sqlite3.Error as exc:
             self._warn("set PRAGMA synchronous=NORMAL", exc)
         self._table_ready = False
+        self._index_ready = False
+        self._stores = 0
         try:
             self._ensure_table(db)
         except sqlite3.Error as exc:
@@ -241,6 +257,28 @@ class SQLiteCache(ResponseCache):
         )
         db.commit()
         self._table_ready = True
+        # Once per instance, as soon as the table is there: rows left expired by
+        # earlier runs would otherwise stay until read again.
+        self._sweep(db)
+
+    def _sweep(self, db: sqlite3.Connection) -> None:
+        """Delete every expired row. Needs the table; after ``__init__``, the lock."""
+        try:
+            # The index lets the sweep skip the fresh rows. It is made here, not
+            # with the table, so a database this process cannot write, made
+            # before the index existed, still serves its rows, and a lock that
+            # stopped it is retried by the next sweep.
+            if not self._index_ready:
+                db.execute(
+                    "CREATE INDEX IF NOT EXISTS cache_entries_expires_at "
+                    "ON cache_entries (expires_at)"
+                )
+                db.commit()
+                self._index_ready = True
+            db.execute(_SWEEP_SQL, (time.time(),))
+            db.commit()
+        except sqlite3.Error as exc:
+            self._fail(db, "purge expired entries", exc)
 
     def _warn(self, action: str, error: object) -> None:
         logger.warning("SQLite cache %s: could not %s: %s", self._path, action, error)
@@ -296,6 +334,11 @@ class SQLiteCache(ResponseCache):
                 db.commit()
             except sqlite3.Error as exc:
                 self._fail(db, "store an entry", exc)
+                return
+            self._stores += 1
+            if self._stores >= _SWEEP_INTERVAL:
+                self._stores = 0
+                self._sweep(db)
 
     def clear(self) -> None:
         with self._lock:

@@ -136,6 +136,109 @@ class TestSQLiteCache:
         cache.close()
 
 
+def _fill(cache: MemoryCache | SQLiteCache, start: int, count: int) -> None:
+    for i in range(start, start + count):
+        cache.set(f"GET:http://x/{i}", 200, {}, b"x")
+
+
+def _row_count(cache: SQLiteCache) -> int:
+    assert cache._db is not None
+    return cache._db.execute("SELECT COUNT(*) FROM cache_entries").fetchone()[0]
+
+
+def _entry_count(cache: MemoryCache | SQLiteCache) -> int:
+    return len(cache._store) if isinstance(cache, MemoryCache) else _row_count(cache)
+
+
+@contextmanager
+def _clock(now: float) -> Iterator[None]:
+    """Freeze both clocks the backends read: monotonic (memory) and wall (SQLite)."""
+    with (
+        patch("discogs_sdk._cache.time.monotonic", return_value=now),
+        patch("discogs_sdk._cache.time.time", return_value=now),
+    ):
+        yield
+
+
+@pytest.fixture(params=["memory", "sqlite"])
+def make_cache(request, tmp_path):
+    opened: list[MemoryCache | SQLiteCache] = []
+
+    def make(ttl: float) -> MemoryCache | SQLiteCache:
+        cache = (
+            MemoryCache(ttl=ttl)
+            if request.param == "memory"
+            else SQLiteCache(ttl=ttl, cache_dir=tmp_path)
+        )
+        opened.append(cache)
+        return cache
+
+    yield make
+    for cache in opened:
+        cache.close()
+
+
+class TestExpirySweep:
+    """Expired entries nobody reads again are purged every few writes."""
+
+    def test_unread_expired_entries_are_dropped(self, make_cache):
+        cache = make_cache(ttl=0.01)
+        _fill(cache, 0, 150)
+        time.sleep(0.02)
+        _fill(cache, 150, 100)
+        # The sweep at the 200th write drops the first 150; at most the 100
+        # entries written after the pause remain.
+        assert _entry_count(cache) <= 100
+
+    def test_fresh_entry_survives_a_sweep(self, make_cache):
+        cache = make_cache(ttl=10)
+        with _clock(1000.0):
+            _fill(cache, 0, 50)  # expire at 1010
+        with _clock(1015.0):
+            # These writes reach the sweep interval: the first 50 have expired,
+            # these expire at 1025.
+            _fill(cache, 50, _cache._SWEEP_INTERVAL - 50)
+            assert _entry_count(cache) == _cache._SWEEP_INTERVAL - 50
+            assert cache.get("GET:http://x/50") == (200, {}, b"x")
+
+    def test_no_sweep_before_the_interval(self, make_cache):
+        cache = make_cache(ttl=10)
+        with _clock(1000.0):
+            _fill(cache, 0, 10)
+        with _clock(1015.0):
+            _fill(cache, 10, _cache._SWEEP_INTERVAL - 11)
+            assert _entry_count(cache) == _cache._SWEEP_INTERVAL - 1
+
+    def test_reopening_purges_expired_rows(self, tmp_path):
+        cache = SQLiteCache(ttl=1, cache_dir=tmp_path)
+        with patch("discogs_sdk._cache.time.time", return_value=1000.0):
+            _fill(cache, 0, 3)
+        cache.close()
+        reopened = SQLiteCache(ttl=1, cache_dir=tmp_path)
+        assert _row_count(reopened) == 0
+        reopened.close()
+
+    def test_sweep_uses_the_expires_at_index(self, tmp_path):
+        cache = SQLiteCache(ttl=60, cache_dir=tmp_path)
+        assert cache._db is not None
+        plan = cache._db.execute(
+            f"EXPLAIN QUERY PLAN {_cache._SWEEP_SQL}", (1000.0,)
+        ).fetchall()
+        assert any("INDEX cache_entries_expires_at" in row[3] for row in plan), plan
+        cache.close()
+
+    def test_failed_sweep_keeps_the_store_and_logs(self, tmp_path, caplog):
+        cache = SQLiteCache(ttl=60, cache_dir=tmp_path)
+        caplog.set_level(logging.WARNING, logger="discogs_sdk")
+        with patch.object(_cache, "_SWEEP_SQL", "DELETE FROM no_such_table"):
+            _fill(cache, 0, _cache._SWEEP_INTERVAL)
+        assert "purge expired entries" in caplog.text
+        assert cache._db is not None
+        assert not cache._db.in_transaction
+        assert _row_count(cache) == _cache._SWEEP_INTERVAL
+        cache.close()
+
+
 class TestSQLiteCacheClosed:
     @pytest.mark.parametrize(
         "call",
@@ -434,4 +537,26 @@ class TestSQLiteCachePermissions:
         cache.set("GET:http://x/1", 200, {}, b"a")
         assert "readonly database" in caplog.text
         assert cache.get("GET:http://x/1") is None
+        cache.close()
+
+    @pytest.mark.skipif(
+        os.name == "posix" and os.geteuid() == 0, reason="root ignores file modes"
+    )
+    def test_read_only_database_without_the_index_still_serves(self, tmp_path):
+        """A database written before the expires_at index existed stays readable."""
+        legacy = sqlite3.connect(tmp_path / "cache.db")
+        legacy.execute(
+            "CREATE TABLE cache_entries (key TEXT PRIMARY KEY,"
+            " expires_at REAL NOT NULL, status INTEGER NOT NULL,"
+            " headers TEXT NOT NULL, body BLOB NOT NULL)"
+        )
+        legacy.execute(
+            "INSERT INTO cache_entries VALUES (?, ?, 200, '{}', ?)",
+            ("GET:http://x/1", time.time() + 600, b"a"),
+        )
+        legacy.commit()
+        legacy.close()
+        (tmp_path / "cache.db").chmod(0o400)
+        cache = SQLiteCache(ttl=60, cache_dir=tmp_path)
+        assert cache.get("GET:http://x/1") == (200, {}, b"a")
         cache.close()
