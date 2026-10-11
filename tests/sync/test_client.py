@@ -12,8 +12,7 @@ import pytest
 import respx
 
 import discogs_sdk._sync
-from discogs_sdk import Discogs
-from discogs_sdk._cache import MemoryCache, SQLiteCache
+from discogs_sdk import CacheEntry, Discogs, MemoryCache, ResponseCache, SQLiteCache
 from discogs_sdk._exceptions import AuthenticationError, DiscogsAPIError
 from discogs_sdk._sync._paginator import SyncPage
 from tests.conftest import (
@@ -23,6 +22,28 @@ from tests.conftest import (
     make_identity,
     make_release,
 )
+
+
+class DictCache(ResponseCache):
+    """A custom backend built only from names the public package exports."""
+
+    def __init__(self) -> None:
+        super().__init__(ttl=0)
+        self.store: dict[str, CacheEntry] = {}
+
+    def get(self, key: str) -> CacheEntry | None:
+        return self.store.get(key)
+
+    def set(
+        self, key: str, status_code: int, headers: dict[str, str], body: bytes
+    ) -> None:
+        self.store[key] = (status_code, headers, body)
+
+    def clear(self) -> None:
+        self.store.clear()
+
+    def close(self) -> None:
+        pass
 
 
 class TestGeneratedSurface:
@@ -268,6 +289,17 @@ class TestCacheBranch:
             _ = client.releases.get(352665).title
             assert route.call_count == 1
             assert len(cache._store) == 1
+            client.close()
+
+    def test_custom_subclass_of_public_response_cache_serves_repeats(self):
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            cache = DictCache()
+            client = Discogs(token="t", cache=cache)
+            assert client.releases.get(352665).title == "The Downward Spiral"
+            assert client.releases.get(352665).title == "The Downward Spiral"
+            assert route.call_count == 1
+            assert len(cache.store) == 1
             client.close()
 
     def test_cached_get_served_without_http(self):

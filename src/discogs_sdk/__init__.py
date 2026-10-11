@@ -1,6 +1,7 @@
 from discogs_sdk._async._client import AsyncDiscogs
 from discogs_sdk._async._paginator import AsyncPage
 from discogs_sdk._base_client import MediaType
+from discogs_sdk._cache import CacheEntry, MemoryCache, ResponseCache, SQLiteCache
 from discogs_sdk._events import RateLimit, RequestEvent
 from discogs_sdk._exceptions import (
     AuthenticationError,
@@ -94,6 +95,11 @@ __all__ = [
     "MediaType",
     "RateLimit",
     "RequestEvent",
+    # Caching
+    "ResponseCache",
+    "CacheEntry",
+    "MemoryCache",
+    "SQLiteCache",
     # Exceptions
     "DiscogsError",
     "CacheMissError",

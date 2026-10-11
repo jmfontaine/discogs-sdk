@@ -364,7 +364,7 @@ The [`examples/`](examples/) directory has runnable scripts for every feature:
 | `base_url` | `https://api.discogs.com` | API base URL; pagination `next` links are rebased onto it, and a link to any origin other than it or `https://api.discogs.com` raises `DiscogsError` |
 | `cache_dir` | `None` | Directory for SQLite cache; in-memory when omitted. Used only with `cache=True` |
 | `cache_ttl` | `3600.0` | Cache time-to-live in seconds. Used only with `cache=True` |
-| `cache` | `False` | `True` builds the built-in backend from `cache_dir` and `cache_ttl`; or pass a custom `ResponseCache` instance, which carries its own TTL and storage and is never closed by the client |
+| `cache` | `False` | `True` builds the built-in backend from `cache_dir` and `cache_ttl`; or pass a `ResponseCache` instance (see [Custom backends](#custom-backends)), which carries its own TTL and storage and is never closed by the client |
 | `consumer_key` | `None` | OAuth consumer key |
 | `consumer_secret` | `None` | OAuth consumer secret |
 | `http_client` | `None` | Custom `httpx2.Client` or `httpx2.AsyncClient` |
@@ -441,6 +441,69 @@ with client.cache_only():
         title = client.releases.get(352665).title  # never hits the API
     except CacheMissError as exc:
         print(f"Not cached: {exc.method} {exc.url}")
+```
+
+#### Custom backends
+
+The cache types are exported from `discogs_sdk`. To store responses elsewhere, subclass `ResponseCache` and implement
+four methods: `get(key)` returns a `CacheEntry`, the `(status_code, headers, body)` tuple, or `None` on a miss or an
+expired entry; `set(key, status_code, headers, body)` stores one; `clear()` drops every entry; `close()` releases
+whatever the backend holds. The base constructor takes the `ttl` in seconds, and the backend is the one that enforces
+it:
+
+```python
+import threading
+
+from discogs_sdk import CacheEntry, Discogs, ResponseCache
+
+
+class DictCache(ResponseCache):
+    """Unbounded dict, no expiry."""
+
+    def __init__(self) -> None:
+        super().__init__(ttl=0)
+        self._lock = threading.Lock()
+        self._store: dict[str, CacheEntry] = {}
+
+    def get(self, key: str) -> CacheEntry | None:
+        with self._lock:
+            return self._store.get(key)
+
+    def set(
+        self, key: str, status_code: int, headers: dict[str, str], body: bytes
+    ) -> None:
+        with self._lock:
+            self._store[key] = (status_code, headers, body)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._store.clear()
+
+    def close(self) -> None:
+        pass
+
+
+client = Discogs(cache=DictCache())
+```
+
+`MemoryCache(ttl)` and `SQLiteCache(ttl, cache_dir)` are the backends `cache=True` builds. Create one yourself to pass
+the same instance to several clients, `Discogs` and `AsyncDiscogs` alike. Clients with the same credentials share
+entries; keys carry a non-reversible digest of the credentials, so clients with different ones still never see each
+other's private responses. Close the cache yourself once every client using it is done:
+
+```python
+from pathlib import Path
+
+from discogs_sdk import Discogs, SQLiteCache
+
+shared = SQLiteCache(ttl=3600, cache_dir=Path.home() / ".cache" / "my-app")
+first = Discogs(token="YOUR_TOKEN", cache=shared)
+second = Discogs(token="YOUR_TOKEN", cache=shared)
+print(first.releases.get(352665).title)  # fetched from the API
+print(second.releases.get(352665).title)  # served from the shared cache
+first.close()
+second.close()
+shared.close()  # a client never closes a cache passed in
 ```
 
 ### Observability

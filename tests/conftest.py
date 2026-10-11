@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 from respx.mocks import Mocker
 
-from discogs_sdk._cache import MemoryCache
+from discogs_sdk import MemoryCache
 
 BASE_URL = "https://api.discogs.com"
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"

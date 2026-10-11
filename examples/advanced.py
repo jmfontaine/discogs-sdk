@@ -157,9 +157,7 @@ if observed.ratelimit and observed.ratelimit.remaining < 10:
 # Implement get(), set(), clear(), and close().
 import threading
 
-from discogs_sdk._cache import ResponseCache
-
-CacheEntry = tuple[int, dict[str, str], bytes]
+from discogs_sdk import CacheEntry, ResponseCache
 
 
 class DictCache(ResponseCache):
@@ -168,7 +166,7 @@ class DictCache(ResponseCache):
     def __init__(self) -> None:
         super().__init__(ttl=0)
         self._lock = threading.Lock()
-        self._store: dict[str, tuple[int, dict[str, str], bytes]] = {}
+        self._store: dict[str, CacheEntry] = {}
 
     def get(self, key: str) -> CacheEntry | None:
         with self._lock:

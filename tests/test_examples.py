@@ -3,6 +3,7 @@
 Verifies that:
   - Each example is valid Python (AST parses)
   - Its import statements resolve (no renamed or deleted modules and names)
+  - It imports the SDK only through public names, never a ``_``-prefixed module
 
 Nothing here runs an example or touches the API: a call that no longer exists,
 a wrong argument or a broken request order all pass this check. The behaviour
@@ -57,6 +58,47 @@ def test_example_imports(example_path: Path):
         exec(compile(import_source, example_path, "exec"), module.__dict__)  # noqa: S102
     finally:
         sys.modules.pop(module_name, None)
+
+
+def _private_sdk_imports(source: str) -> list[str]:
+    """Return every import in *source* that reaches a private ``discogs_sdk`` path."""
+    private: list[str] = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import):
+            paths = [alias.name for alias in node.names]
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            # ``from discogs_sdk import _cache`` names a private module too.
+            paths = [f"{node.module}.{alias.name}" for alias in node.names]
+        else:
+            continue
+        for path in paths:
+            parts = path.split(".")
+            if parts[0] == "discogs_sdk" and any(p.startswith("_") for p in parts):
+                private.append(path)
+    return private
+
+
+@pytest.mark.parametrize(
+    "example_path",
+    EXAMPLE_FILES,
+    ids=[p.stem for p in EXAMPLE_FILES],
+)
+def test_example_imports_only_public_sdk_names(example_path: Path):
+    """Examples teach usage, so a private path there becomes a user's dependency."""
+    assert _private_sdk_imports(example_path.read_text()) == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from discogs_sdk._cache import ResponseCache",
+        "from discogs_sdk import _cache",
+        "import discogs_sdk._cache",
+        "from discogs_sdk.models._timestamp import Timestamp",
+    ],
+)
+def test_private_import_detection(source: str):
+    assert _private_sdk_imports(source) != []
 
 
 @pytest.mark.parametrize(

@@ -18,8 +18,20 @@ from unittest.mock import patch
 
 import pytest
 
-from discogs_sdk._cache import MemoryCache, SQLiteCache
+import discogs_sdk
+from discogs_sdk import MemoryCache, SQLiteCache, _cache
 from tests.conftest import exclusive_lock
+
+
+class TestPublicExports:
+    NAMES = ("ResponseCache", "MemoryCache", "SQLiteCache", "CacheEntry")
+
+    def test_cache_types_are_listed_in_all(self):
+        assert set(self.NAMES) <= set(discogs_sdk.__all__)
+
+    @pytest.mark.parametrize("name", NAMES)
+    def test_public_name_is_the_private_object(self, name):
+        assert getattr(discogs_sdk, name) is getattr(_cache, name)
 
 
 class TestMemoryCache:
@@ -150,7 +162,7 @@ class TestSQLiteCacheClosed:
         script = (
             "import sys\n"
             "from pathlib import Path\n"
-            "from discogs_sdk._cache import SQLiteCache\n"
+            "from discogs_sdk import SQLiteCache\n"
             "cache = SQLiteCache(ttl=60, cache_dir=Path(sys.argv[1]))\n"
             "cache.close()\n"
             "for call in (lambda: cache.get('k'),"

@@ -7,8 +7,7 @@ import json
 import pytest
 import respx
 
-from discogs_sdk import AsyncDiscogs
-from discogs_sdk._cache import MemoryCache
+from discogs_sdk import AsyncDiscogs, MemoryCache
 from discogs_sdk.models.artist import Artist
 from discogs_sdk.models.label import Label
 from discogs_sdk.models.marketplace import Listing
