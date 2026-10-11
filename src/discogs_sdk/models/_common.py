@@ -71,6 +71,36 @@ class _RawPayload:
     __hash__ = None  # type: ignore[assignment]
 
 
+# Class attribute holding the alias map of one SDKModel subclass. It is read from
+# the class's own ``__dict__``, never through inheritance, so a subclass that adds
+# or redefines fields builds its own map instead of reusing its parent's.
+_ALIAS_FIELDS = "__sdk_alias_fields__"
+
+
+def _build_alias_fields(cls: type[BaseModel]) -> dict[str, str]:
+    """Map each string validation alias of ``cls`` to the field it fills.
+
+    Pydantic copies ``Field(alias=...)`` into ``validation_alias``, so this covers
+    plain aliases too. When fields share an alias, the first declared one wins.
+    """
+    alias_fields: dict[str, str] = {}
+    for field_name, field_info in cls.model_fields.items():
+        validation_alias = field_info.validation_alias
+        if isinstance(validation_alias, AliasChoices):
+            aliases = [
+                choice for choice in validation_alias.choices if isinstance(choice, str)
+            ]
+        elif isinstance(validation_alias, str):
+            aliases = [validation_alias]
+        else:
+            continue
+        for alias in aliases:
+            alias_fields.setdefault(alias, field_name)
+    # Threads racing on the first miss build equal maps; either one may be kept.
+    setattr(cls, _ALIAS_FIELDS, alias_fields)
+    return alias_fields
+
+
 class SDKModel(BaseModel):
     # Accept both the canonical Python field name and the API alias, so a model
     # survives ``model_validate(model_dump())`` and can be built from keyword
@@ -135,20 +165,13 @@ class SDKModel(BaseModel):
         # Like pydantic's own ``BaseModel.__getattr__``, it stays hidden from type
         # checkers so that a misspelled attribute is a static error, not ``Any``.
         def __getattr__(self, name: str) -> Any:
-            for field_name, field_info in type(self).model_fields.items():
-                validation_alias = field_info.validation_alias
-                if isinstance(validation_alias, AliasChoices):
-                    aliases = {
-                        choice
-                        for choice in validation_alias.choices
-                        if isinstance(choice, str)
-                    }
-                elif isinstance(validation_alias, str):
-                    aliases = {validation_alias}
-                else:
-                    continue
-                if name in aliases:
-                    return self.__dict__.get(field_name)
+            cls = type(self)
+            alias_fields = cls.__dict__.get(_ALIAS_FIELDS)
+            if alias_fields is None:
+                alias_fields = _build_alias_fields(cls)
+            field_name = alias_fields.get(name)
+            if field_name is not None:
+                return self.__dict__.get(field_name)
             return super().__getattr__(name)
 
 

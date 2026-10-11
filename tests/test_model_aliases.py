@@ -6,10 +6,17 @@ Only the Python names are typed, so these tests read API names through
 
 from __future__ import annotations
 
+import copy
+import pickle
+import types
+import typing
+from datetime import datetime
+
 import pytest
-from pydantic import ConfigDict, Field
+from pydantic import AliasChoices, ConfigDict, Field
 from pydantic import ValidationError as PydanticValidationError
 
+import discogs_sdk.models
 from discogs_sdk.models._common import (
     ArtistCredit,
     Company,
@@ -193,6 +200,146 @@ class TestAliasChoicesAccess:
     def test_detail_alias_is_readable(self) -> None:
         listing = Listing.model_validate({"id": 123})
         assert getattr(listing, "listing_id") == 123
+
+
+def _sample(annotation: object) -> object:
+    """Return input that validates as ``annotation``, never ``None``."""
+    origin = typing.get_origin(annotation)
+    if origin in (typing.Union, types.UnionType):
+        options = [arg for arg in typing.get_args(annotation) if arg is not type(None)]
+        return _sample(options[0])
+    if origin is typing.Literal:
+        return typing.get_args(annotation)[0]
+    if origin is list:
+        return [_sample(typing.get_args(annotation)[0])]
+    if isinstance(annotation, type) and issubclass(annotation, SDKModel):
+        return _required_payload(annotation)
+    samples: dict[object, object] = {
+        bool: True,
+        datetime: "2005-01-03T23:17:26-08:00",
+        float: 9.99,
+        int: 3857,
+        str: "Nine Inch Nails",
+    }
+    return samples[annotation]
+
+
+def _required_payload(model: type[SDKModel]) -> dict[str, object]:
+    return {
+        name: _sample(field.annotation)
+        for name, field in model.model_fields.items()
+        if field.is_required()
+    }
+
+
+def _string_aliases(model: type[SDKModel], field_name: str) -> list[str]:
+    alias = model.model_fields[field_name].validation_alias
+    if isinstance(alias, AliasChoices):
+        return [choice for choice in alias.choices if isinstance(choice, str)]
+    return [alias] if isinstance(alias, str) else []
+
+
+_EXPORTED_MODELS = [
+    obj
+    for obj in (
+        getattr(discogs_sdk.models, name) for name in discogs_sdk.models.__all__
+    )
+    if isinstance(obj, type) and issubclass(obj, SDKModel)
+]
+
+_ALIASED_FIELDS = [
+    pytest.param(model, field_name, id=f"{model.__name__}.{field_name}")
+    for model in _EXPORTED_MODELS
+    for field_name in model.model_fields
+    if _string_aliases(model, field_name)
+]
+
+
+class TestEveryExportedAlias:
+    """Every string alias of every exported model reads back its field's value."""
+
+    @pytest.mark.parametrize(("model", "field_name"), _ALIASED_FIELDS)
+    def test_alias_returns_field_value(
+        self, model: type[SDKModel], field_name: str
+    ) -> None:
+        aliases = _string_aliases(model, field_name)
+        field = model.model_fields[field_name]
+        payload = _required_payload(model)
+        payload.pop(field_name, None)
+        payload[aliases[0]] = _sample(field.annotation)
+        instance = model.model_validate(payload)
+        value = instance.__dict__[field_name]
+        assert value is not None
+        for alias in aliases:
+            assert getattr(instance, alias) is value
+
+
+class TestAliasLookup:
+    """Alias attributes resolve through a map built once per class."""
+
+    def test_alias_map_is_built_once(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        class Probe(SDKModel):
+            clean_name: str | None = Field(default=None, validation_alias="uglyName")
+
+        probe = Probe.model_validate({"uglyName": "Trent"})
+        assert getattr(probe, "uglyName") == "Trent"
+        # Later misses must not walk the fields again.
+        monkeypatch.setattr(Probe, "__pydantic_fields__", {})
+        assert getattr(probe, "uglyName") == "Trent"
+
+    def test_subclass_does_not_resolve_redefined_parent_alias(self) -> None:
+        class Parent(SDKModel):
+            name: str | None = Field(default=None, validation_alias="parent_name")
+
+        class Child(Parent):
+            name: str | None = Field(default=None, validation_alias="child_name")
+
+        # Resolve on the parent first, so its map exists before the child's.
+        parent = Parent.model_validate({"parent_name": "Trent Reznor"})
+        assert getattr(parent, "parent_name") == "Trent Reznor"
+
+        child = Child.model_validate({"child_name": "Trent Reznor"})
+        assert getattr(child, "child_name") == "Trent Reznor"
+        with pytest.raises(AttributeError):
+            getattr(child, "parent_name")
+
+    def test_subclass_resolves_aliases_it_adds(self) -> None:
+        class Parent(SDKModel):
+            name: str | None = Field(default=None, validation_alias="parent_name")
+
+        class Child(Parent):
+            note: str | None = Field(default=None, validation_alias="child_note")
+
+        assert getattr(Parent(name="Trent Reznor"), "parent_name") == "Trent Reznor"
+        child = Child(name="Trent Reznor", note="Halo 8")
+        assert getattr(child, "parent_name") == "Trent Reznor"
+        assert getattr(child, "child_note") == "Halo 8"
+
+    def test_first_declared_field_wins_a_shared_alias(self) -> None:
+        class Shared(SDKModel):
+            first: str | None = Field(default=None, validation_alias="shared")
+            second: str | None = Field(
+                default=None, validation_alias=AliasChoices("other", "shared")
+            )
+
+        model = Shared(first="Pretty Hate Machine", second="Broken")
+        assert getattr(model, "shared") == "Pretty Hate Machine"
+        assert getattr(model, "other") == "Broken"
+
+    def test_extra_and_unknown_names_after_an_alias_read(self) -> None:
+        image = Image.model_validate({"uri150": "x", "other": 1})
+        assert getattr(image, "uri150") == "x"
+        assert getattr(image, "other") == 1
+        with pytest.raises(AttributeError):
+            getattr(image, "nonexistent")
+
+    def test_copies_keep_alias_and_extra_access(self) -> None:
+        listing = Listing.model_validate({"listing_id": 41578241, "other": "x"})
+        for copied in (copy.deepcopy(listing), pickle.loads(pickle.dumps(listing))):
+            assert copied == listing
+            assert getattr(copied, "listing_id") == 41578241
+            assert getattr(copied, "other") == "x"
+            assert copied.raw == listing.raw
 
 
 class TestCanonicalNameValidation:
