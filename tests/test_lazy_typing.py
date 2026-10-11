@@ -126,7 +126,9 @@ def _type_check(tmp_path: Path, source: str) -> subprocess.CompletedProcess[str]
     snippet = tmp_path / "consumer.py"
     snippet.write_text(source)
     return subprocess.run(
-        [sys.executable, "-m", "ty", "check", str(snippet)],
+        # Check against the interpreter running the tests: without it, ty picks up
+        # any activated VIRTUAL_ENV, which may lack pydantic (CI's wheel jobs).
+        [sys.executable, "-m", "ty", "check", "--python", sys.executable, str(snippet)],
         capture_output=True,
         text=True,
         cwd=ROOT,
