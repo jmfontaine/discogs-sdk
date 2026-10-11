@@ -13,7 +13,7 @@ Every parameter of `Discogs` and `AsyncDiscogs`, all keyword-only:
 | `consumer_key` | `None` | OAuth consumer key |
 | `consumer_secret` | `None` | OAuth consumer secret |
 | `http_client` | `None` | Custom `httpx2.Client` or `httpx2.AsyncClient` |
-| `max_retries` | `3` | Max retries, `>= 0` (`0` disables retries, a negative value raises `ValueError`); reads retry on 429/5xx, network errors, timeouts and dropped connections, mutations only on pre-send failures. A `Retry-After` above 60s raises immediately instead |
+| `max_retries` | `3` | Retries after the first attempt, `>= 0` (`0` disables retries, a negative value raises `ValueError`), so `max_retries=N` allows up to N + 1 attempts: up to 4 by default. Reads retry on 429, 500, 502, 503 and 504, network errors, timeouts and dropped connections, mutations only on pre-send failures; any other failure stops at once, and so does a `Retry-After` above 60s. See [Errors and retries](errors-and-retries.md#rate-limits-and-retries) |
 | `media_type` | `"discogs"` | Format of text fields: `"discogs"` (Discogs markup), `"html"` or `"plaintext"`; sent in the `Accept` header, and cached responses are kept apart per value |
 | `on_request` | `None` | Callback receiving a `RequestEvent` per request |
 | `timeout` | `30.0` | Request timeout in seconds for the HTTP client the SDK creates; an injected `http_client` keeps its own (see [Custom HTTP clients](http-clients.md)) |

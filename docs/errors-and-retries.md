@@ -21,6 +21,16 @@ Every transport failure surfaces as `DiscogsConnectionError`, chained to the und
 closed (`RemoteProtocolError`). Failures that would repeat identically — `LocalProtocolError`, `UnsupportedProtocol`,
 `ProxyError`, `DecodingError`, `TooManyRedirects` — are raised at once for every method.
 
+`max_retries=N` allows up to N + 1 attempts: the first request plus N retries, so the default 3 means up to 4
+requests for one call. A read is retried on 429, 500, 502, 503 and 504 and on the transient transport failures above.
+Fewer attempts are sent when:
+
+- the failure is not retryable: any other status, or a transport failure that would repeat identically;
+- the request is a mutation and the failure may have reached the server (see the warning above);
+- a `Retry-After` exceeds 60 seconds, which raises at once.
+
+The `attempts` field of [`RequestEvent`](observability.md) reports how many were sent.
+
 ## Error handling
 
 ```python

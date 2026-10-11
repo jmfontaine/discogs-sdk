@@ -18,7 +18,7 @@ keep it cheap and never block in it, because the async client calls it from the 
 | `status_code` | Status of the response that ended the call |
 | `source` | `"network"` or `"cache"` |
 | `elapsed_ms` | Final network attempt, or the cache lookup |
-| `attempts` | Network attempts (`1` = no retry); `0` on a cache hit |
+| `attempts` | Network attempts sent for this call, at most `max_retries + 1` (`1` = no retry, `4` = the default limit reached); `0` on a cache hit |
 | `stored` | Whether this call wrote the response to the cache |
 | `ratelimit` | `RateLimit` from the response; always `None` on a cache hit |
 
