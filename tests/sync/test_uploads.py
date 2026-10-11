@@ -8,6 +8,7 @@ import respx
 from discogs_sdk import Discogs
 from discogs_sdk._exceptions import CacheMissError, DiscogsAPIError
 from tests.conftest import (
+    BASE_URL,
     StoreRecordingCache,
     make_paginated_response,
     make_release,
@@ -22,30 +23,38 @@ def _multipart_without_boundary(request) -> bytes:
     return request.content.replace(boundary, b"BOUNDARY")
 
 
-class TestUploadsCreate:
-    def test_create(self, client, respx_mock, tmp_path):
-        csv_file = tmp_path / "inventory.csv"
-        csv_file.write_text("header\nrow1")
-        respx_mock.post("/inventory/upload/add").mock(
-            return_value=respx.MockResponse(200)
-        )
-        client.uploads.create(file=str(csv_file))
+_LOCATION = {"Location": "https://api.discogs.com/inventory/upload/599632"}
+_ROUTES = [
+    pytest.param("create", "/inventory/upload/add", id="create"),
+    pytest.param("change", "/inventory/upload/change", id="change"),
+    pytest.param("delete", "/inventory/upload/delete", id="delete"),
+]
 
-    def test_create_error(self, client, respx_mock, tmp_path):
-        csv_file = tmp_path / "inventory.csv"
-        csv_file.write_text("header\nrow1")
-        respx_mock.post("/inventory/upload/add").mock(
-            return_value=respx.MockResponse(400, json={"message": "Bad"})
-        )
-        with pytest.raises(DiscogsAPIError):
+
+@pytest.fixture
+def csv_file(tmp_path):
+    path = tmp_path / "inventory.csv"
+    path.write_text("header\nrow1")
+    return path
+
+
+class TestUploadsCreate:
+    def test_create(self, client, respx_mock, csv_file):
+        respx_mock.post("/inventory/upload/add").respond(200, headers=_LOCATION)
+        assert client.uploads.create(file=str(csv_file)) == 599632
+
+    def test_create_error(self, client, respx_mock, csv_file):
+        respx_mock.post("/inventory/upload/add").respond(400, json={"message": "Bad"})
+        with pytest.raises(DiscogsAPIError) as exc_info:
             client.uploads.create(file=str(csv_file))
+        assert exc_info.value.status_code == 400
 
     def test_path_posts_the_same_multipart_body_as_str(
         self, client, respx_mock, tmp_path
     ):
         csv_file = tmp_path / "inventory.csv"
         csv_file.write_text("release_id,price\n352665,25.00\n")
-        route = respx_mock.post("/inventory/upload/add").respond(200)
+        route = respx_mock.post("/inventory/upload/add").respond(200, headers=_LOCATION)
         client.uploads.create(file=csv_file)
         client.uploads.create(file=str(csv_file))
         bodies = [_multipart_without_boundary(call.request) for call in route.calls]
@@ -57,41 +66,68 @@ class TestUploadsCreate:
 
 
 class TestUploadsChange:
-    def test_change(self, client, respx_mock, tmp_path):
-        csv_file = tmp_path / "inventory.csv"
-        csv_file.write_text("header\nrow1")
-        respx_mock.post("/inventory/upload/change").mock(
-            return_value=respx.MockResponse(200)
-        )
-        client.uploads.change(file=str(csv_file))
+    def test_change(self, client, respx_mock, csv_file):
+        respx_mock.post("/inventory/upload/change").respond(200, headers=_LOCATION)
+        assert client.uploads.change(file=str(csv_file)) == 599632
 
-    def test_change_error(self, client, respx_mock, tmp_path):
-        csv_file = tmp_path / "inventory.csv"
-        csv_file.write_text("header\nrow1")
-        respx_mock.post("/inventory/upload/change").mock(
-            return_value=respx.MockResponse(400, json={"message": "Bad"})
+    def test_change_error(self, client, respx_mock, csv_file):
+        respx_mock.post("/inventory/upload/change").respond(
+            400, json={"message": "Bad"}
         )
-        with pytest.raises(DiscogsAPIError):
+        with pytest.raises(DiscogsAPIError) as exc_info:
             client.uploads.change(file=str(csv_file))
+        assert exc_info.value.status_code == 400
 
 
 class TestUploadsDelete:
-    def test_delete(self, client, respx_mock, tmp_path):
-        csv_file = tmp_path / "inventory.csv"
-        csv_file.write_text("header\nrow1")
-        respx_mock.post("/inventory/upload/delete").mock(
-            return_value=respx.MockResponse(200)
-        )
-        client.uploads.delete(file=str(csv_file))
+    def test_delete(self, client, respx_mock, csv_file):
+        respx_mock.post("/inventory/upload/delete").respond(200, headers=_LOCATION)
+        assert client.uploads.delete(file=str(csv_file)) == 599632
 
-    def test_delete_error(self, client, respx_mock, tmp_path):
-        csv_file = tmp_path / "inventory.csv"
-        csv_file.write_text("header\nrow1")
-        respx_mock.post("/inventory/upload/delete").mock(
-            return_value=respx.MockResponse(400, json={"message": "Bad"})
+    def test_delete_error(self, client, respx_mock, csv_file):
+        respx_mock.post("/inventory/upload/delete").respond(
+            400, json={"message": "Bad"}
         )
-        with pytest.raises(DiscogsAPIError):
+        with pytest.raises(DiscogsAPIError) as exc_info:
             client.uploads.delete(file=str(csv_file))
+        assert exc_info.value.status_code == 400
+
+
+@pytest.mark.parametrize(("method", "path"), _ROUTES)
+class TestUploadJobId:
+    @pytest.mark.parametrize(
+        "location",
+        ["/inventory/upload/7", "/inventory/upload/7/", "/inventory/upload/7?x=1"],
+    )
+    def test_relative_or_decorated_location(
+        self, client, respx_mock, csv_file, method, path, location
+    ):
+        respx_mock.post(path).respond(200, headers={"Location": location})
+        assert getattr(client.uploads, method)(file=csv_file) == 7
+
+    @pytest.mark.parametrize(
+        "headers",
+        [
+            pytest.param({}, id="missing"),
+            pytest.param({"Location": ""}, id="empty"),
+            pytest.param({"Location": "/inventory/upload/abc"}, id="abc"),
+            pytest.param({"Location": "/inventory/upload/"}, id="none"),
+        ],
+    )
+    def test_response_without_a_job_id_raises(
+        self, client, respx_mock, csv_file, method, path, headers
+    ):
+        respx_mock.post(path).respond(200, headers=headers, text="queued")
+        with pytest.raises(DiscogsAPIError, match="Location") as exc_info:
+            getattr(client.uploads, method)(file=csv_file)
+        error = exc_info.value
+        assert type(error) is DiscogsAPIError
+        assert error.status_code == 200
+        assert error.response_body == "queued"
+        assert "uploads.list()" in str(error)
+        assert error.method == "POST"
+        assert error.url == f"{BASE_URL}{path}"
+        assert error.ratelimit is None
 
 
 class TestUploadsList:

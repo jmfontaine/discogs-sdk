@@ -144,7 +144,9 @@ class TestCacheCallsLeaveTheLoop:
 
 class TestUploadFileRead:
     async def test_file_is_read_on_a_worker_thread(self, router, tmp_path):
-        router.post("/inventory/upload/add").respond(200)
+        router.post("/inventory/upload/add").respond(
+            200, headers={"Location": "/inventory/upload/599632"}
+        )
         csv_file = tmp_path / "inventory.csv"
         csv_file.write_text("release_id,price\n352665,25.00\n")
         threads: list[int] = []

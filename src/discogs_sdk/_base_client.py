@@ -257,6 +257,48 @@ def maybe_raise(
     )
 
 
+# Longest Location value quoted in a job-id error, so str(exc) stays bounded.
+_MAX_QUOTED_LOCATION = 200
+
+
+def job_id_from_location(response: httpx2.Response, *, listing: str) -> int:
+    """The job id ending the ``Location`` header of an accepted job submission.
+
+    Discogs answers an export request or an inventory upload with the new job's
+    URL, absolute or relative, in ``Location``; a trailing slash and a query
+    string are ignored. Without a header, or when its last path segment is not an
+    ASCII integer, raise ``DiscogsAPIError``: the request was accepted, so the job
+    probably exists, and the message points to *listing* instead of a resubmit.
+    """
+    location = response.headers.get("Location")
+    if location:
+        try:
+            path = urllib.parse.urlsplit(location).path
+        except ValueError:  # an unbalanced "[" in the authority
+            path = ""
+        segment = path.rstrip("/").rpartition("/")[2]
+        if segment.isascii() and segment.isdigit():
+            return int(segment)
+        # Cut after quoting: repr() escapes a character into as many as ten.
+        quoted = repr(location)
+        if len(quoted) > _MAX_QUOTED_LOCATION:
+            quoted = quoted[: _MAX_QUOTED_LOCATION - 1] + "…"
+        problem = f"its Location header {quoted} does not end in a job id"
+    elif location is None:
+        problem = "it has no Location header"
+    else:
+        problem = "its Location header is empty"
+    raise DiscogsAPIError(
+        f"Discogs accepted the request, but {problem}. The job probably exists: "
+        f"find it with {listing} instead of submitting again.",
+        status_code=response.status_code,
+        response_body=response.text,
+        method=response.request.method,
+        url=str(response.request.url),
+        ratelimit=RateLimit.from_headers(response.headers),
+    )
+
+
 try:
     _SDK_VERSION = importlib.metadata.version("discogs-sdk")
 except (

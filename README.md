@@ -286,10 +286,18 @@ raises `DiscogsConnectionError`, and a successful response missing either
 `oauth_token` or `oauth_token_secret` raises `DiscogsAPIError` naming any
 `oauth_problem`. They never retry: the access-token exchange is sent at most once.
 
+`client.exports.request()` and `client.uploads.create()`, `change()` and `delete()`
+return the new job's id, read from the `Location` header of the response, for
+`exports.get()`, `exports.download()` and `uploads.get()`. A successful response
+whose `Location` is missing or does not end in an integer raises `DiscogsAPIError`
+with that 2xx status: Discogs accepted the request, so the job probably exists. Find
+it with `exports.list()` or `uploads.list()` instead of submitting again.
+
 `str(exc)` on a `DiscogsAPIError` is a short summary, `"<status>: <message>"`. The
 message is the body's `message` when that is a non-empty string, otherwise the body
-itself, cut to 500 characters so a gateway error page does not flood logs. The full
-payload stays in `exc.response_body`.
+itself, cut to 500 characters so a gateway error page does not flood logs; the errors
+above that the SDK raises on a 2xx describe the problem instead. The full payload
+stays in `exc.response_body`.
 
 Every SDK exception survives `pickle`, `copy.copy` and `copy.deepcopy` with its
 attributes (`status_code`, `response_body`, `retry_after`, `ratelimit`, `method`,

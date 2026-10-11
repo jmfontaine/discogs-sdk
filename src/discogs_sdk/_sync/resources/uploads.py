@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import os
 
-from discogs_sdk._base_client import path_segment
+from discogs_sdk._base_client import job_id_from_location, path_segment
 from discogs_sdk._sync._lazy import LazyResource
 from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk._sync._resource import SyncAPIResource
@@ -18,14 +18,34 @@ class UploadProxy(LazyResource[Upload], UploadFields):
 
 
 class Uploads(SyncAPIResource):
-    def create(self, *, file: str | os.PathLike[str]) -> None:
-        self._post_file("/inventory/upload/add", file_path=file)
+    def create(self, *, file: str | os.PathLike[str]) -> int:
+        """Upload a CSV of listings to add and return the new job's id.
 
-    def change(self, *, file: str | os.PathLike[str]) -> None:
-        self._post_file("/inventory/upload/change", file_path=file)
+        Pass the id to ``get()`` to follow the job. It comes from the response's
+        ``Location`` header; when that is missing or does not end in an integer,
+        ``DiscogsAPIError`` is raised with the response's status and text. Discogs
+        accepted the file, so the job probably exists: find it with ``list()``
+        rather than uploading again. An error status raises its usual exception.
+        """
+        return self._submit("/inventory/upload/add", file)
 
-    def delete(self, *, file: str | os.PathLike[str]) -> None:
-        self._post_file("/inventory/upload/delete", file_path=file)
+    def change(self, *, file: str | os.PathLike[str]) -> int:
+        """Upload a CSV of listing changes and return the new job's id.
+
+        The id and its errors work as in ``create()``.
+        """
+        return self._submit("/inventory/upload/change", file)
+
+    def delete(self, *, file: str | os.PathLike[str]) -> int:
+        """Upload a CSV of listings to delete and return the new job's id.
+
+        The id and its errors work as in ``create()``.
+        """
+        return self._submit("/inventory/upload/delete", file)
+
+    def _submit(self, path: str, file: str | os.PathLike[str]) -> int:
+        response = self._post_file(path, file_path=file)
+        return job_id_from_location(response, listing="uploads.list()")
 
     def list(
         self, *, page: int | None = None, per_page: int | None = None

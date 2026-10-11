@@ -221,27 +221,27 @@ client = Discogs(token="YOUR_TOKEN_HERE")
 
 
 # ━━ Exports (inventory CSV) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Request a new inventory export.
-client.exports.request()
+# Request a new inventory export. The call returns the new job's id.
+export_id = client.exports.request()
 
 # List available exports.
 for export in client.exports.list():
     print(f"  Export #{export.id}: {export.status} ({export.created_at})")
 
-# Get a specific export. Status reads always reach the API, even with caching on,
-# but a resolved proxy keeps its data: poll with a new get() call each time.
-export = client.exports.get(12345)
+# Get the export's status. Status reads always reach the API, even with caching
+# on, but a resolved proxy keeps its data: poll with a new get() call each time.
+export = client.exports.get(export_id)
 print(f"Status: {export.status}")
 
-# Download the CSV.
-csv_bytes = client.exports.download(12345)
+# Download the CSV once the export has finished.
+csv_bytes = client.exports.download(export_id)
 with open("inventory.csv", "wb") as f:
     f.write(csv_bytes)
 
 
 # ━━ Uploads (inventory CSV import) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Upload a CSV to add items to your inventory.
-client.uploads.create(file="add_items.csv")
+# Upload a CSV to add items to your inventory. Each upload returns its job's id.
+upload_id = client.uploads.create(file="add_items.csv")
 
 # Upload a CSV to modify existing items.
 client.uploads.change(file="update_items.csv")
@@ -253,9 +253,9 @@ client.uploads.delete(file="delete_items.csv")
 for upload in client.uploads.list():
     print(f"  Upload #{upload.id}: {upload.status} ({upload.filename})")
 
-# Get details of a specific upload. Like an export, poll with a new get() call
-# each time: the read bypasses the cache, the resolved proxy does not refresh.
-upload = client.uploads.get(67890)
+# Get the details of the first upload. Like an export, poll with a new get()
+# call each time: the read bypasses the cache, the resolved proxy does not refresh.
+upload = client.uploads.get(upload_id)
 print(f"Status: {upload.status}")
 
 

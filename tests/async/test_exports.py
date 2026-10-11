@@ -6,7 +6,7 @@ import httpx2
 import pytest
 import respx
 
-from discogs_sdk import AsyncDiscogs
+from discogs_sdk import AsyncDiscogs, RateLimit
 from discogs_sdk._exceptions import (
     CacheMissError,
     DiscogsAPIError,
@@ -15,24 +15,101 @@ from discogs_sdk._exceptions import (
 )
 from discogs_sdk.models.export import Export
 from tests.conftest import (
+    BASE_URL,
     StoreRecordingCache,
     make_export,
     make_paginated_response,
     make_release,
 )
 
+_LOCATION = "https://api.discogs.com/inventory/export/599632"
+_NO_JOB_ID = [
+    pytest.param({}, id="missing"),
+    pytest.param({"Location": ""}, id="empty"),
+    pytest.param(
+        {"Location": "https://api.discogs.com/inventory/export/abc"}, id="abc"
+    ),
+    pytest.param({"Location": "https://api.discogs.com/inventory/export/"}, id="none"),
+    pytest.param(
+        [(b"Location", "/inventory/export/\u0667".encode())], id="non-ascii-digit"
+    ),
+    pytest.param({"Location": "http://[::1/inventory/export/7"}, id="bad-authority"),
+]
+
 
 class TestExportsRequest:
     async def test_request_success(self, client, respx_mock):
-        respx_mock.post("/inventory/export").mock(return_value=respx.MockResponse(200))
-        await client.exports.request()
-
-    async def test_request_error_empty_body(self, client, respx_mock):
-        respx_mock.post("/inventory/export").mock(
-            return_value=respx.MockResponse(403, json={"message": "Forbidden"})
+        respx_mock.post("/inventory/export").respond(
+            200, headers={"Location": _LOCATION}
         )
-        with pytest.raises(ForbiddenError):
+        assert await client.exports.request() == 599632
+
+    @pytest.mark.parametrize(
+        "location",
+        [
+            "/inventory/export/7",
+            "/inventory/export/7/",
+            "https://api.discogs.com/inventory/export/7?page=1",
+        ],
+    )
+    async def test_relative_or_decorated_location(self, client, respx_mock, location):
+        respx_mock.post("/inventory/export").respond(
+            200, headers={"Location": location}
+        )
+        assert await client.exports.request() == 7
+
+    @pytest.mark.parametrize("headers", _NO_JOB_ID)
+    async def test_response_without_a_job_id_raises(self, client, respx_mock, headers):
+        respx_mock.post("/inventory/export").respond(
+            200, headers=headers, text="queued"
+        )
+        with pytest.raises(DiscogsAPIError, match="Location") as exc_info:
             await client.exports.request()
+        error = exc_info.value
+        assert type(error) is DiscogsAPIError
+        assert error.status_code == 200
+        assert error.response_body == "queued"
+        assert "exports.list()" in str(error)
+        assert error.method == "POST"
+        assert error.url == f"{BASE_URL}/inventory/export"
+        assert error.ratelimit is None
+
+    async def test_job_id_error_carries_the_rate_limit(self, client, respx_mock):
+        respx_mock.post("/inventory/export").respond(
+            200,
+            headers={
+                "X-Discogs-Ratelimit": "60",
+                "X-Discogs-Ratelimit-Used": "14",
+                "X-Discogs-Ratelimit-Remaining": "46",
+            },
+        )
+        with pytest.raises(DiscogsAPIError, match="Location") as exc_info:
+            await client.exports.request()
+        assert exc_info.value.ratelimit == RateLimit(60, 14, 46)
+
+    async def test_long_malformed_location_is_quoted_bounded(self, client, respx_mock):
+        # Control characters, which repr() expands fourfold.
+        location = b"/inventory/export/" + b"\x85" * 10_000
+        respx_mock.post("/inventory/export").respond(
+            200, headers=[(b"Location", location)]
+        )
+        with pytest.raises(DiscogsAPIError, match="Location") as exc_info:
+            await client.exports.request()
+        assert len(str(exc_info.value)) < 500
+
+    @pytest.mark.parametrize(
+        ("status", "error_cls"), [(403, ForbiddenError), (409, DiscogsAPIError)]
+    )
+    async def test_http_error_is_mapped_first(
+        self, client, respx_mock, status, error_cls
+    ):
+        respx_mock.post("/inventory/export").respond(
+            status, json={"message": "No"}, headers={"Location": _LOCATION}
+        )
+        with pytest.raises(error_cls) as exc_info:
+            await client.exports.request()
+        assert exc_info.value.status_code == status
+        assert "Location" not in str(exc_info.value)
 
 
 class TestExportsList:
