@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import copy
 import pickle
+from datetime import datetime, timedelta, timezone
+from email.utils import format_datetime
 from unittest.mock import patch
 
 import httpx2
@@ -409,3 +411,68 @@ class TestConnectionErrorTransience:
         assert type(clone) is DiscogsConnectionError
         assert clone.transient is transient
         assert clone.args == exc_info.value.args
+
+
+class TestRateLimitErrorRetryAfterSeconds:
+    """``retry_after_seconds`` is the parsed delay; ``retry_after`` stays raw."""
+
+    @pytest.mark.parametrize(
+        ("header", "seconds"),
+        [
+            pytest.param("30", 30.0, id="whole"),
+            pytest.param("1.5", 1.5, id="decimal"),
+            pytest.param("0", 0.0, id="zero"),
+            pytest.param("soon", None, id="invalid"),
+            pytest.param("-5", None, id="negative"),
+        ],
+    )
+    def test_header_value(self, client, respx_mock, header, seconds):
+        respx_mock.get("/releases/352665").respond(
+            429, json={"message": "slow down"}, headers={"Retry-After": header}
+        )
+
+        with pytest.raises(RateLimitError) as exc_info:
+            _ = client.releases.get(352665).title
+
+        assert exc_info.value.retry_after == header
+        if seconds is None:
+            assert exc_info.value.retry_after_seconds is None
+        else:
+            assert type(exc_info.value.retry_after_seconds) is float
+            assert exc_info.value.retry_after_seconds == seconds
+
+    def test_missing_header(self, client, respx_mock):
+        respx_mock.get("/releases/352665").respond(429, json={"message": "slow down"})
+
+        with pytest.raises(RateLimitError) as exc_info:
+            _ = client.releases.get(352665).title
+
+        assert exc_info.value.retry_after is None
+        assert exc_info.value.retry_after_seconds is None
+
+    def test_future_http_date(self, client, respx_mock):
+        when = datetime.now(timezone.utc) + timedelta(seconds=30)
+        header = format_datetime(when, usegmt=True)
+        respx_mock.get("/releases/352665").respond(
+            429, json={"message": "slow down"}, headers={"Retry-After": header}
+        )
+
+        with pytest.raises(RateLimitError) as exc_info:
+            _ = client.releases.get(352665).title
+
+        assert exc_info.value.retry_after == header
+        seconds = exc_info.value.retry_after_seconds
+        assert seconds is not None
+        assert 28.0 < seconds <= 30.0  # the header has whole-second resolution
+
+    def test_past_http_date_is_zero(self, client, respx_mock):
+        header = "Wed, 21 Oct 2015 07:28:00 GMT"
+        respx_mock.get("/releases/352665").respond(
+            429, json={"message": "slow down"}, headers={"Retry-After": header}
+        )
+
+        with pytest.raises(RateLimitError) as exc_info:
+            _ = client.releases.get(352665).title
+
+        assert exc_info.value.retry_after == header
+        assert exc_info.value.retry_after_seconds == 0.0

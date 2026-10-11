@@ -63,8 +63,12 @@ except RateLimitError as exc:
     # for more than 60 seconds. A mutation (POST, PUT, DELETE) is never
     # retried after a status code, so it raises on the first 429.
     # The 429's own X-Discogs-Ratelimit* headers ride along when Discogs
-    # sends them.
-    print(f"Rate limited.  Retry after: {exc.retry_after}")
+    # sends them. retry_after_seconds is Retry-After parsed (seconds or an
+    # HTTP-date); retry_after keeps the raw header.
+    if exc.retry_after_seconds is not None:
+        print(f"Rate limited.  Retry after: {exc.retry_after_seconds:g}s")
+    else:
+        print("Rate limited.  No usable Retry-After")
     if exc.ratelimit:
         print(f"  {exc.ratelimit.used}/{exc.ratelimit.limit} used this window")
 except ValidationError as exc:

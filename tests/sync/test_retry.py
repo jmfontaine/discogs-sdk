@@ -111,6 +111,7 @@ class TestRetryAfterCap:
         assert route.call_count == 1
         mock_sleep.assert_not_called()
         assert exc_info.value.retry_after == "3600"
+        assert exc_info.value.retry_after_seconds == 3600.0
         assert [(e.status_code, e.attempts) for e in events] == [(429, 1)]
 
     def test_long_server_error_raises_without_waiting(self, client, respx_mock):

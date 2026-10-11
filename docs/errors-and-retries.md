@@ -6,9 +6,11 @@
 > Discogs allows 60 requests/minute authenticated and 25/minute unauthenticated, measured as a moving average over
 > the last 60 seconds. The SDK does not pace your requests: it retries a rate-limited **read** a bounded number of
 > times (`max_retries`, default 3), honouring `Retry-After` (seconds or an HTTP-date) up to 60 seconds. A longer
-> `Retry-After` is not slept through: the error is raised immediately, `RateLimitError.retry_after` carries the raw
-> value, and you decide whether to wait. Sustained traffic above the limit still needs pacing on your side, and you can
-> still receive `RateLimitError` once the retries are exhausted.
+> `Retry-After` is not slept through: the error is raised immediately and you decide whether to wait.
+> `RateLimitError.retry_after` carries the raw header value and `retry_after_seconds` the delay it asks for, parsed
+> the way the SDK parses it (decimal seconds or an HTTP-date, measured when the error is raised; `None` when the header
+> is missing or unusable). Sustained traffic above the limit still needs pacing on your side, and you can still receive
+> `RateLimitError` once the retries are exhausted.
 
 > [!WARNING]
 > Mutations are not replayed. A `POST`, `PUT` or `DELETE` is retried only when the failure proves the request never
@@ -96,7 +98,8 @@ try:
 except NotFoundError as exc:
     print(f"Not found: {exc.method} {exc.url}")
 except RateLimitError as exc:
-    print(f"Rate limited, retry after {exc.retry_after}s")
+    if exc.retry_after_seconds is not None:  # parsed Retry-After; .retry_after is raw
+        print(f"Rate limited, retry after {exc.retry_after_seconds:g}s")
     if exc.ratelimit:  # the 429's own X-Discogs-Ratelimit* headers, when present
         print(f"{exc.ratelimit.used}/{exc.ratelimit.limit} used this window")
 except AuthenticationError:
@@ -145,10 +148,11 @@ above that the SDK raises on a 2xx describe the problem instead. The full payloa
 stays in `exc.response_body`.
 
 Every SDK exception survives `pickle`, `copy.copy` and `copy.deepcopy` with its
-attributes (`status_code`, `response_body`, `retry_after`, `ratelimit`, `method`,
-`url`, `transient`) and any notes, so an error raised in a `ProcessPoolExecutor` or
-`multiprocessing` worker reaches the parent as the same class. As with any pickled
-exception, `__cause__`, `__context__` and the traceback are not carried over.
+attributes (`status_code`, `response_body`, `retry_after`, `retry_after_seconds`,
+`ratelimit`, `method`, `url`, `transient`) and any notes, so an error raised in a
+`ProcessPoolExecutor` or `multiprocessing` worker reaches the parent as the same class.
+As with any pickled exception, `__cause__`, `__context__` and the traceback are not
+carried over. `retry_after_seconds` keeps the value computed when the error was raised.
 
 A paginated iterator that raises keeps its place, and a page with the wrong shape raises `DiscogsError`; see
 [When a page fails](pagination.md#when-a-page-fails).

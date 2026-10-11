@@ -130,6 +130,7 @@ class TestRateLimitError:
     def test_retry_after_default_none(self):
         err = RateLimitError("limited", status_code=429, response_body={})
         assert err.retry_after is None
+        assert err.retry_after_seconds is None
 
     def test_retry_after_set(self):
         err = RateLimitError(
@@ -242,11 +243,13 @@ class TestPickleAndCopy:
 
     @ROUND_TRIPS
     def test_rate_limit_error(self, round_trip):
+        # The parsed delay is kept as raised, not recomputed from the (past) date.
         err = RateLimitError(
             "slow down",
             status_code=429,
             response_body={"message": "slow down"},
-            retry_after="30",
+            retry_after="Wed, 21 Oct 2015 07:28:00 GMT",
+            retry_after_seconds=12.5,
             ratelimit=RateLimit(60, 60, 0),
             method="GET",
             url=CACHE_URL,
@@ -256,7 +259,8 @@ class TestPickleAndCopy:
         assert clone.args == ("slow down",)
         assert clone.status_code == 429
         assert clone.response_body == {"message": "slow down"}
-        assert clone.retry_after == "30"
+        assert clone.retry_after == "Wed, 21 Oct 2015 07:28:00 GMT"
+        assert clone.retry_after_seconds == 12.5
         assert isinstance(clone.ratelimit, RateLimit)
         assert clone.ratelimit == RateLimit(60, 60, 0)
         assert clone.method == "GET"

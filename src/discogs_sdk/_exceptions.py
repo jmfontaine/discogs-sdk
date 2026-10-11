@@ -163,6 +163,12 @@ class RateLimitError(DiscogsAPIError):
 
     Attributes:
         retry_after: Raw ``Retry-After`` header value, when present.
+        retry_after_seconds: The delay ``retry_after`` asks for, in seconds,
+            computed when the error is raised: a finite, non-negative number of
+            seconds (``"0"`` gives ``0.0``) or an HTTP-date measured from that
+            moment and floored at ``0.0``. ``None`` when the header is missing
+            or unusable, the same values the SDK's own retries ignore, and on an
+            instance constructed without it.
     """
 
     def __init__(
@@ -172,6 +178,7 @@ class RateLimitError(DiscogsAPIError):
         status_code: int,
         response_body: dict[str, Any] | str,
         retry_after: str | None = None,
+        retry_after_seconds: float | None = None,
         method: str | None = None,
         url: str | None = None,
         ratelimit: RateLimit | None = None,
@@ -185,9 +192,14 @@ class RateLimitError(DiscogsAPIError):
             ratelimit=ratelimit,
         )
         self.retry_after = retry_after
+        self.retry_after_seconds = retry_after_seconds
 
     def _init_kwargs(self) -> dict[str, Any]:
-        return {**super()._init_kwargs(), "retry_after": self.retry_after}
+        return {
+            **super()._init_kwargs(),
+            "retry_after": self.retry_after,
+            "retry_after_seconds": self.retry_after_seconds,
+        }
 
 
 class ValidationError(DiscogsAPIError):

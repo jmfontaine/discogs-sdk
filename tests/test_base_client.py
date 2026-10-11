@@ -271,11 +271,13 @@ class TestMaybeRaise:
             maybe_raise(429, {"message": "Rate limited"})
         assert exc_info.value.status_code == 429
         assert exc_info.value.retry_after is None
+        assert exc_info.value.retry_after_seconds is None
 
     def test_429_with_retry_after(self):
         with pytest.raises(RateLimitError) as exc_info:
             maybe_raise(429, {"message": "Rate limited"}, retry_after="30")
         assert exc_info.value.retry_after == "30"
+        assert exc_info.value.retry_after_seconds == 30.0
 
     def test_500_raises_generic_api_error(self):
         with pytest.raises(DiscogsAPIError) as exc_info:

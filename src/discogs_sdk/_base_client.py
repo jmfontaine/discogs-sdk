@@ -228,7 +228,8 @@ def maybe_raise(
     """Raise the ``DiscogsAPIError`` subclass matching an error *status_code*.
 
     *method*, *url* and *ratelimit* identify the failed request on the exception,
-    whatever its class; *retry_after* only reaches ``RateLimitError``.
+    whatever its class; *retry_after* only reaches ``RateLimitError``, raw and as
+    parsed by ``parse_retry_after()``.
     """
     if status_code < 400:
         return
@@ -251,6 +252,7 @@ def maybe_raise(
                 status_code=429,
                 response_body=body,
                 retry_after=retry_after,
+                retry_after_seconds=parse_retry_after(retry_after),
                 method=method,
                 url=url,
                 ratelimit=ratelimit,
