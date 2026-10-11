@@ -6,8 +6,11 @@ Verifies that:
   - It imports the SDK only through public names, never a ``_``-prefixed module
 
 Nothing here runs an example or touches the API: a call that no longer exists,
-a wrong argument or a broken request order all pass this check. The behaviour
-the examples demonstrate is covered by tests/test_examples_behavior.py.
+a wrong argument or a broken request order all pass this check.
+tests/test_examples_behavior.py runs the examples that write to the API
+(collection, marketplace, database, advanced) under mocked HTTP and pins every
+request they send. The others (quickstart, async_usage, and authentication,
+which prompts for input) are not run anywhere.
 """
 
 from __future__ import annotations

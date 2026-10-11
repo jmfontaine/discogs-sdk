@@ -145,6 +145,10 @@ Env vars: `DISCOGS_TOKEN`, `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `D
 - Shared payload factories in `tests/conftest.py` (`make_release()`, `make_artist()`, etc.)
 - Async tests in `tests/async/`, sync tests in `tests/sync/` (both hand-maintained). Tests of shared, client-agnostic
   code (`BaseClient`, `build_oauth_header`, the exceptions) live once in `tests/`, not in both trees
+- `tests/test_examples_behavior.py` runs `examples/collection.py`, `marketplace.py`, `database.py` and
+  `advanced.py` as scripts under a strict respx router and pins every request they send as
+  `(method, path, body)`. Changing a request in one of them, or adding or dropping one, means updating
+  its routes and expected sequence there
 - `pytest-asyncio` with `asyncio_mode="auto"` — no need for `@pytest.mark.asyncio`
 - Integration tests marked with `@pytest.mark.integration`, excluded by default
 - `.github/workflows/integration.yml` runs the live suite weekly (and on manual dispatch) in two
