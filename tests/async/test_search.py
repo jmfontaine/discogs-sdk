@@ -45,12 +45,14 @@ class TestSearch:
         assert all(isinstance(r, SearchResult) for r in results)
 
     async def test_multi_page_pagination(self, client, respx_mock):
+        search = f"{BASE_URL}/database/search"
+        page_2_url = f"{search}?q=nine+inch+nails&page=2&per_page=1"
         page1 = make_paginated_response(
             "results",
             [make_search_result(id=1)],
             page=1,
             pages=2,
-            next_url=f"{BASE_URL}/database/search?q=test&page=2",
+            next_url=page_2_url,
         )
         page2 = make_paginated_response(
             "results",
@@ -64,9 +66,15 @@ class TestSearch:
                 respx.MockResponse(200, json=page2),
             ]
         )
-        respx_mock.get("/database/search").mock(side_effect=lambda req: next(responses))
-        results = [item async for item in client.search(query="test")]
-        assert len(results) == 2
+        route = respx_mock.get("/database/search").mock(
+            side_effect=lambda req: next(responses)
+        )
+        results = [item async for item in client.search(query="nine inch nails")]
+        assert [r.id for r in results] == [1, 2]
+        assert [str(call.request.url) for call in route.calls] == [
+            f"{search}?page=1&q=nine+inch+nails",
+            page_2_url,
+        ]
 
     async def test_additional_params(self, client, respx_mock):
         respx_mock.get("/database/search").mock(

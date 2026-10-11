@@ -14,6 +14,13 @@ from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk.models.release import Release
 from tests.conftest import BASE_URL, make_paginated_response, make_release
 
+RELEASES = f"{BASE_URL}/releases"
+ARTIST_RELEASES = f"{BASE_URL}/artists/3857/releases"
+SUBMISSIONS = f"{BASE_URL}/users/trent_reznor/submissions"
+# The query differs from page 1's in more than the page number, so neither a
+# repeat of the first request nor a page + 1 rebuild can produce it.
+RELEASES_PAGE_2 = f"{RELEASES}?page=2&per_page=1"
+
 
 class TestSinglePage:
     def test_iterates_all_items(self, client, respx_mock):
@@ -58,7 +65,7 @@ class TestMultiPage:
             [make_release(id=1, title="R1")],
             page=1,
             pages=2,
-            next_url=f"{BASE_URL}/releases?page=2",
+            next_url=RELEASES_PAGE_2,
         )
         page2 = make_paginated_response(
             "releases",
@@ -72,7 +79,9 @@ class TestMultiPage:
                 respx.MockResponse(200, json=page2),
             ]
         )
-        respx_mock.get("/releases").mock(side_effect=lambda req: next(responses))
+        route = respx_mock.get("/releases").mock(
+            side_effect=lambda req: next(responses)
+        )
         page = SyncPage(
             client=client,
             path="/releases",
@@ -84,6 +93,10 @@ class TestMultiPage:
         assert len(results) == 2
         assert results[0].id == 1
         assert results[1].id == 2
+        assert [str(call.request.url) for call in route.calls] == [
+            f"{RELEASES}?page=1",
+            RELEASES_PAGE_2,
+        ]
 
 
 class TestEmptyNextPage:
@@ -94,7 +107,7 @@ class TestEmptyNextPage:
             [make_release(id=1, title="R1")],
             page=1,
             pages=2,
-            next_url=f"{BASE_URL}/releases?page=2",
+            next_url=RELEASES_PAGE_2,
         )
         page2 = make_paginated_response("releases", [], page=2, pages=2)
         responses = iter(
@@ -103,7 +116,9 @@ class TestEmptyNextPage:
                 respx.MockResponse(200, json=page2),
             ]
         )
-        respx_mock.get("/releases").mock(side_effect=lambda req: next(responses))
+        route = respx_mock.get("/releases").mock(
+            side_effect=lambda req: next(responses)
+        )
         page = SyncPage(
             client=client,
             path="/releases",
@@ -114,6 +129,10 @@ class TestEmptyNextPage:
         results = list(page)
         assert len(results) == 1
         assert results[0].id == 1
+        assert [str(call.request.url) for call in route.calls] == [
+            f"{RELEASES}?page=1",
+            RELEASES_PAGE_2,
+        ]
 
 
 class TestItemsPath:
@@ -263,7 +282,7 @@ class TestPaginationMetadata:
             pages=2,
             per_page=1,
             total_items=2,
-            next_url=f"{BASE_URL}/releases?page=2",
+            next_url=RELEASES_PAGE_2,
         )
         page2 = make_paginated_response(
             "releases",
@@ -276,7 +295,9 @@ class TestPaginationMetadata:
         responses = iter(
             [respx.MockResponse(200, json=page1), respx.MockResponse(200, json=page2)]
         )
-        respx_mock.get("/releases").mock(side_effect=lambda req: next(responses))
+        route = respx_mock.get("/releases").mock(
+            side_effect=lambda req: next(responses)
+        )
         page = SyncPage(
             client=client,
             path="/releases",
@@ -290,6 +311,10 @@ class TestPaginationMetadata:
         assert page.total_pages == 2
         assert page.total_items == 2
         assert page.per_page == 1
+        assert [str(call.request.url) for call in route.calls] == [
+            f"{RELEASES}?page=1",
+            RELEASES_PAGE_2,
+        ]
 
 
 class TestPageParam:
@@ -351,6 +376,44 @@ class TestErrors:
         with pytest.raises(DiscogsAPIError):
             list(page)
 
+    def test_error_on_second_page(self, no_retry_client, respx_mock):
+        page1 = make_paginated_response(
+            "releases",
+            [make_release(id=1, title="R1")],
+            page=1,
+            pages=2,
+            next_url=RELEASES_PAGE_2,
+        )
+        error_response = respx.MockResponse(500, json={"message": "Server Error"})
+        responses = iter([respx.MockResponse(200, json=page1), error_response])
+        route = respx_mock.get("/releases").mock(
+            side_effect=lambda req: next(responses)
+        )
+        page = SyncPage(
+            client=no_retry_client,
+            path="/releases",
+            params={},
+            model_cls=Release,
+            items_key="releases",
+        )
+        with pytest.raises(DiscogsAPIError):
+            list(page)
+        assert [str(call.request.url) for call in route.calls] == [
+            f"{RELEASES}?page=1",
+            RELEASES_PAGE_2,
+        ]
+
+
+def _submissions_url(page: int) -> str:
+    """URL of submissions page *page*.
+
+    Page 1 as the SDK builds it; later pages as Discogs links them, with a
+    per_page the first request never sends.
+    """
+    if page == 1:
+        return f"{SUBMISSIONS}?page=1"
+    return f"{SUBMISSIONS}?page={page}&per_page=1"
+
 
 def _submissions_page(
     page: int, pages: int, *, releases: list[dict], artists: list[dict] | None = None
@@ -359,16 +422,14 @@ def _submissions_page(
         "pagination": {
             "page": page,
             "pages": pages,
-            "per_page": 50,
+            "per_page": 1,
             "items": 2,
             "urls": {},
         },
         "submissions": {"releases": releases, "artists": artists or []},
     }
     if page < pages:
-        body["pagination"]["urls"]["next"] = (
-            f"{BASE_URL}/users/trent_reznor/submissions?page={page + 1}"
-        )
+        body["pagination"]["urls"]["next"] = _submissions_url(page + 1)
     return body
 
 
@@ -397,7 +458,9 @@ class TestEmptySelectedCategories:
         ]
 
         assert titles == ["Pretty Hate Machine", "The Downward Spiral"]
-        assert route.call_count == 3
+        assert [str(call.request.url) for call in route.calls] == [
+            _submissions_url(n) for n in (1, 2, 3)
+        ]
 
     def test_continues_past_consecutive_empty_pages(self, client, respx_mock):
         pages = [
@@ -416,7 +479,9 @@ class TestEmptySelectedCategories:
         ]
 
         assert titles == ["The Fragile"]
-        assert route.call_count == 4
+        assert [str(call.request.url) for call in route.calls] == [
+            _submissions_url(n) for n in (1, 2, 3, 4)
+        ]
 
     def test_empty_final_page_terminates_and_stays_exhausted(self, client, respx_mock):
         pages = [
@@ -430,7 +495,9 @@ class TestEmptySelectedCategories:
 
         page = client.users.get("trent_reznor").submissions.list()
         assert [item.title for item in page] == ["Broken"]
-        assert route.call_count == 2
+        assert [str(call.request.url) for call in route.calls] == [
+            _submissions_url(n) for n in (1, 2)
+        ]
 
         with pytest.raises(StopIteration):
             page.__next__()
@@ -443,7 +510,7 @@ class TestEmptySelectedCategories:
                 respx.MockResponse(502, html="<html>Bad Gateway</html>"),
             ]
         )
-        respx_mock.get("/users/trent_reznor/submissions").mock(
+        route = respx_mock.get("/users/trent_reznor/submissions").mock(
             side_effect=lambda req: next(responses)
         )
 
@@ -452,10 +519,9 @@ class TestEmptySelectedCategories:
 
         # Truncation would have looked like success.
         assert exc_info.value.status_code == 502
-
-
-ARTIST_RELEASES = f"{BASE_URL}/artists/3857/releases"
-SUBMISSIONS = f"{BASE_URL}/users/trent_reznor/submissions"
+        assert [str(call.request.url) for call in route.calls] == [
+            _submissions_url(n) for n in (1, 2)
+        ]
 
 
 def _artist_release(id: int | str, title: str) -> dict:
@@ -579,10 +645,7 @@ class TestPageThatFailsValidation:
             "The Downward Spiral",
         ]
         assert [str(call.request.url) for call in route.calls] == [
-            f"{SUBMISSIONS}?page=1",
-            f"{SUBMISSIONS}?page=2",
-            f"{SUBMISSIONS}?page=2",
-            f"{SUBMISSIONS}?page=3",
+            _submissions_url(n) for n in (1, 2, 2, 3)
         ]
 
 
