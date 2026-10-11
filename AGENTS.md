@@ -248,6 +248,10 @@ page or the upload API — there is no `pip yank`), then bump the patch version 
 ## Key Conventions
 
 - Python 3.10+ required (CI tests through 3.15), ruff targets 3.10 to match `requires-python`, line length 88
+- `.python-version` pins an exact CPython release (`3.13.16`). Local `uv run` and every single-version CI job
+  (quality, build, integration, publish) read it; only the test matrices float. `generate_sync.py` output
+  depends on the patch release, since `ast.unparse` changes between them, so bump the file deliberately and
+  run `just generate-sync` in the same commit
 - Workarounds that are knowingly less than ideal carry a `KLUDGE:` comment stating what is wrong and what
   removes it. Grep for `KLUDGE` to find them; do not add one without a removal condition
 - Python 3.15 needs `pydantic>=2.14` (earlier pins lack cp315 wheels), declared in `pyproject.toml`
