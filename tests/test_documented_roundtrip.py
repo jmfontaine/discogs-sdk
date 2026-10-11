@@ -23,7 +23,7 @@ from discogs_sdk.models.collection import (
     CollectionFolder,
     CollectionInstanceCreated,
     CollectionItem,
-    CollectionValue_,
+    CollectionValue,
 )
 from discogs_sdk.models.export import Export
 from discogs_sdk.models.label import Label, LabelRelease
@@ -474,7 +474,7 @@ class TestUserRoundTrip:
         )
         lazy = client.users.get("trent_reznor")
         value = await lazy.collection.value.get()
-        assert isinstance(value, CollectionValue_)
+        assert isinstance(value, CollectionValue)
         assert value.median == COLLECTION_VALUE["median"]
 
     async def test_wantlist_list(self, client, respx_mock):

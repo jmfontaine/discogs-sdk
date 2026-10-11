@@ -26,7 +26,7 @@ from discogs_sdk.models.collection import (
     CollectionInstanceCreated,
     CollectionItem,
     CollectionNote,
-    CollectionValue_,
+    CollectionValue,
 )
 from discogs_sdk.models.export import Export
 from discogs_sdk.models.label import Label, LabelRelease
@@ -72,7 +72,7 @@ __all__ = [
     "CollectionInstanceCreated",
     "CollectionItem",
     "CollectionNote",
-    "CollectionValue_",
+    "CollectionValue",
     "Community",
     "CommunityRating",
     "CommunityRatingValue",

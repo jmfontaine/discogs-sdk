@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 import respx
 
+from discogs_sdk import CollectionValue
 from discogs_sdk._exceptions import NotFoundError
 from discogs_sdk.models.collection import (
     CollectionField,
@@ -243,6 +244,8 @@ class TestCollectionValue:
         lazy = client.users.get("trent_reznor")
         result = lazy.collection.value.get()
         assert result.median == "$10.00"
+        # The sync proxy stays lazy; the model it resolves to is the public class.
+        assert isinstance(result._resolve(), CollectionValue)
 
 
 class TestUsernamePathEncoding:

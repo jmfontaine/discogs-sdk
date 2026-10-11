@@ -11,7 +11,7 @@ from discogs_sdk.models.collection import (
     CollectionFolder,
     CollectionInstanceCreated,
     CollectionItem,
-    CollectionValue_,
+    CollectionValue,
 )
 from tests.conftest import (
     make_collection_field,
@@ -256,7 +256,7 @@ class TestCollectionValue:
         )
         lazy = client.users.get("trent_reznor")
         result = await lazy.collection.value.get()
-        assert isinstance(result, CollectionValue_)
+        assert isinstance(result, CollectionValue)
         assert result.median == "$10.00"
 
 

@@ -13,7 +13,7 @@ from discogs_sdk.models.collection import (
     CollectionFolder,
     CollectionInstanceCreated,
     CollectionItem,
-    CollectionValue_,
+    CollectionValue,
 )
 
 if TYPE_CHECKING:
@@ -201,7 +201,7 @@ class CollectionFolderProxy(AsyncLazyResource[CollectionFolder]):
         return FolderReleases(self._client, self._username, self._folder_id)
 
 
-class CollectionValueProxy(AsyncLazyResource[CollectionValue_]):
+class CollectionValueProxy(AsyncLazyResource[CollectionValue]):
     """Lazy collection valuation."""
 
 
@@ -300,7 +300,7 @@ class CollectionValueResource(AsyncAPIResource):
         return CollectionValueProxy(
             self._client,
             f"/users/{path_segment(self._username)}/collection/value",
-            CollectionValue_,
+            CollectionValue,
         )
 
 

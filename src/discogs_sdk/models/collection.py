@@ -55,7 +55,7 @@ class CollectionField(SDKModel):
     type: str | None = None
 
 
-class CollectionValue_(SDKModel):
+class CollectionValue(SDKModel):
     maximum: str | None = None
     median: str | None = None
     minimum: str | None = None

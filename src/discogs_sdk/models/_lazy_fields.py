@@ -85,8 +85,8 @@ class CollectionFolderFields(SDKModelFields):
         resource_url: str | None
 
 
-class CollectionValue_Fields(SDKModelFields):
-    """Members of :class:`CollectionValue_`."""
+class CollectionValueFields(SDKModelFields):
+    """Members of :class:`CollectionValue`."""
 
     if TYPE_CHECKING:
         maximum: str | None

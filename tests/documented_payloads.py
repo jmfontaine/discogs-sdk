@@ -34,7 +34,7 @@ from discogs_sdk.models.collection import (
     CollectionFolder,
     CollectionInstanceCreated,
     CollectionItem,
-    CollectionValue_,
+    CollectionValue,
 )
 from discogs_sdk.models.export import Export
 from discogs_sdk.models.label import Label, LabelRelease
@@ -901,7 +901,7 @@ DOCUMENTED_PAYLOADS: dict[str, DocumentedPayload] = {
         (_ex("User Collection.md", "Collection Items By Release", path="releases"),),
     ),
     "collection_value": DocumentedPayload(
-        CollectionValue_,
+        CollectionValue,
         COLLECTION_VALUE,
         (_ex("User Collection.md", "Collection Value"),),
     ),
