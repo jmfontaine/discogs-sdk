@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from unittest.mock import patch
 
 import httpx2
@@ -13,7 +14,7 @@ from discogs_sdk import Discogs
 from discogs_sdk._cache import MemoryCache, SQLiteCache
 from discogs_sdk._exceptions import AuthenticationError, DiscogsAPIError
 from discogs_sdk._sync._paginator import SyncPage
-from tests.conftest import BASE_URL, make_identity, make_release
+from tests.conftest import BASE_URL, exclusive_lock, make_identity, make_release
 
 
 class TestGeneratedSurface:
@@ -412,6 +413,40 @@ class TestCacheBranch:
     def test_clear_cache_without_cache(self):
         client = Discogs(token="t", cache=False)
         client.clear_cache()  # should not raise
+
+
+class TestFailingSQLiteCache:
+    """A broken cache database never turns a successful request into an error."""
+
+    def test_locked_database_still_returns_the_response(
+        self, tmp_path, caplog, fast_sqlite_busy_timeout
+    ):
+        events = []
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            router.get("/releases/352665").respond(200, json=make_release())
+            client = Discogs(
+                token="t", cache=True, cache_dir=tmp_path, on_request=events.append
+            )
+            caplog.set_level(logging.WARNING, logger="discogs_sdk")
+            with exclusive_lock(tmp_path):
+                assert client.releases.get(352665).title == "The Downward Spiral"
+            client.close()
+        assert [e.source for e in events] == ["network"]
+        assert "database is locked" in caplog.text
+
+    def test_garbage_database_file_degrades_to_misses(self, tmp_path):
+        (tmp_path / "cache.db").write_bytes(b"this is not a database" * 64)
+        events = []
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            client = Discogs(
+                token="t", cache=True, cache_dir=tmp_path, on_request=events.append
+            )
+            for _ in range(2):
+                assert client.releases.get(352665).title == "The Downward Spiral"
+            client.close()
+        assert route.call_count == 2
+        assert [e.source for e in events] == ["network", "network"]
 
 
 class TestOAuthInSend:

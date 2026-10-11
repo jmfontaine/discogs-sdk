@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import functools
+import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -35,6 +40,26 @@ def _clean_discogs_env(monkeypatch):
     """Prevent real credentials in the environment from leaking into unit tests."""
     for var in _DISCOGS_ENV_VARS:
         monkeypatch.delenv(var, raising=False)
+
+
+@pytest.fixture
+def fast_sqlite_busy_timeout(monkeypatch):
+    """Make every SQLite connection give up on a held lock after 50ms, not 5s."""
+    monkeypatch.setattr(
+        sqlite3, "connect", functools.partial(sqlite3.connect, timeout=0.05)
+    )
+
+
+@contextmanager
+def exclusive_lock(cache_dir: Path) -> Iterator[None]:
+    """Hold the write lock on ``cache_dir/cache.db`` from a second connection."""
+    holder = sqlite3.connect(cache_dir / "cache.db", isolation_level=None)
+    try:
+        holder.execute("BEGIN EXCLUSIVE")
+        yield
+        holder.execute("ROLLBACK")
+    finally:
+        holder.close()
 
 
 def make_artist(id: int = 40, name: str = "Nine Inch Nails") -> dict[str, Any]:

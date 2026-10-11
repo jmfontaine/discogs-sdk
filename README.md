@@ -326,6 +326,11 @@ A cache built from `cache=True` belongs to the client, and `client.close()` clos
 pass in stays yours, like an injected `http_client`: `client.close()` never closes it, so one cache can outlive any of
 the clients sharing it. Call its `close()` yourself once every client using it is done.
 
+The SQLite cache never fails a request. If its database is locked by another process, read-only, full or corrupt,
+it logs a warning on the `discogs_sdk` logger and carries on: a lookup counts as a miss and a store is skipped, so the
+response still reaches you. Using the cache after it has been closed raises `RuntimeError`. The database runs in WAL
+mode, so `cache.db-wal` and `cache.db-shm` may appear next to `cache.db`.
+
 `client.no_cache()` bypasses the cache for the current execution context. Scopes nest, the previous state is
 restored even when the block raises, and concurrent tasks or threads each carry their own state:
 

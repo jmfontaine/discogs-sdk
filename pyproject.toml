@@ -131,6 +131,7 @@ exclude = [ "src/discogs_sdk/models/_lazy_fields.py" ]
 ignore_bodies_if_inherits_from = [ "SDKModel", "UserSummary" ]
 ignore_names = [
   "_clean_discogs_env",
+  "fast_sqlite_busy_timeout",
   "model_config",
   "prices",
   "pytestmark",
