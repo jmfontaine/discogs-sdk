@@ -42,6 +42,7 @@ from tests.conftest import (
     make_collection_instance_created,
     make_collection_value,
     make_community_rating,
+    make_identity,
     make_listing_created,
     make_master_version,
     make_order,
@@ -172,7 +173,8 @@ def _tracking(monkeypatch: pytest.MonkeyPatch) -> Iterator[_Tracked]:
 
 Routes = Callable[[MockRouter], None]
 
-COLLECTION_USER = "/users/your_username"
+# make_identity()'s username, which the examples read from client.user.identity()
+COLLECTION_USER = "/users/trent_reznor"
 FOLDERS = f"{COLLECTION_USER}/collection/folders"
 FOLDER_RELEASE = f"{FOLDERS}/1/releases/352665"
 WANT = f"{COLLECTION_USER}/wants/352665"
@@ -239,7 +241,7 @@ def _collection(router: MockRouter) -> None:
     )
     router.post(FOLDER_RELEASE).respond(
         201,
-        json=make_collection_instance_created(instance_id=20, username="your_username"),
+        json=make_collection_instance_created(instance_id=20, username="trent_reznor"),
     )
     router.post(f"{FOLDER_RELEASE}/instances/20/fields/1").respond(204)
     router.get(f"{COLLECTION_USER}/collection/value").respond(
@@ -249,9 +251,7 @@ def _collection(router: MockRouter) -> None:
     router.post(WANT).respond(
         200, json=make_want(id=352665, notes="Original pressing", rating=4)
     )
-    router.get(f"{COLLECTION_USER}/wants").respond(
-        200, json=make_paginated_response("wants", [make_want(id=352665)])
-    )
+    _wants(router)
 
 
 def _marketplace(router: MockRouter) -> None:
@@ -267,6 +267,16 @@ def _marketplace(router: MockRouter) -> None:
         json=make_paginated_response(
             "orders", [make_order(id="12345-1", status="Payment Received")]
         ),
+    )
+
+
+def _identity(router: MockRouter) -> None:
+    router.get("/oauth/identity").respond(200, json=make_identity())
+
+
+def _wants(router: MockRouter) -> None:
+    router.get(f"{COLLECTION_USER}/wants").respond(
+        200, json=make_paginated_response("wants", [make_want(id=352665)])
     )
 
 
@@ -319,7 +329,16 @@ DOC_ROUTES: dict[str, DocRoutes] = {
             SEARCH_GET,
         ),
     ),
-    "docs/authentication.md": DocRoutes(routes=(), requests=()),
+    "docs/authentication.md": DocRoutes(
+        routes=(_identity, _wants),
+        requests=(
+            # Sync, then async: identity first, then the user's wantlist
+            "GET /oauth/identity",
+            f"GET {COLLECTION_USER}/wants",
+            "GET /oauth/identity",
+            f"GET {COLLECTION_USER}/wants",
+        ),
+    ),
     "docs/caching.md": DocRoutes(
         routes=(_release,),
         requests=(
@@ -330,8 +349,9 @@ DOC_ROUTES: dict[str, DocRoutes] = {
         ),
     ),
     "docs/collection-and-marketplace.md": DocRoutes(
-        routes=(_collection, _marketplace),
+        routes=(_identity, _collection, _marketplace),
         requests=(
+            "GET /oauth/identity",
             *COLLECTION_REQUESTS,
             "POST /marketplace/listings",
             "POST /marketplace/listings/41578241",

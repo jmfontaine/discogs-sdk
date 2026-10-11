@@ -1,6 +1,7 @@
 # Collection and marketplace
 
 These examples need a personal token or OAuth: consumer credentials alone cannot reach user-specific resources.
+[`client.user.identity()`](authentication.md#the-authenticated-user) tells you whose account that is.
 
 ## Collection
 
@@ -8,7 +9,7 @@ These examples need a personal token or OAuth: consumer credentials alone cannot
 from discogs_sdk import Discogs
 
 client = Discogs()  # reads DISCOGS_TOKEN from the environment
-user = client.users.get("your_username")
+user = client.users.get(client.user.identity().username)
 
 # Folders
 folders = user.collection.folders.list()
