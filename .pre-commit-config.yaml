@@ -33,7 +33,7 @@ repos:
         name: sync-codegen-check
         entry: uv run python scripts/generate_sync.py --check
         language: system
-        files: (^src/discogs_sdk/_async/|^scripts/generate_sync\.py$)
+        files: ^(src/discogs_sdk/(_async|_sync|models)/|scripts/generate_sync\.py$)
         pass_filenames: false
 
       - id: dead-code

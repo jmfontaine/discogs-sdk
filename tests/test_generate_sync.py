@@ -346,3 +346,53 @@ class TestRunOnMalformedSource:
             gen.main()
         assert exc_info.value.code != 0
         assert "src/_async/bad.py:2: in f:" in capsys.readouterr().err
+
+
+class TestFieldMixins:
+    @pytest.fixture
+    def tree(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+        src = tmp_path / "_async"
+        src.mkdir()
+        (src / "proxies.py").write_text(
+            "class SoloProxy(AsyncLazyResource[Solo]):\n    pass\n"
+        )
+        models = tmp_path / "models"
+        models.mkdir()
+        (models / "things.py").write_text(
+            _source(
+                """
+                class Solo(SDKModel):
+                    title: str
+
+
+                class Parent(SDKModel):
+                    name: str
+
+
+                class Child(Parent):
+                    age: int
+                """
+            )
+        )
+        monkeypatch.setattr(gen, "ROOT", tmp_path)
+        monkeypatch.setattr(gen, "SRC", src)
+        monkeypatch.setattr(gen, "MODELS", models)
+        return tmp_path
+
+    def test_model_deriving_from_sdk_model_renders(self, tree: Path) -> None:
+        rendered = gen._render_field_mixins()
+        assert "class SoloFields:" in rendered
+        assert "title: str" in rendered
+
+    def test_proxied_model_with_another_base_fails(
+        self, tree: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        (tree / "_async" / "proxies.py").write_text(
+            "class ChildProxy(AsyncLazyResource[Child]):\n    pass\n"
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            gen._render_field_mixins()
+        assert exc_info.value.code != 0
+        err = capsys.readouterr().err
+        assert "Child" in err
+        assert "Parent" in err

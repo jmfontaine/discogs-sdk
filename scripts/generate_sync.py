@@ -254,15 +254,19 @@ def _proxied_models() -> list[str]:
     return sorted(found)
 
 
-def _model_declarations() -> tuple[dict[str, list[str]], dict[str, str]]:
-    """Return each model's declared members and a symbol -> module index.
+def _model_declarations() -> tuple[
+    dict[str, list[str]], dict[str, str], dict[str, list[str]]
+]:
+    """Return each model's declared members, a symbol -> module index, and bases.
 
     Members are rendered from the model source, so the model definition stays the
     single source of truth: annotated fields keep their annotation, and properties
-    and dunder methods keep their signature with an elided body.
+    and dunder methods keep their signature with an elided body. Only the class's
+    own body is read; inherited members are not.
     """
     members: dict[str, list[str]] = {}
     symbols: dict[str, str] = {}
+    bases: dict[str, list[str]] = {}
     for model_file in sorted(MODELS.glob("*.py")):
         if model_file == FIELDS_MODULE:
             continue
@@ -276,6 +280,7 @@ def _model_declarations() -> tuple[dict[str, list[str]], dict[str, str]]:
             if not isinstance(node, ast.ClassDef):
                 continue
             symbols[node.name] = module
+            bases[node.name] = [ast.unparse(base) for base in node.bases]
             rendered: list[str] = []
             for stmt in node.body:
                 if isinstance(stmt, ast.AnnAssign) and isinstance(
@@ -287,18 +292,28 @@ def _model_declarations() -> tuple[dict[str, list[str]], dict[str, str]]:
                     stub.body = [ast.Expr(value=ast.Constant(value=...))]
                     rendered.append(ast.unparse(stub))
             members[node.name] = rendered
-    return members, symbols
+    return members, symbols, bases
 
 
 def _render_field_mixins() -> str:
     """Render the member-declaration module from the model definitions."""
-    members, symbols = _model_declarations()
+    members, symbols, bases = _model_declarations()
     blocks: list[str] = []
     needed: set[str] = set()
     for model in _proxied_models():
         if model not in members:
             print(
                 f"ERROR: no model named {model} in {MODELS.relative_to(ROOT)}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        # The mixin renders the model's own body only, so it would silently miss
+        # members inherited from another model.
+        if other := [base for base in bases[model] if base != "SDKModel"]:
+            print(
+                f"ERROR: proxied model {model} ({symbols[model]}) derives from "
+                f"{', '.join(other)}; its field mixin would lack the inherited "
+                "members. Derive it from SDKModel only.",
                 file=sys.stderr,
             )
             sys.exit(1)
