@@ -221,13 +221,14 @@ for want in user.wantlist.list():
 ```python
 # Listings
 listing = client.marketplace.listings.get(123456789)
-new = client.marketplace.listings.create(
+# The response identifies the new listing; it is not a full Listing.
+created = client.marketplace.listings.create(
     release_id=352665,
     condition="Very Good Plus (VG+)",
     price=25.00,
 )
-client.marketplace.listings.update(new.id, price=22.50)
-client.marketplace.listings.delete(new.id)
+client.marketplace.listings.update(created.listing_id, price=22.50)
+client.marketplace.listings.delete(created.listing_id)
 
 # Orders
 for order in client.marketplace.orders.list(status="Payment Received"):
@@ -549,7 +550,6 @@ Model fields use clean Python names. Where the Discogs API uses inconsistent or 
 | `finished_ts` | `finished_at` | `Export`, `Upload` |
 | `from` | `from_user` | `OrderMessage` |
 | `list_id` | `id` | `List_` |
-| `listing_id` | `id` | `Listing` |
 | `modified_ts` | `modified_at` | `List_` |
 | `namevariations` | `name_variations` | `Artist` |
 | `qty` | `quantity` | `Format` |

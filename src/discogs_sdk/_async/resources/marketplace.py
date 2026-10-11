@@ -8,7 +8,13 @@ from discogs_sdk._async._paginator import AsyncPage
 from discogs_sdk._async._resource import AsyncAPIResource
 from discogs_sdk._base_client import path_segment
 from discogs_sdk.models._common import Condition, CurrencyCode
-from discogs_sdk.models.marketplace import Fee, Listing, Order, OrderMessage
+from discogs_sdk.models.marketplace import (
+    Fee,
+    Listing,
+    ListingCreated,
+    Order,
+    OrderMessage,
+)
 
 if TYPE_CHECKING:
     from discogs_sdk._async._client import AsyncDiscogs
@@ -138,7 +144,8 @@ class MarketplaceListings(AsyncAPIResource):
         price: float,
         status: str = "For Sale",
         **kwargs: Any,
-    ) -> Listing:
+    ) -> ListingCreated:
+        """List *release_id* for sale and return the new listing's identity."""
         body = {
             "release_id": release_id,
             "condition": condition,
@@ -147,7 +154,7 @@ class MarketplaceListings(AsyncAPIResource):
             **kwargs,
         }
         response = await self._post("/marketplace/listings", json=body)
-        return self._parse_response(response, Listing)
+        return self._parse_response(response, ListingCreated)
 
     async def update(self, listing_id: int, **kwargs: Any) -> None:
         await self._post(

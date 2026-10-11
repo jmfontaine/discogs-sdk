@@ -39,7 +39,13 @@ from discogs_sdk.models.collection import (
 from discogs_sdk.models.export import Export
 from discogs_sdk.models.label import Label, LabelRelease
 from discogs_sdk.models.list_ import List_, ListSummary
-from discogs_sdk.models.marketplace import Fee, Listing, Order, OrderMessage
+from discogs_sdk.models.marketplace import (
+    Fee,
+    Listing,
+    ListingCreated,
+    Order,
+    OrderMessage,
+)
 from discogs_sdk.models.master import Master, MasterVersion
 from discogs_sdk.models.release import (
     CommunityRating,
@@ -957,7 +963,9 @@ DOCUMENTED_PAYLOADS: dict[str, DocumentedPayload] = {
         ),
     ),
     "listing_created": DocumentedPayload(
-        Listing, LISTING_CREATED, (_ex("Marketplace.md", "New Listing", status="201"),)
+        ListingCreated,
+        LISTING_CREATED,
+        (_ex("Marketplace.md", "New Listing", status="201"),),
     ),
     "marketplace_release_stats": DocumentedPayload(
         MarketplaceReleaseStats,

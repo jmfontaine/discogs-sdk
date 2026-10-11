@@ -6,7 +6,7 @@ import pytest
 import respx
 
 from discogs_sdk._exceptions import NotFoundError
-from discogs_sdk.models.marketplace import Listing, Order, OrderMessage
+from discogs_sdk.models.marketplace import ListingCreated, Order, OrderMessage
 from tests.conftest import (
     BASE_URL,
     make_fee,
@@ -38,12 +38,14 @@ class TestMarketplaceListings:
             release_id=400027, condition="Mint (M)", price=9.99
         )
 
-        assert isinstance(result, Listing)
-        assert result.id == 41578241
+        assert isinstance(result, ListingCreated)
+        assert result.listing_id == 41578241
         assert result.resource_url == f"{BASE_URL}/marketplace/listings/41578241"
         assert route.call_count == 1
         # No hidden follow-up fetch to flesh out the listing.
         assert [call.request.method for call in respx_mock.calls] == ["POST"]
+        # An acknowledgement, not a listing: no always-None listing fields.
+        assert not hasattr(result, "price")
 
     def test_update(self, client, respx_mock):
         respx_mock.post("/marketplace/listings/123").mock(

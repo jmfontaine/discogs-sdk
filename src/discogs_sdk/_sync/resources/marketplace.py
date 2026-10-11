@@ -12,7 +12,13 @@ from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk._sync._resource import SyncAPIResource
 from discogs_sdk.models._common import Condition, CurrencyCode
 from discogs_sdk.models._lazy_fields import FeeFields, ListingFields, OrderFields
-from discogs_sdk.models.marketplace import Fee, Listing, Order, OrderMessage
+from discogs_sdk.models.marketplace import (
+    Fee,
+    Listing,
+    ListingCreated,
+    Order,
+    OrderMessage,
+)
 
 if TYPE_CHECKING:
     from discogs_sdk._sync._client import Discogs
@@ -138,7 +144,8 @@ class MarketplaceListings(SyncAPIResource):
         price: float,
         status: str = "For Sale",
         **kwargs: Any,
-    ) -> Listing:
+    ) -> ListingCreated:
+        """List *release_id* for sale and return the new listing's identity."""
         body = {
             "release_id": release_id,
             "condition": condition,
@@ -147,7 +154,7 @@ class MarketplaceListings(SyncAPIResource):
             **kwargs,
         }
         response = self._post("/marketplace/listings", json=body)
-        return self._parse_response(response, Listing)
+        return self._parse_response(response, ListingCreated)
 
     def update(self, listing_id: int, **kwargs: Any) -> None:
         self._post(f"/marketplace/listings/{path_segment(listing_id)}", json=kwargs)

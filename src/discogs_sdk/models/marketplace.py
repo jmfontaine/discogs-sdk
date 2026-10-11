@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import AliasChoices, Field
+from pydantic import Field
 
 from discogs_sdk.models._common import (
     Condition,
@@ -98,8 +98,7 @@ class Listing(SDKModel):
     ``raw["posted"]`` holds the string as sent.
     """
 
-    # Listing detail returns "id"; the creation acknowledgement returns "listing_id".
-    id: int = Field(validation_alias=AliasChoices("id", "listing_id"))
+    id: int
     allow_offers: bool | None = None
     audio: bool | None = None
     comments: str | None = None
@@ -122,6 +121,17 @@ class Listing(SDKModel):
     status: str | None = None
     uri: str | None = None
     weight: float | None = None
+
+
+class ListingCreated(SDKModel):
+    """Acknowledgement returned when a listing is created.
+
+    It identifies the new listing only; it is not a full ``Listing``. Use
+    ``listing_id`` to update, delete or fetch that listing.
+    """
+
+    listing_id: int
+    resource_url: str
 
 
 class OrderItem(SDKModel):

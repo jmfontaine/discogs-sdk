@@ -29,6 +29,7 @@ from discogs_sdk.models._common import (
 )
 from discogs_sdk.models.artist import Artist
 from discogs_sdk.models.label import Label, LabelRelease
+from discogs_sdk.models.list_ import List_
 from discogs_sdk.models.marketplace import Listing, OrderMessage, OriginalPrice
 from discogs_sdk.models.master import MasterVersion
 from discogs_sdk.models.release import Release
@@ -192,14 +193,26 @@ class TestSubclassInheritsGetattr:
 class TestAliasChoicesAccess:
     """A field accepting several API spellings exposes each as an attribute."""
 
-    def test_creation_alias_is_readable(self) -> None:
-        listing = Listing.model_validate({"listing_id": 41578241})
-        assert listing.id == 41578241
-        assert getattr(listing, "listing_id") == 41578241
-
     def test_detail_alias_is_readable(self) -> None:
-        listing = Listing.model_validate({"id": 123})
-        assert getattr(listing, "listing_id") == 123
+        list_ = List_.model_validate({"list_id": 1, "name": "Halo"})
+        assert list_.id == 1
+        assert getattr(list_, "list_id") == 1
+
+    def test_python_name_validates_and_reads_as_alias(self) -> None:
+        list_ = List_.model_validate({"id": 1, "name": "Halo"})
+        assert list_.id == 1
+        assert getattr(list_, "list_id") == 1
+
+
+class TestListingIdentifier:
+    """``Listing.id`` reads only the detail spelling; ``listing_id`` is the ack's."""
+
+    def test_detail_id_validates(self) -> None:
+        assert Listing.model_validate({"id": 1}).id == 1
+
+    def test_creation_acknowledgement_spelling_is_rejected(self) -> None:
+        with pytest.raises(PydanticValidationError):
+            Listing.model_validate({"listing_id": 1})
 
 
 def _sample(annotation: object) -> object:
@@ -334,12 +347,12 @@ class TestAliasLookup:
             getattr(image, "nonexistent")
 
     def test_copies_keep_alias_and_extra_access(self) -> None:
-        listing = Listing.model_validate({"listing_id": 41578241, "other": "x"})
-        for copied in (copy.deepcopy(listing), pickle.loads(pickle.dumps(listing))):
-            assert copied == listing
-            assert getattr(copied, "listing_id") == 41578241
+        image = Image.model_validate({"uri150": "thumb.jpg", "other": "x"})
+        for copied in (copy.deepcopy(image), pickle.loads(pickle.dumps(image))):
+            assert copied == image
+            assert getattr(copied, "uri150") == "thumb.jpg"
             assert getattr(copied, "other") == "x"
-            assert copied.raw == listing.raw
+            assert copied.raw == image.raw
 
 
 class TestCanonicalNameValidation:

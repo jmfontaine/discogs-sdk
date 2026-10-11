@@ -34,6 +34,7 @@ from discogs_sdk.models.list_ import List_, ListItem, ListSummary
 from discogs_sdk.models.marketplace import (
     Fee,
     Listing,
+    ListingCreated,
     ListingRelease,
     MessageRefund,
     Order,
@@ -92,6 +93,7 @@ __all__ = [
     "ListSummary",
     "List_",
     "Listing",
+    "ListingCreated",
     "ListingRelease",
     "MarketplaceReleaseStats",
     "Master",

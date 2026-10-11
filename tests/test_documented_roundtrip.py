@@ -28,7 +28,13 @@ from discogs_sdk.models.collection import (
 from discogs_sdk.models.export import Export
 from discogs_sdk.models.label import Label, LabelRelease
 from discogs_sdk.models.list_ import List_, ListSummary
-from discogs_sdk.models.marketplace import Fee, Listing, Order, OrderMessage
+from discogs_sdk.models.marketplace import (
+    Fee,
+    Listing,
+    ListingCreated,
+    Order,
+    OrderMessage,
+)
 from discogs_sdk.models.master import Master, MasterVersion
 from discogs_sdk.models.release import (
     CommunityRating,
@@ -330,9 +336,8 @@ class TestMarketplaceRoundTrip:
         created = await client.marketplace.listings.create(
             release_id=352665, condition="Mint (M)", price=39.99
         )
-        assert isinstance(created, Listing)
-        # The acknowledgement identifies the listing as "listing_id".
-        assert created.id == LISTING_CREATED["listing_id"]
+        assert isinstance(created, ListingCreated)
+        assert created.listing_id == LISTING_CREATED["listing_id"]
 
     async def test_order_get(self, client, respx_mock):
         respx_mock.get("/marketplace/orders/1-1").mock(

@@ -17,9 +17,12 @@ from discogs_sdk import AsyncDiscogs, Discogs
 from discogs_sdk._exceptions import DiscogsAPIError
 from tests.conftest import (
     BASE_URL,
+    EXAMPLES_DIR,
     make_artist,
     make_artist_release,
     make_collection_instance_created,
+    make_listing,
+    make_listing_created,
     make_order,
     make_paginated_response,
     make_release,
@@ -169,3 +172,41 @@ class TestOrderUpdateSeparation:
 
         assert json.loads(route.calls[0].request.content) == {"shipping": 5.0}
         assert updated.status == "Invoice Sent"
+
+
+class TestListingLifecycle:
+    """examples/marketplace.py: update and delete the listing the create acknowledged."""
+
+    def test_update_and_delete_use_the_acknowledged_listing_id(self, respx_mock):
+        # Run the example's own Listings section, so a stale attribute in it fails.
+        example = EXAMPLES_DIR / "marketplace.py"
+        source = example.read_text()
+        start = source.index("# ━━ Listings")
+        # Blank lines in front keep tracebacks on the example's real line numbers.
+        listings_section = (
+            "\n" * source.count("\n", 0, start)
+            + source[start : source.index("# ━━ Orders")]
+        )
+        respx_mock.get("/marketplace/listings/123456789").respond(
+            200, json=make_listing(id=123456789)
+        )
+        respx_mock.post("/marketplace/listings").respond(
+            201, json=make_listing_created(listing_id=41578241)
+        )
+        respx_mock.post("/marketplace/listings/41578241").respond(204)
+        respx_mock.delete("/marketplace/listings/41578241").respond(204)
+
+        with Discogs(token="t") as client:
+            exec(  # noqa: S102
+                compile(listings_section, str(example), "exec"), {"client": client}
+            )
+
+        methods_and_paths = [
+            (call.request.method, call.request.url.path) for call in respx_mock.calls
+        ]
+        assert methods_and_paths == [
+            ("GET", "/marketplace/listings/123456789"),
+            ("POST", "/marketplace/listings"),
+            ("POST", "/marketplace/listings/41578241"),
+            ("DELETE", "/marketplace/listings/41578241"),
+        ]

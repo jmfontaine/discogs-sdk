@@ -20,7 +20,7 @@ from discogs_sdk._exceptions import (
     DiscogsConnectionError,
     RateLimitError,
 )
-from discogs_sdk.models.marketplace import Listing
+from discogs_sdk.models.marketplace import ListingCreated
 from discogs_sdk.models.release import Release
 from discogs_sdk.models.wantlist import Want
 from tests.conftest import (
@@ -356,7 +356,7 @@ MUTATIONS = [
             lambda client: client.marketplace.listings.create(
                 release_id=352665, condition="Mint (M)", price=29.99
             ),
-            Listing,
+            ListingCreated,
         ),
         id="POST",
     ),

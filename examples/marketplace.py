@@ -27,24 +27,25 @@ if listing.release and listing.price:
         f"${listing.price.value} {listing.price.currency}"
     )
 
-# Create a new listing.
+# Create a new listing.  The response identifies the new listing only; it is
+# not a full Listing.
 new_listing = client.marketplace.listings.create(
     release_id=352665,
     condition="Very Good Plus (VG+)",
     price=25.00,
     status="For Sale",
 )
-print(f"Created listing #{new_listing.id}")
+print(f"Created listing #{new_listing.listing_id}")
 
 # Update a listing.
 client.marketplace.listings.update(
-    new_listing.id,
+    new_listing.listing_id,
     price=22.50,
     condition="Near Mint (NM or M-)",
 )
 
 # Delete a listing.
-client.marketplace.listings.delete(new_listing.id)
+client.marketplace.listings.delete(new_listing.listing_id)
 
 
 # ━━ Orders ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

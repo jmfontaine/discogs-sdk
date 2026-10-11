@@ -18,7 +18,8 @@ from pathlib import Path
 
 import pytest
 
-EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
+from tests.conftest import EXAMPLES_DIR
+
 EXAMPLE_FILES = sorted(EXAMPLES_DIR.glob("*.py"))
 
 
