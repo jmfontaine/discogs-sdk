@@ -6,7 +6,9 @@ mocks, so the destructive paths are exercised without a real account.
 
 from __future__ import annotations
 
+import math
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 import respx
@@ -394,6 +396,71 @@ LEFTOVER_WANT = {
 }
 
 
+class PagedWantlist:
+    """A wantlist of ``size`` other wants, served page by page like Discogs.
+
+    Once created, the suite's want stays out of the listing until the
+    ``shows_after``-th single-item read, then appears last, the worst case for a
+    scan. With ``leftover`` the suite's tagged want is already first in the list.
+    Each listing request is recorded as ``(page, per_page)``.
+    """
+
+    def __init__(self, size: int, *, shows_after: int = 1, leftover: bool = False):
+        self.wants: list[dict[str, Any]] = [
+            {"id": want_id} for want_id in range(1, size + 1)
+        ]
+        if leftover:
+            self.wants.insert(0, LEFTOVER_WANT)
+        self.shows_after = shows_after
+        self.created = False
+        self.probes = 0
+        self.reads: list[tuple[int, int | None]] = []
+
+    def create(self, _request):
+        self.created = True
+        return respx.MockResponse(201, json={"id": CRUD_RELEASE_ID, "notes": ""})
+
+    def listing(self, request):
+        params = request.url.params
+        page = int(params.get("page", "1"))
+        per_page = int(params["per_page"]) if "per_page" in params else None
+        self.reads.append((page, per_page))
+        if self.created and per_page == 1:
+            self.probes += 1
+        wants = list(self.wants)
+        shown = self.created and self.probes >= self.shows_after
+        if shown and all(want["id"] != CRUD_RELEASE_ID for want in wants):
+            wants.append(LEFTOVER_WANT)
+        size = per_page or 50  # Discogs' default page size
+        pages = max(math.ceil(len(wants) / size), 1)
+        next_url = None
+        if page < pages:
+            next_url = (
+                f"https://api.discogs.com{WANTLIST_PATH}"
+                f"?page={page + 1}&per_page={size}"
+            )
+        return respx.MockResponse(
+            200,
+            json=make_paginated_response(
+                "wants",
+                wants[(page - 1) * size : page * size],
+                page=page,
+                pages=pages,
+                per_page=size,
+                total_items=len(wants),
+                next_url=next_url,
+            ),
+        )
+
+    def mount(self, router):
+        router.get(WANTLIST_PATH).mock(side_effect=self.listing)
+        router.put(f"{WANTLIST_PATH}/{CRUD_RELEASE_ID}").mock(side_effect=self.create)
+        router.post(f"{WANTLIST_PATH}/{CRUD_RELEASE_ID}").respond(
+            200, json=LEFTOVER_WANT
+        )
+        return router.delete(f"{WANTLIST_PATH}/{CRUD_RELEASE_ID}").respond(204)
+
+
 class TestWantlistLifecycle:
     def test_pre_existing_want_survives_unchanged(self, client, monkeypatch):
         monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
@@ -429,7 +496,7 @@ class TestWantlistLifecycle:
 
     def test_absent_want_completes_the_cycle_and_leaves_nothing_behind(self, client):
         with mock_router() as router:
-            router.get(WANTLIST_PATH).mock(
+            listing = router.get(WANTLIST_PATH).mock(
                 side_effect=in_turn(
                     make_paginated_response("wants", []),
                     make_paginated_response("wants", [{"id": CRUD_RELEASE_ID}]),
@@ -448,6 +515,13 @@ class TestWantlistLifecycle:
             assert created.call_count == 1
             assert tagged.call_count == 1
             assert deleted.call_count == 1
+            # A full-page scan, a one-item probe that sees the count rise, then
+            # the confirming scan.
+            assert [call.request.url.params["per_page"] for call in listing.calls] == [
+                "100",
+                "1",
+                "100",
+            ]
 
     def test_tagging_failure_still_removes_the_new_want(self, client):
         """A want that was created must not survive a failure of the next call."""
@@ -496,7 +570,7 @@ class TestWantlistLifecycle:
     def test_own_leftover_want_is_reclaimed_rather_than_blocking_the_run(self, client):
         """A want the suite tagged is debris from a killed run, not user data."""
         with mock_router() as router:
-            router.get(WANTLIST_PATH).respond(
+            listing = router.get(WANTLIST_PATH).respond(
                 200, json=make_paginated_response("wants", [LEFTOVER_WANT])
             )
             created = router.put(f"{WANTLIST_PATH}/{CRUD_RELEASE_ID}").respond(
@@ -512,3 +586,63 @@ class TestWantlistLifecycle:
             assert created.call_count == 1
             assert tagged.call_count == 1
             assert deleted.call_count == 1
+            # The pre-check finds the leftover, so the count need not rise: one
+            # probe, then the confirming scan.
+            assert [call.request.url.params["per_page"] for call in listing.calls] == [
+                "100",
+                "1",
+                "100",
+            ]
+
+    def test_count_without_the_want_fails_at_once_and_removes_it(self, client):
+        """A count that rose for another reason must not trigger more rescans."""
+        with mock_router() as router:
+            listing = router.get(WANTLIST_PATH).mock(
+                side_effect=in_turn(
+                    make_paginated_response("wants", []),
+                    make_paginated_response("wants", [{"id": 1}]),
+                )
+            )
+            router.put(f"{WANTLIST_PATH}/{CRUD_RELEASE_ID}").respond(
+                201, json={"id": CRUD_RELEASE_ID, "notes": ""}
+            )
+            router.post(f"{WANTLIST_PATH}/{CRUD_RELEASE_ID}").respond(
+                200, json=LEFTOVER_WANT
+            )
+            deleted = router.delete(f"{WANTLIST_PATH}/{CRUD_RELEASE_ID}").respond(204)
+
+            with pytest.raises(Failed, match="count leads the listing"):
+                wantlist_workflow.TestWantlistCRUD().test_add_list_delete(
+                    client, USERNAME
+                )
+
+            assert deleted.call_count == 1
+            assert listing.call_count == 3
+
+    def test_large_wantlist_stays_inside_the_rate_limit(self, client, sleeps):
+        wantlist = PagedWantlist(2000, shows_after=3)
+        with mock_router() as router:
+            deleted = wantlist.mount(router)
+
+            wantlist_workflow.TestWantlistCRUD().test_add_list_delete(client, USERNAME)
+
+            assert deleted.call_count == 1
+        assert {per_page for _, per_page in wantlist.reads} == {100, 1}
+        assert len(wantlist.reads) < 60
+        pre_check = [(page, 100) for page in range(1, 21)]
+        # One request per attempt until the count rises on the third, then one
+        # scan of the 2,001 wants, ours last.
+        probes = [(1, 1)] * 3
+        confirm = [(page, 100) for page in range(1, 22)]
+        assert wantlist.reads == pre_check + probes + confirm
+        assert sleeps == [10.0, 10.0]
+
+    def test_leftover_on_the_first_page_leaves_later_pages_unread(self, client):
+        wantlist = PagedWantlist(2000, leftover=True)
+        with mock_router() as router:
+            deleted = wantlist.mount(router)
+
+            wantlist_workflow.TestWantlistCRUD().test_add_list_delete(client, USERNAME)
+
+            assert deleted.call_count == 1
+        assert wantlist.reads == [(1, 100), (1, 1), (1, 100)]
