@@ -98,6 +98,9 @@ lint.per-file-ignores."src/discogs_sdk/__init__.py" = [ "RUF022" ]
 # time.sleep lives in the `else` branch of an `if True:  # ASYNC` directive,
 # which only the generated sync code keeps. See scripts/generate_sync.py.
 lint.per-file-ignores."src/discogs_sdk/_async/_client.py" = [ "ASYNC251" ]
+# These tests read API-name aliases through getattr on purpose: only the Python
+# names are typed, so a plain attribute read would fail the type check.
+lint.per-file-ignores."tests/test_model_aliases.py" = [ "B009" ]
 
 [tool.deptry]
 per_rule_ignores.DEP001 = [ "tomllib" ]

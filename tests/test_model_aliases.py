@@ -1,4 +1,8 @@
-"""Test that API field names work as attribute aliases on models."""
+"""Test that API field names work as runtime attribute aliases on models.
+
+Only the Python names are typed, so these tests read API names through
+``getattr``: the type checker rejects them as plain attribute reads.
+"""
 
 from __future__ import annotations
 
@@ -26,87 +30,87 @@ from discogs_sdk.models.user import User
 
 
 class TestValidationAliasAccess:
-    """API field names (validation_alias) should be accessible as attributes."""
+    """API field names (validation_alias) resolve as attributes at runtime."""
 
     def test_image_uri150(self) -> None:
         image = Image.model_validate({"uri150": "https://example.com/thumb.jpg"})
         assert image.uri_150 == "https://example.com/thumb.jpg"
-        assert image.uri150 == "https://example.com/thumb.jpg"
+        assert getattr(image, "uri150") == "https://example.com/thumb.jpg"
 
     def test_artist_credit_anv(self) -> None:
         credit = ArtistCredit.model_validate({"anv": "DJ Shadow"})
         assert credit.name_variation == "DJ Shadow"
-        assert credit.anv == "DJ Shadow"
+        assert getattr(credit, "anv") == "DJ Shadow"
 
     def test_track_extraartists(self) -> None:
         track = Track.model_validate({"extraartists": [{"name": "Someone"}]})
         assert track.extra_artists is not None
-        assert track.extraartists is not None
+        assert getattr(track, "extraartists") is not None
 
     def test_format_qty(self) -> None:
         fmt = Format.model_validate({"qty": "2"})
         assert fmt.quantity == "2"
-        assert fmt.qty == "2"
+        assert getattr(fmt, "qty") == "2"
 
     def test_label_credit_catno(self) -> None:
         label = LabelCredit.model_validate({"catno": "ABC-123"})
         assert label.catalog_number == "ABC-123"
-        assert label.catno == "ABC-123"
+        assert getattr(label, "catno") == "ABC-123"
 
     def test_company_catno(self) -> None:
         company = Company.model_validate({"catno": "XYZ-456"})
         assert company.catalog_number == "XYZ-456"
-        assert company.catno == "XYZ-456"
+        assert getattr(company, "catno") == "XYZ-456"
 
     def test_artist_namevariations(self) -> None:
         artist = Artist.model_validate(
             {"id": 1, "name": "Test", "namevariations": ["A", "B"]}
         )
         assert artist.name_variations == ["A", "B"]
-        assert artist.namevariations == ["A", "B"]
+        assert getattr(artist, "namevariations") == ["A", "B"]
 
     def test_label_sublabels(self) -> None:
         label = Label.model_validate(
             {"id": 1, "name": "Test", "sublabels": [{"id": 2, "name": "Sub"}]}
         )
         assert label.sub_labels is not None
-        assert label.sublabels is not None
+        assert getattr(label, "sublabels") is not None
 
     def test_label_release_catno(self) -> None:
         lr = LabelRelease.model_validate({"id": 1, "title": "Test", "catno": "CAT-1"})
         assert lr.catalog_number == "CAT-1"
-        assert lr.catno == "CAT-1"
+        assert getattr(lr, "catno") == "CAT-1"
 
     def test_master_version_catno(self) -> None:
         version = MasterVersion.model_validate(
             {"id": 1, "title": "The Downward Spiral", "catno": "HALO EIGHT"}
         )
         assert version.catalog_number == "HALO EIGHT"
-        assert version.catno == "HALO EIGHT"
+        assert getattr(version, "catno") == "HALO EIGHT"
 
     def test_search_result_catno(self) -> None:
         result = SearchResult.model_validate(
             {"id": 1, "title": "Test", "catno": "SR-99"}
         )
         assert result.catalog_number == "SR-99"
-        assert result.catno == "SR-99"
+        assert getattr(result, "catno") == "SR-99"
 
     def test_release_extraartists(self) -> None:
         release = Release.model_validate(
             {"id": 1, "title": "Test", "extraartists": [{"name": "Someone"}]}
         )
         assert release.extra_artists is not None
-        assert release.extraartists is not None
+        assert getattr(release, "extraartists") is not None
 
     def test_original_price_curr_abbr(self) -> None:
         op = OriginalPrice.model_validate({"curr_abbr": "USD", "curr_id": 1})
         assert op.currency_code == "USD"
-        assert op.curr_abbr == "USD"
+        assert getattr(op, "curr_abbr") == "USD"
 
     def test_user_curr_abbr(self) -> None:
         user = User.model_validate({"id": 1, "username": "test", "curr_abbr": "GBP"})
         assert user.currency_code == "GBP"
-        assert user.curr_abbr == "GBP"
+        assert getattr(user, "curr_abbr") == "GBP"
 
 
 class TestAliasAccess:
@@ -144,7 +148,7 @@ class TestAliasNoneValues:
     def test_none_value_via_alias(self) -> None:
         image = Image()
         assert image.uri_150 is None
-        assert image.uri150 is None
+        assert getattr(image, "uri150") is None
 
 
 class TestUnknownAttributeError:
@@ -153,7 +157,7 @@ class TestUnknownAttributeError:
     def test_unknown_attr_raises(self) -> None:
         image = Image()
         with pytest.raises(AttributeError):
-            image.nonexistent  # noqa: B018
+            getattr(image, "nonexistent")
 
 
 class TestExtraFieldsStillWork:
@@ -163,7 +167,7 @@ class TestExtraFieldsStillWork:
         image = Image.model_validate(
             {"uri150": "https://example.com/thumb.jpg", "unknown_field": "value"}
         )
-        assert image.unknown_field == "value"
+        assert getattr(image, "unknown_field") == "value"
 
 
 class TestSubclassInheritsGetattr:
@@ -175,7 +179,7 @@ class TestSubclassInheritsGetattr:
 
         obj = MyModel.model_validate({"uglyName": "hello"})
         assert obj.clean_name == "hello"
-        assert obj.uglyName == "hello"
+        assert getattr(obj, "uglyName") == "hello"
 
 
 class TestAliasChoicesAccess:
@@ -184,11 +188,11 @@ class TestAliasChoicesAccess:
     def test_creation_alias_is_readable(self) -> None:
         listing = Listing.model_validate({"listing_id": 41578241})
         assert listing.id == 41578241
-        assert listing.listing_id == 41578241
+        assert getattr(listing, "listing_id") == 41578241
 
     def test_detail_alias_is_readable(self) -> None:
         listing = Listing.model_validate({"id": 123})
-        assert listing.listing_id == 123
+        assert getattr(listing, "listing_id") == 123
 
 
 class TestCanonicalNameValidation:
@@ -306,4 +310,4 @@ class TestRoundTrip:
         restored = Release.model_validate(release.model_dump())
         assert restored.extra_artists is not None
         assert restored.extra_artists[0].name_variation == "NIN"
-        assert restored.extra_artists[0].anv == "NIN"
+        assert getattr(restored.extra_artists[0], "anv") == "NIN"

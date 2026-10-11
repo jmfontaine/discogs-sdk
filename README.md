@@ -459,12 +459,13 @@ Model fields use clean Python names. Where the Discogs API uses inconsistent or 
 | `sublabels` | `sub_labels` | `Label` |
 | `uri150` | `uri_150` | `Image` |
 
-Both names work as attributes, so you can use whichever you prefer:
+The Python name is the typed attribute. API names still resolve as attributes at runtime, but only dynamically: a type
+checker treats them like any misspelled attribute, so read them through `getattr` where one is in play:
 
 ```python
 release = client.releases.get(352665)  # The Downward Spiral
-print(release.extra_artists)  # Python name
-print(release.extraartists)  # API name — same value
+print(release.extra_artists)  # Python name, typed
+print(getattr(release, "extraartists"))  # API name, runtime only — same value
 ```
 
 An API name that is a Python keyword, such as `from`, is reachable only through `getattr(message, "from")`.

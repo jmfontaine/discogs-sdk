@@ -62,7 +62,7 @@ class TestAsyncProxyVersusModel:
         async with AsyncDiscogs(token="t") as client:
             artist = await client.artists.get(3857)
             with pytest.raises(AttributeError):
-                artist.releases  # noqa: B018
+                getattr(artist, "releases")  # noqa: B009
 
 
 class TestCustomTransportLifecycle:

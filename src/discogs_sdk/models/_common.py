@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, ClassVar, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
@@ -70,24 +70,26 @@ class SDKModel(BaseModel):
                 del extra[name]
         return self
 
-    def __getattr__(self, name: str) -> Any:
-        for field_name, field_info in type(self).model_fields.items():
-            validation_alias = field_info.validation_alias
-            if isinstance(validation_alias, AliasChoices):
-                aliases = {
-                    choice
-                    for choice in validation_alias.choices
-                    if isinstance(choice, str)
-                }
-            elif isinstance(validation_alias, str):
-                aliases = {validation_alias}
-            else:
-                continue
-            if name in aliases:
-                return self.__dict__.get(field_name)
-        # Pydantic's BaseModel.__getattr__ exists at runtime but is hidden from type
-        # checkers, so both checkers need silencing here.
-        return super().__getattr__(name)  # type: ignore[misc]  # ty: ignore[unresolved-attribute]
+    if not TYPE_CHECKING:
+        # Resolves API-name aliases (``release.extraartists``) at runtime only.
+        # Like pydantic's own ``BaseModel.__getattr__``, it stays hidden from type
+        # checkers so that a misspelled attribute is a static error, not ``Any``.
+        def __getattr__(self, name: str) -> Any:
+            for field_name, field_info in type(self).model_fields.items():
+                validation_alias = field_info.validation_alias
+                if isinstance(validation_alias, AliasChoices):
+                    aliases = {
+                        choice
+                        for choice in validation_alias.choices
+                        if isinstance(choice, str)
+                    }
+                elif isinstance(validation_alias, str):
+                    aliases = {validation_alias}
+                else:
+                    continue
+                if name in aliases:
+                    return self.__dict__.get(field_name)
+            return super().__getattr__(name)
 
 
 class Price(SDKModel):

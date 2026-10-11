@@ -94,6 +94,31 @@ from discogs_sdk import Discogs
 def usage(client: Discogs) -> None:
     print(client.releases.get(352665).rating.get("trent_reznor").rating.average)
 """,
+    "misspelled_awaited_model_field": """
+from discogs_sdk import AsyncDiscogs
+
+
+async def usage(client: AsyncDiscogs) -> None:
+    release = await client.releases.get(352665)
+    print(release.titel)
+""",
+    "misspelled_paginated_item_field": """
+from discogs_sdk import Discogs
+
+
+def usage(client: Discogs) -> None:
+    for release in client.artists.get(3857).releases.list():
+        print(release.titel)
+""",
+    "misspelled_embedded_list_item_field": """
+from discogs_sdk import AsyncDiscogs
+
+
+async def usage(client: AsyncDiscogs) -> None:
+    release = await client.releases.get(352665)
+    for track in release.tracklist or []:
+        print(track.titel)
+""",
 }
 
 
