@@ -195,12 +195,12 @@ def test_resource_no_chain_reaches_fails_loudly() -> None:
     sources = _sources(
         """
         async def get(self) -> None:
-            await self._get("/things")
+            await self._get_list("/things", Thing, "things")
         """,
         """
 class Orphan(AsyncAPIResource):
     async def get(self) -> None:
-        await self._get("/orphans")
+        await self._get_list("/orphans", Thing, "things")
         """,
     )
     with pytest.raises(gen.ExtractionError, match="Orphan"):
@@ -294,8 +294,7 @@ class ThingProxy(AsyncLazyResource[Thing]):
         pytest.param(
             """
             async def list(self) -> builtins.list[Thing]:
-                response = await self._get("/things")
-                return self._parse_list_response(response, Thing, "things")
+                return await self._get_list("/things", Thing, "things")
             """,
             "",
             "",
@@ -320,7 +319,7 @@ def test_callable_resource_is_documented_through_its_caller() -> None:
     rows = _full(
         """
         async def get(self) -> None:
-            await self._get("/things")
+            await self._get_list("/things", Thing, "things")
         """,
         """
 class SearchThing(AsyncAPIResource):
@@ -346,7 +345,7 @@ def test_unresolvable_path_fails_loudly() -> None:
                 async def get(self) -> None:
                     path = "/a"
                     path += f"/{self._x}"
-                    await self._get(path)
+                    await self._get_list(path, Thing, "things")
                 """
             )
         )
@@ -393,7 +392,7 @@ def _oauth_sources() -> dict[str, str]:
     sources = _sources(
         """
         async def get(self) -> None:
-            await self._get("/things")
+            await self._get_list("/things", Thing, "things")
         """
     )
     sources["_oauth"] = textwrap.dedent(OAUTH)

@@ -230,8 +230,7 @@ class CollectionFolders(AsyncAPIResource):
         return CollectionFolderProxy(self._client, self._username, folder_id)
 
     async def list(self) -> builtins.list[CollectionFolder]:
-        response = await self._get(self._base_path())
-        return self._parse_list_response(response, CollectionFolder, "folders")
+        return await self._get_list(self._base_path(), CollectionFolder, "folders")
 
     async def create(self, *, name: str) -> CollectionFolder:
         response = await self._post(self._base_path(), json={"name": name})
@@ -295,10 +294,11 @@ class CollectionFields(AsyncAPIResource):
         self._username = username
 
     async def list(self) -> builtins.list[CollectionField]:
-        response = await self._get(
-            f"/users/{path_segment(self._username)}/collection/fields"
+        return await self._get_list(
+            f"/users/{path_segment(self._username)}/collection/fields",
+            CollectionField,
+            "fields",
         )
-        return self._parse_list_response(response, CollectionField, "fields")
 
 
 # --- Collection Value ---

@@ -10,7 +10,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar, overload
 
 import httpx2
 from typing_extensions import Self
@@ -23,7 +23,6 @@ from discogs_sdk._base_client import (
     BaseClient,
     MediaType,
     connection_error,
-    is_json,
     may_retry_status,
     may_retry_transport_error,
     parse_retry_after,
@@ -63,6 +62,7 @@ _WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 # counters) are private or stale on a hit, and the wire-encoding ones would be
 # wrong, because httpx2 has already decompressed response.content.
 _CACHED_HEADERS = frozenset({"content-type", "etag", "last-modified"})
+_T = TypeVar("_T")
 
 
 class Discogs(BaseClient):
@@ -191,6 +191,7 @@ class Discogs(BaseClient):
             )
             self._owns_cache = True
 
+    @overload
     def _send(
         self,
         method: str,
@@ -199,14 +200,48 @@ class Discogs(BaseClient):
         json: dict[str, Any] | None = None,
         params: dict[str, Any] | None = None,
         files: dict[str, Any] | None = None,
-        expect_json: bool = True,
         cacheable: bool = True,
-    ) -> httpx2.Response:
+        parse: None = None,
+    ) -> httpx2.Response: ...
+
+    @overload
+    def _send(
+        self,
+        method: str,
+        url: str,
+        *,
+        json: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+        files: dict[str, Any] | None = None,
+        cacheable: bool = True,
+        parse: Callable[[Any], _T],
+    ) -> _T: ...
+
+    def _send(
+        self,
+        method: str,
+        url: str,
+        *,
+        json: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+        files: dict[str, Any] | None = None,
+        cacheable: bool = True,
+        parse: Callable[[Any], Any] | None = None,
+    ) -> Any:
         """Send a request through the cache and the retry policy.
 
-        *expect_json* says the caller parses the body as JSON, so a 2xx ``GET``
-        body that is not valid JSON is returned but never cached. Pass ``False``
-        for an endpoint whose body is not JSON (a CSV download).
+        *parse* turns the decoded JSON of a 2xx body into the value the caller
+        wants (a model, a list, a page), and is what every cacheable ``GET`` the
+        SDK parses passes. ``_send`` then returns that value instead of the
+        response. It runs before a fresh body is stored, so a body that fails it
+        raises the parse error unchanged and is never cached, and on every cache
+        hit, so an entry that no longer parses (written by an older SDK, or by
+        another process sharing the SQLite file) is never served: the cache is
+        asked to delete it and the request goes to the network once more, or,
+        inside ``cache_only()``, raises ``CacheMissError``.
+
+        Without *parse*, a 2xx ``GET`` body is returned as a response and cached
+        as it is, for an endpoint whose body is not JSON (a CSV download).
 
         *cacheable* ``False`` neither reads nor writes the cache for this request,
         for a resource that changes while a cached copy would still be fresh (a
@@ -242,6 +277,7 @@ class Discogs(BaseClient):
         )
         cache_only = id(self) in _CACHE_ONLY.get()
         cache_key = ""
+        parsed: Any = None
         if use_cache or cache_only:
             # httpx2 merges params into the URL, so build the request first to key
             # on the fully resolved URL.
@@ -254,23 +290,39 @@ class Discogs(BaseClient):
             lookup_ms = (time.monotonic() - t0) * 1000
             if cached is not None:
                 status, cached_headers, body = cached
-                logger.debug("Cache hit: %s %s", method, url)
                 response = httpx2.Response(
                     status_code=status, headers=cached_headers, content=body
                 )
-                self._observe(
-                    RequestEvent(
-                        method=method.upper(),
-                        url=str(req.url),
-                        status_code=status,
-                        source="cache",
-                        elapsed_ms=lookup_ms,
-                        attempts=0,
-                        stored=False,
-                        ratelimit=None,
+                served = True
+                if parse is not None:
+                    try:
+                        parsed = parse(response.json())
+                    except Exception as exc:  # noqa: BLE001 - any parse failure
+                        # The SDK never stores a body that fails to parse, so this
+                        # entry predates the current models. It is never served.
+                        served = False
+                        logger.warning(
+                            "Rejected the cached response for %s %s, which no longer parses (%s); dropping it",
+                            method.upper(),
+                            req.url,
+                            type(exc).__name__,
+                        )
+                        self._discard(self._cache, cache_key)
+                if served:
+                    logger.debug("Cache hit: %s %s", method, url)
+                    self._observe(
+                        RequestEvent(
+                            method=method.upper(),
+                            url=str(req.url),
+                            status_code=status,
+                            source="cache",
+                            elapsed_ms=lookup_ms,
+                            attempts=0,
+                            stored=False,
+                            ratelimit=None,
+                        )
                     )
-                )
-                return response
+                    return response if parse is None else parsed
         if cache_only:
             # Nothing below this line may run: the scope forbids network I/O.
             raise CacheMissError(method.upper(), str(req.url))
@@ -331,22 +383,19 @@ class Discogs(BaseClient):
                     )
                     retryable = False
             if not retryable:
+                success = 200 <= response.status_code < 300
+                parse_error: Exception | None = None
+                # Every response returned to the caller is parsed: an error status
+                # raises below instead, and a 1xx/3xx fails the parse as before.
+                if parse is not None and response.status_code < 400:
+                    try:
+                        parsed = parse(response.json())
+                    except Exception as exc:  # noqa: BLE001 - raised after the event
+                        parse_error = exc
                 stored = False
-                # A GET body the caller will parse as JSON is stored only if it is
-                # JSON. Only the syntax is checked: JSON of the wrong shape for the
-                # caller's model is still cached, because no model is known here,
-                # and fails validation on every hit until it expires.
-                if (
-                    use_cache
-                    and 200 <= response.status_code < 300
-                    and (
-                        not (
-                            expect_json
-                            and method.upper() == "GET"
-                            and (not is_json(response.content))
-                        )
-                    )
-                ):
+                # A body that failed to parse would fail on every hit too, so only
+                # one a later hit can use is stored.
+                if use_cache and success and (parse_error is None):
                     assert self._cache is not None  # narrowed by use_cache
                     cache_headers = {
                         k: v
@@ -390,10 +439,12 @@ class Discogs(BaseClient):
                         ratelimit=RateLimit.from_headers(response.headers),
                     )
                 )
+                if parse_error is not None:
+                    raise parse_error
                 # The retry policy is done deciding: this is the final response,
                 # so map failures here, before any endpoint parses the body.
                 raise_for_response(response)
-                return response
+                return response if parse is None else parsed
             delay = self._retry_delay(attempt, retry_after=retry_after)
             logger.info(
                 "Retrying %s %s (attempt %d/%d) after status %d, waiting %.1fs",
@@ -408,6 +459,13 @@ class Discogs(BaseClient):
         raise AssertionError("unreachable")
 
     # --- Cache ---
+
+    def _discard(self, cache: ResponseCache, key: str) -> None:
+        """Ask *cache* to drop *key*. Best effort: a failure is logged, not raised."""
+        try:
+            cache.delete(key)
+        except Exception as exc:  # noqa: BLE001 - any ResponseCache
+            logger.warning("Could not drop a rejected cache entry: %s", exc)
 
     @contextmanager
     def no_cache(self) -> Iterator[Self]:

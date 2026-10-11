@@ -221,8 +221,7 @@ class CollectionFolders(SyncAPIResource):
         return CollectionFolderProxy(self._client, self._username, folder_id)
 
     def list(self) -> builtins.list[CollectionFolder]:
-        response = self._get(self._base_path())
-        return self._parse_list_response(response, CollectionFolder, "folders")
+        return self._get_list(self._base_path(), CollectionFolder, "folders")
 
     def create(self, *, name: str) -> CollectionFolder:
         response = self._post(self._base_path(), json={"name": name})
@@ -280,8 +279,11 @@ class CollectionFields(SyncAPIResource):
         self._username = username
 
     def list(self) -> builtins.list[CollectionField]:
-        response = self._get(f"/users/{path_segment(self._username)}/collection/fields")
-        return self._parse_list_response(response, CollectionField, "fields")
+        return self._get_list(
+            f"/users/{path_segment(self._username)}/collection/fields",
+            CollectionField,
+            "fields",
+        )
 
 
 # --- Collection Value ---

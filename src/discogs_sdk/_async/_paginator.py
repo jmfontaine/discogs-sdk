@@ -94,28 +94,40 @@ class AsyncPage(Generic[T]):
 
     async def _fetch_page(self) -> None:
         if self._next_url:
-            response = await self._client._send(
-                "GET", self._client._resolve_next_url(self._next_url)
-            )
+            url = self._client._resolve_next_url(self._next_url)
+            params = None
         else:
-            response = await self._client._send(
-                "GET",
-                self._client._build_url(self._path),
-                params=self._params,
-            )
+            url = self._client._build_url(self._path)
+            params = self._params
+        # The whole page, envelope and items, is parsed inside _send, so a page
+        # that fails is neither cached nor served from the cache.
+        pagination, urls, items = await self._client._send(
+            "GET", url, params=params, parse=self._parse_page
+        )
 
-        body = self._expect("response body", response.json(), dict)
+        # Commit only once the whole page has parsed: a page that raises above
+        # leaves the paginator as it was, so the next call requests it again.
+        self._page_number = pagination.get("page")
+        self._per_page = pagination.get("per_page")
+        self._total_items = pagination.get("items")
+        self._total_pages = pagination.get("pages")
+        self._urls = urls
+        self._next_url = urls.get("next")
+        if not self._next_url:
+            self._exhausted = True
+        self._items = items
+        self._index = 0
+        self._first_page_fetched = True
+
+    def _parse_page(self, data: Any) -> tuple[dict[str, Any], dict[str, str], list[T]]:
+        """Return a page body's ``pagination``, its ``urls`` and its items."""
+        body = self._expect("response body", data, dict)
 
         # An absent "pagination" means no metadata and no next page.
         pagination = self._expect('"pagination"', body.get("pagination", {}), dict)
-        page_number = pagination.get("page")
-        per_page = pagination.get("per_page")
-        total_items = pagination.get("items")
-        total_pages = pagination.get("pages")
         # The reference documents first/prev/next/last; only "next" drives the
         # iterator, but all four are worth surfacing. Null or empty means none.
         urls = self._expect('"pagination.urls"', pagination.get("urls") or {}, dict)
-        next_url = urls.get("next")
 
         # An absent key at any depth is an empty page: a page of
         # /users/{username}/submissions can carry only some categories.
@@ -135,20 +147,7 @@ class AsyncPage(Generic[T]):
                 raw_items = self._expect(name, container[key], list)
 
         items = [self._model_cls.model_validate(item) for item in raw_items]
-
-        # Commit only once the whole page has parsed: a page that raises above
-        # leaves the paginator as it was, so the next call requests it again.
-        self._page_number = page_number
-        self._per_page = per_page
-        self._total_items = total_items
-        self._total_pages = total_pages
-        self._urls = urls
-        self._next_url = next_url
-        if not next_url:
-            self._exhausted = True
-        self._items = items
-        self._index = 0
-        self._first_page_fetched = True
+        return pagination, urls, items
 
     def _expect(self, name: str, value: object, expected: type[_Shape]) -> _Shape:
         """Return *value* when it is an *expected*, else raise ``DiscogsError``.

@@ -3,9 +3,18 @@
 Caching is off by default. `cache=True` keeps responses in memory, or in SQLite under `cache_dir` when you give one;
 `cache_ttl` sets their lifetime in seconds (default one hour). See [Configuration](configuration.md).
 
-Only successful `GET`/`HEAD` responses are cached, and a `GET` body that is not valid JSON (a gateway's HTML page, an
-empty body) never is, so a bad response fails once instead of on every read; inventory export downloads, which are CSV,
-are cached as they are. A body that is valid JSON but the wrong shape for its model is still cached until it expires.
+Only successful `GET`/`HEAD` responses are cached, and only once their body has parsed into the model the call
+returns: a `GET` body that is not valid JSON (a gateway's HTML page, an empty body) or does not fit its model (a
+release whose `id` is not a number, a page whose `results` is an object) raises its parse error and is never stored,
+so a bad response fails once instead of on every read. Inventory export downloads, which are CSV, are cached as they
+are.
+
+Every cache hit is parsed again before it is returned. An entry that no longer parses, because an older SDK version
+or another process sharing the SQLite file wrote it, is never served: the SDK logs a warning on the `discogs_sdk`
+logger, asks the cache to delete the entry, and sends the request to the network once more, storing the new body if
+it parses. Such a hit therefore costs one request, and the call's single `RequestEvent` describes that network fetch.
+Inside `cache_only()` nothing is sent and the call raises `CacheMissError`.
+
 Entries are keyed by method, fully resolved URL, the effective `Accept` representation, and a non-reversible digest of
 the selected mode's credentials, so two clients sharing one cache — or one SQLite directory — never serve each other's
 private responses, and unauthenticated traffic gets its own namespace. No token or secret is stored in a key.
@@ -114,10 +123,13 @@ The cache types are exported from `discogs_sdk`. To store responses elsewhere, s
 four methods: `get(key)` returns a `CacheEntry`, the `(status_code, headers, body)` tuple, or `None` on a miss or an
 expired entry; `set(key, status_code, headers, body)` stores one; `clear()` drops every entry, and raises when it
 cannot (`clear_cache()` passes a `CacheError` on and wraps any other exception in one); `close()` releases
-whatever the backend holds. The base constructor takes the `ttl` in seconds, and the backend is the one that enforces
-it. A backend must be thread-safe: so that disk I/O never blocks the event loop, `AsyncDiscogs` may call `get`, `set`
-and `clear` from worker threads, while `clear_cache()` and `close()` run on the calling thread, and concurrent requests
-overlap. The example takes a lock for that:
+whatever the backend holds. `delete(key)`, which drops one entry, is optional: the SDK calls it for a rejected entry
+that no longer parses, ignores (and logs) any exception it raises, and does not rely on it, since every hit is parsed.
+Its default does nothing, so such an entry stays until a fresh body overwrites it or it expires, and is rejected on
+every hit until then. The base constructor takes the `ttl` in seconds, and the backend is the one that enforces
+it. A backend must be thread-safe: so that disk I/O never blocks the event loop, `AsyncDiscogs` may call `get`, `set`,
+`delete` and `clear` from worker threads, while `clear_cache()` and `close()` run on the calling thread, and
+concurrent requests overlap. The example takes a lock for that:
 
 ```python
 import threading

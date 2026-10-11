@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import functools
+import json
 import re
 import sqlite3
 from collections.abc import Iterator
@@ -15,7 +16,7 @@ import respx
 from respx.mocks import Mocker
 from respx.router import MockRouter
 
-from discogs_sdk import CacheEntry, MemoryCache
+from discogs_sdk import CacheEntry, MemoryCache, ResponseCache
 
 BASE_URL = "https://api.discogs.com"
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -138,6 +139,30 @@ class SpyCache(MemoryCache):
     ) -> None:
         self.stored_keys.append(key)
         super().set(key, status_code, headers, body)
+
+
+def cache_key(client: Any, path: str, *, params: dict[str, Any] | None = None) -> str:
+    """The key *client* stores ``GET path`` under; either client, no I/O."""
+    request = client._http_client.build_request(
+        "GET", client._build_url(path), params=params
+    )
+    return client._build_cache_key(
+        "GET", str(request.url), client._build_headers()["Accept"]
+    )
+
+
+def seed_cache(
+    client: Any,
+    cache: ResponseCache,
+    path: str,
+    body: Any,
+    *,
+    params: dict[str, Any] | None = None,
+) -> str:
+    """Store *body* as JSON under *client*'s key for ``GET path``; return the key."""
+    key = cache_key(client, path, params=params)
+    cache.set(key, 200, {"content-type": "application/json"}, json.dumps(body).encode())
+    return key
 
 
 def oauth_header_params(request) -> dict[str, str]:

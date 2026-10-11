@@ -122,11 +122,12 @@ class ResponseCache(ABC):
     number is bounded by the TTL times the store rate, not by a fixed count.
     Subclasses choose their own policy: no method here requires a sweep.
 
-    ``AsyncDiscogs`` may call ``get``, ``set`` and ``clear`` from worker threads
-    (``asyncio.to_thread``) so that disk I/O never blocks the event loop, while
-    ``clear_cache()`` and ``close()`` run on the calling thread, and concurrent
-    requests overlap. A backend must therefore be thread-safe even when only one
-    async client uses it; the built-in ones take a lock.
+    ``AsyncDiscogs`` may call ``get``, ``set``, ``delete`` and ``clear`` from
+    worker threads (``asyncio.to_thread``) so that disk I/O never blocks the
+    event loop, while ``clear_cache()`` and ``close()`` run on the calling
+    thread, and concurrent requests overlap. A backend must therefore be
+    thread-safe even when only one async client uses it; the built-in ones take
+    a lock.
     """
 
     def __init__(self, ttl: float) -> None:
@@ -141,6 +142,17 @@ class ResponseCache(ABC):
         self, key: str, status_code: int, headers: dict[str, str], body: bytes
     ) -> None:
         """Store a response."""
+
+    def delete(self, key: str) -> None:
+        """Drop the entry for *key*, if any. Does nothing unless overridden.
+
+        The client calls it for a cached entry it rejected because the body no
+        longer parses for the SDK's models. Deletion is best effort: an exception
+        is logged and ignored, and the SDK does not rely on it for correctness,
+        since it parses every hit and never serves one that fails. A backend
+        that keeps this default holds such an entry until a later fetch stores
+        a valid body over it or it expires.
+        """
 
     @abstractmethod
     def clear(self) -> None:
@@ -191,6 +203,10 @@ class MemoryCache(ResponseCache):
                 for expired_key in expired:
                     del self._store[expired_key]
 
+    def delete(self, key: str) -> None:
+        with self._lock:
+            self._store.pop(key, None)
+
     def clear(self) -> None:
         with self._lock:
             self._store.clear()
@@ -219,9 +235,10 @@ class SQLiteCache(ResponseCache):
 
     The database runs in WAL mode with ``synchronous=NORMAL``, so it may create
     ``cache.db-wal`` and ``cache.db-shm`` next to ``cache.db``. Once open, a
-    database error (locked, read-only, full or corrupt) in ``get`` or ``set`` is
-    logged as a warning and never raised: ``get`` reports a miss and ``set``
-    skips the store. ``clear`` raises ``CacheError`` instead, chained to the
+    database error (locked, read-only, full or corrupt) in ``get``, ``set`` or
+    ``delete`` is logged as a warning and never raised: ``get`` reports a miss,
+    ``set`` skips the store and ``delete`` leaves the entry. ``clear`` raises
+    ``CacheError`` instead, chained to the
     SQLite error, and leaves the entries in place. Using the cache after
     ``close()`` raises ``RuntimeError``.
     """
@@ -403,6 +420,16 @@ class SQLiteCache(ResponseCache):
             if self._stores >= _SWEEP_INTERVAL:
                 self._stores = 0
                 self._sweep(db)
+
+    def delete(self, key: str) -> None:
+        with self._lock:
+            db = self._connection()
+            try:
+                self._ensure_table(db)
+                db.execute("DELETE FROM cache_entries WHERE key = ?", (key,))
+                db.commit()
+            except sqlite3.Error as exc:
+                self._fail(db, "delete an entry", exc)
 
     def clear(self) -> None:
         with self._lock:

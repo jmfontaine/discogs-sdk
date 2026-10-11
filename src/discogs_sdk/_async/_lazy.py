@@ -97,10 +97,15 @@ class AsyncLazyResource(Generic[_M]):
         params = object.__getattribute__(self, "_params")
         cacheable = object.__getattribute__(self, "_cacheable")
 
-        response = await client._send(
-            "GET", client._build_url(path), params=params, cacheable=cacheable
+        # Validated inside _send, so a body that fails is never cached and a
+        # cached one that fails is never served.
+        resolved = await client._send(
+            "GET",
+            client._build_url(path),
+            params=params,
+            cacheable=cacheable,
+            parse=model_cls.model_validate,
         )
-        resolved = model_cls.model_validate(response.json())
         object.__setattr__(self, "_resolved", resolved)
         return resolved
 

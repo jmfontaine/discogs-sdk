@@ -19,12 +19,17 @@ class SyncAPIResource:
     def __init__(self, client: Discogs) -> None:
         self._client = client
 
-    def _parse_list_response(
-        self, response: httpx2.Response, model_cls: type[_M], items_key: str
-    ) -> list[_M]:
-        """Return a validated list from a keyed array. Failures already raised in ``_send``."""
-        data = response.json()
-        return [model_cls.model_validate(item) for item in data.get(items_key, [])]
+    def _get_list(self, path: str, model_cls: type[_M], items_key: str) -> list[_M]:
+        """GET a keyed array and return it validated.
+
+        Validation runs inside ``_send``, so a body that fails is never cached and
+        a cached one that fails is never served.
+        """
+
+        def parse(data: Any) -> list[_M]:
+            return [model_cls.model_validate(item) for item in data.get(items_key, [])]
+
+        return self._client._send("GET", self._client._build_url(path), parse=parse)
 
     def _parse_response(self, response: httpx2.Response, model_cls: type[_M]) -> _M:
         """Return a validated model. Failures already raised in ``_send``."""
@@ -33,15 +38,8 @@ class SyncAPIResource:
     def _delete(self, path: str) -> httpx2.Response:
         return self._request("DELETE", path)
 
-    def _get(
-        self, path: str, *, params: dict[str, Any] | None = None
-    ) -> httpx2.Response:
-        return self._request("GET", path, params=params)
-
     def _get_binary(self, path: str) -> bytes:
-        response = self._client._send(
-            "GET", self._client._build_url(path), expect_json=False
-        )
+        response = self._client._send("GET", self._client._build_url(path))
         return response.content
 
     def _post(

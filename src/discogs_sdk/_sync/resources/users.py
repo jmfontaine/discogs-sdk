@@ -193,8 +193,11 @@ class UserNamespace:
         self._client = client
 
     def identity(self) -> Identity:
-        response = self._client._send("GET", self._client._build_url("/oauth/identity"))
-        return Identity.model_validate(response.json())
+        return self._client._send(
+            "GET",
+            self._client._build_url("/oauth/identity"),
+            parse=Identity.model_validate,
+        )
 
 
 class UserProxy(LazyResource[User], UserFields):

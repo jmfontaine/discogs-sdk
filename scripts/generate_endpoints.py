@@ -14,7 +14,7 @@ How a method becomes rows. ``extract()`` interprets each public method of the
 async resources with a small symbolic evaluator, following ``self`` helper calls
 and constructors:
 
-* a call to ``_get``/``_post``/``_put``/``_delete``/``_post_file``/``_get_binary``/
+* a call to ``_get_list``/``_post``/``_put``/``_delete``/``_post_file``/``_get_binary``/
   ``_request``, a direct ``client._send(...)`` and, at module level, ``_send(...)``
   is a request with that verb and path;
 * constructing an ``AsyncPage`` or a lazy proxy (``AsyncLazyResource`` subclass) is
@@ -62,7 +62,7 @@ OAUTH_MODULE = "_oauth"
 # verb as its first argument instead.
 PRIMITIVES = {
     "_delete": "DELETE",
-    "_get": "GET",
+    "_get_list": "GET",
     "_get_binary": "GET",
     "_post": "POST",
     "_post_file": "POST",

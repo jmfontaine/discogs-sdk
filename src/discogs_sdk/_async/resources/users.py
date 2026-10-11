@@ -198,10 +198,11 @@ class UserNamespace:
         self._client = client
 
     async def identity(self) -> Identity:
-        response = await self._client._send(
-            "GET", self._client._build_url("/oauth/identity")
+        return await self._client._send(
+            "GET",
+            self._client._build_url("/oauth/identity"),
+            parse=Identity.model_validate,
         )
-        return Identity.model_validate(response.json())
 
 
 class UserProxy(AsyncLazyResource[User]):

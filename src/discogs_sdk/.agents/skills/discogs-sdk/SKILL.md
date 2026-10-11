@@ -24,8 +24,9 @@ skill ships inside the installed package, so it matches that version.
 4. **Async.** Use `AsyncDiscogs`, `await` a proxy for its data and `async for` over pages. `await` returns a model,
    which has no sub-resources: keep the proxy for chaining.
 5. **Pagination.** Paginated methods (`search()` and the `.list()` methods returning `SyncPage`/`AsyncPage`) fetch
-   pages on demand. Each page starts a logical GET: a cache hit sends no network request, and retries can send
-   several. Each network attempt consumes the applicable budget (60/min authenticated, 25/min anonymous). These
+   pages on demand. Each page starts a logical GET: a cache hit sends no network request (one, if the cached entry no
+   longer parses), and retries can send several. Each network attempt consumes the applicable budget (60/min
+   authenticated, 25/min anonymous). These
    methods accept `per_page`, have no `len()` or slicing, and populate `total_items`/`total_pages` from the first
    fetched response when it supplies them. `collection.folders.list()` and `collection.fields.list()` each make one
    logical GET and return a plain list. `break` early; never `list()` a large result set.

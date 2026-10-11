@@ -111,7 +111,8 @@ asyncio.run(main())
   sub-resources, so keep the proxy to chain (`artist_proxy.releases.list()`).
   [More](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/getting-started.md#async-proxies)
 - **Pagination cost.** `search()` and most `.list()` methods fetch pages on demand. Each page is a GET against the rate
-  limit (60/min authenticated, 25/min anonymous); a cache hit costs nothing and retries can cost more.
+  limit (60/min authenticated, 25/min anonymous); a cache hit costs nothing (one request if the entry no longer parses)
+  and retries can cost more.
   [More](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/pagination.md)
 - **Retries.** Reads retry; a mutation is never replayed after an ambiguous failure.
   [More](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/errors-and-retries.md#settling-an-ambiguous-write)

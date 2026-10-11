@@ -105,7 +105,7 @@ All non-I/O client logic lives in `_base_client.py`: `BaseClient` holds URL buil
 
 ### Resource Pattern
 
-Resources inherit from `AsyncAPIResource` (or `SyncAPIResource`), which provides `_get()`, `_post()`, `_put()`, `_delete()`, `_post_file()`, `_get_binary()`.
+Resources inherit from `AsyncAPIResource` (or `SyncAPIResource`), which provides `_get_list()`, `_post()`, `_put()`, `_delete()`, `_post_file()`, `_get_binary()`. A cacheable `GET` whose body the SDK parses passes a `parse` callable to `_send()` (as `_get_list()`, lazy proxies, the paginator and `user.identity()` do), so the body is validated before it is cached and on every cache hit.
 
 API conventions: `.get(id)` for fetch, `.list()` for paginated lists, `.create()` for POST/PUT, `.update()` for POST, `.delete()` for DELETE.
 
