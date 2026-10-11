@@ -217,7 +217,8 @@ client.exports.request()
 for export in client.exports.list():
     print(f"  Export #{export.id}: {export.status} ({export.created_at})")
 
-# Get a specific export.
+# Get a specific export. Status reads always reach the API, even with caching on,
+# but a resolved proxy keeps its data: poll with a new get() call each time.
 export = client.exports.get(12345)
 print(f"Status: {export.status}")
 
@@ -241,7 +242,8 @@ client.uploads.delete(file="delete_items.csv")
 for upload in client.uploads.list():
     print(f"  Upload #{upload.id}: {upload.status} ({upload.filename})")
 
-# Get details of a specific upload.
+# Get details of a specific upload. Like an export, poll with a new get() call
+# each time: the read bypasses the cache, the resolved proxy does not refresh.
 upload = client.uploads.get(67890)
 print(f"Status: {upload.status}")
 

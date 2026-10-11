@@ -11,6 +11,8 @@ from typing import Any
 
 import pytest
 
+from discogs_sdk._cache import MemoryCache
+
 BASE_URL = "https://api.discogs.com"
 
 # KLUDGE: mocked responses across this suite are built with `respx.MockResponse`
@@ -60,6 +62,20 @@ def exclusive_lock(cache_dir: Path) -> Iterator[None]:
         holder.execute("ROLLBACK")
     finally:
         holder.close()
+
+
+class StoreRecordingCache(MemoryCache):
+    """A ``MemoryCache`` that records the key of every store."""
+
+    def __init__(self) -> None:
+        super().__init__(ttl=600)
+        self.stored_keys: list[str] = []
+
+    def set(
+        self, key: str, status_code: int, headers: dict[str, str], body: bytes
+    ) -> None:
+        self.stored_keys.append(key)
+        super().set(key, status_code, headers, body)
 
 
 def make_artist(id: int = 40, name: str = "Nine Inch Nails") -> dict[str, Any]:

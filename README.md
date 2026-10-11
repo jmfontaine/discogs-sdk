@@ -324,6 +324,11 @@ Entries are keyed by method, fully resolved URL, the effective `Accept` represen
 the selected mode's credentials, so two clients sharing one cache — or one SQLite directory — never serve each other's
 private responses, and unauthenticated traffic gets its own namespace. No token or secret is stored in a key.
 
+Job status reads, `client.exports.get(id)` and `client.uploads.get(id)`, are never cached: each one reaches the API and
+stores nothing, so a polling loop sees the job finish. A resolved proxy keeps its data, though, so poll with a new
+`get()` call each time. Inside `cache_only()` these reads raise `CacheMissError`. `exports.list()`, `uploads.list()`
+and `exports.download()` are cached as usual.
+
 A cache built from `cache=True` belongs to the client, and `client.close()` closes it. A `ResponseCache` instance you
 pass in stays yours, like an injected `http_client`: `client.close()` never closes it, so one cache can outlive any of
 the clients sharing it. Call its `close()` yourself once every client using it is done.
@@ -348,8 +353,8 @@ with client.no_cache():
 ```
 
 `client.cache_only()` is the mirror image: inside the scope a request the cache cannot serve — a miss, an expired
-entry, a non-`GET`, a disabled cache or an enclosing `no_cache()` — raises `CacheMissError` before any network I/O.
-It nests and restores exactly like `no_cache()`, so you can try everything for free first:
+entry, a non-`GET`, a job status read, a disabled cache or an enclosing `no_cache()` — raises `CacheMissError` before
+any network I/O. It nests and restores exactly like `no_cache()`, so you can try everything for free first:
 
 ```python
 from discogs_sdk import CacheMissError

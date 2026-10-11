@@ -5,9 +5,16 @@ from __future__ import annotations
 import pytest
 import respx
 
-from discogs_sdk._exceptions import DiscogsAPIError
+from discogs_sdk import AsyncDiscogs
+from discogs_sdk._exceptions import CacheMissError, DiscogsAPIError
 from discogs_sdk.models.upload import Upload
-from tests.conftest import make_paginated_response, make_upload, make_upload_completed
+from tests.conftest import (
+    StoreRecordingCache,
+    make_paginated_response,
+    make_release,
+    make_upload,
+    make_upload_completed,
+)
 
 
 class TestUploadsCreate:
@@ -118,3 +125,50 @@ class TestUploadsGet:
             return_value=respx.MockResponse(200, json=body)
         )
         assert (await client.uploads.get(1)).results is None
+
+
+class TestUploadStatusPolling:
+    """A status poll has to see the job finish, so it never touches the cache."""
+
+    async def test_each_get_reaches_the_api(self, respx_mock):
+        route = respx_mock.get("/inventory/upload/1").mock(
+            side_effect=[
+                respx.MockResponse(200, json=make_upload()),
+                respx.MockResponse(200, json=make_upload_completed()),
+            ]
+        )
+        client = AsyncDiscogs(token="test-token", cache=True)
+        assert (await client.uploads.get(1)).status == "pending"
+        assert (await client.uploads.get(1)).status == "success"
+        assert route.call_count == 2
+        await client.close()
+
+    async def test_poll_stores_nothing(self, respx_mock):
+        respx_mock.get("/inventory/upload/1").respond(200, json=make_upload())
+        cache = StoreRecordingCache()
+        events = []
+        client = AsyncDiscogs(token="test-token", cache=cache, on_request=events.append)
+        await client.uploads.get(1)
+        await client.close()
+        assert cache.stored_keys == []
+        assert [(e.source, e.stored) for e in events] == [("network", False)]
+
+    async def test_other_resources_stay_cached(self, respx_mock):
+        respx_mock.get("/inventory/upload/1").respond(200, json=make_upload())
+        route = respx_mock.get("/releases/352665").respond(200, json=make_release())
+        client = AsyncDiscogs(token="test-token", cache=True)
+        await client.uploads.get(1)
+        await client.releases.get(352665)
+        await client.releases.get(352665)
+        assert route.call_count == 1
+        await client.close()
+
+    async def test_cache_only_has_nothing_to_serve(self, respx_mock):
+        route = respx_mock.get("/inventory/upload/1").respond(200, json=make_upload())
+        client = AsyncDiscogs(token="test-token", cache=True)
+        await client.uploads.get(1)
+        async with client.cache_only():
+            with pytest.raises(CacheMissError):
+                await client.uploads.get(1)
+        assert route.call_count == 1
+        await client.close()

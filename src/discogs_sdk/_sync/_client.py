@@ -188,12 +188,18 @@ class Discogs(BaseClient):
         params: dict[str, Any] | None = None,
         files: dict[str, Any] | None = None,
         expect_json: bool = True,
+        cacheable: bool = True,
     ) -> httpx2.Response:
         """Send a request through the cache and the retry policy.
 
         *expect_json* says the caller parses the body as JSON, so a 2xx ``GET``
         body that is not valid JSON is returned but never cached. Pass ``False``
         for an endpoint whose body is not JSON (a CSV download).
+
+        *cacheable* ``False`` neither reads nor writes the cache for this request,
+        for a resource that changes while a cached copy would still be fresh (a
+        job status). Inside ``cache_only()`` such a request raises
+        ``CacheMissError``, since there is nothing it may be served from.
         """
         build_kwargs: dict[str, Any] = {}
         if json is not None:
@@ -216,8 +222,9 @@ class Discogs(BaseClient):
         # An injected client may carry its own authentication that the SDK
         # cannot identify, so its responses must not be shared across clients.
         use_cache = (
-            self._cache is not None
-            and id(self) not in _CACHE_BYPASS.get()
+            cacheable
+            and self._cache is not None
+            and (id(self) not in _CACHE_BYPASS.get())
             and (method.upper() in _CACHEABLE_METHODS)
             and (self._owns_client or self._auth_mode != "none")
         )
@@ -389,9 +396,9 @@ class Discogs(BaseClient):
         """Serve only from the response cache for the current execution context.
 
         A request the cache cannot serve - a miss, an expired entry, a non-GET,
-        a disabled cache or an enclosing ``no_cache()`` - raises
-        ``CacheMissError`` before any network I/O. Scopes nest and restore
-        exactly like ``no_cache()``.
+        a job status read (``exports.get()``, ``uploads.get()``), a disabled
+        cache or an enclosing ``no_cache()`` - raises ``CacheMissError`` before
+        any network I/O. Scopes nest and restore exactly like ``no_cache()``.
         """
         token = _CACHE_ONLY.set(_CACHE_ONLY.get() | {id(self)})
         try:

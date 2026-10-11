@@ -5,8 +5,15 @@ from __future__ import annotations
 import pytest
 import respx
 
-from discogs_sdk._exceptions import DiscogsAPIError
-from tests.conftest import make_paginated_response, make_upload, make_upload_completed
+from discogs_sdk import Discogs
+from discogs_sdk._exceptions import CacheMissError, DiscogsAPIError
+from tests.conftest import (
+    StoreRecordingCache,
+    make_paginated_response,
+    make_release,
+    make_upload,
+    make_upload_completed,
+)
 
 
 class TestUploadsCreate:
@@ -114,3 +121,49 @@ class TestUploadsGet:
             return_value=respx.MockResponse(200, json=body)
         )
         assert client.uploads.get(1).results is None
+
+
+class TestUploadStatusPolling:
+    """A status poll has to see the job finish, so it never touches the cache."""
+
+    def test_each_get_reaches_the_api(self, respx_mock):
+        route = respx_mock.get("/inventory/upload/1").mock(
+            side_effect=[
+                respx.MockResponse(200, json=make_upload()),
+                respx.MockResponse(200, json=make_upload_completed()),
+            ]
+        )
+        client = Discogs(token="test-token", cache=True)
+        assert client.uploads.get(1).status == "pending"
+        assert client.uploads.get(1).status == "success"
+        assert route.call_count == 2
+        client.close()
+
+    def test_poll_stores_nothing(self, respx_mock):
+        respx_mock.get("/inventory/upload/1").respond(200, json=make_upload())
+        cache = StoreRecordingCache()
+        events = []
+        client = Discogs(token="test-token", cache=cache, on_request=events.append)
+        client.uploads.get(1).status  # noqa: B018 — triggers resolve
+        client.close()
+        assert cache.stored_keys == []
+        assert [(e.source, e.stored) for e in events] == [("network", False)]
+
+    def test_other_resources_stay_cached(self, respx_mock):
+        respx_mock.get("/inventory/upload/1").respond(200, json=make_upload())
+        route = respx_mock.get("/releases/352665").respond(200, json=make_release())
+        client = Discogs(token="test-token", cache=True)
+        client.uploads.get(1).status  # noqa: B018 — triggers resolve
+        client.releases.get(352665).title  # noqa: B018 — triggers resolve
+        client.releases.get(352665).title  # noqa: B018 — triggers resolve
+        assert route.call_count == 1
+        client.close()
+
+    def test_cache_only_has_nothing_to_serve(self, respx_mock):
+        route = respx_mock.get("/inventory/upload/1").respond(200, json=make_upload())
+        client = Discogs(token="test-token", cache=True)
+        client.uploads.get(1).status  # noqa: B018 — triggers resolve
+        with client.cache_only(), pytest.raises(CacheMissError):
+            client.uploads.get(1).status  # noqa: B018 — triggers resolve
+        assert route.call_count == 1
+        client.close()

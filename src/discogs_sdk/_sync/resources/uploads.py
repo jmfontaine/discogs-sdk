@@ -37,4 +37,9 @@ class Uploads(SyncAPIResource):
         )
 
     def get(self, upload_id: int) -> UploadProxy:
-        return UploadProxy(self._client, f"/inventory/upload/{upload_id}", Upload)
+        """Lazy upload status. Its request bypasses the response cache, so every
+        new proxy sees the current status; a resolved proxy keeps its data, so poll
+        with a new ``get()`` call each time."""
+        return UploadProxy(
+            self._client, f"/inventory/upload/{upload_id}", Upload, cacheable=False
+        )

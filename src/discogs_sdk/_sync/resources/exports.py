@@ -16,7 +16,12 @@ class ExportProxy(LazyResource[Export], ExportFields):
 
 class Exports(SyncAPIResource):
     def get(self, export_id: int) -> ExportProxy:
-        return ExportProxy(self._client, f"/inventory/export/{export_id}", Export)
+        """Lazy export status. Its request bypasses the response cache, so every
+        new proxy sees the current status; a resolved proxy keeps its data, so poll
+        with a new ``get()`` call each time."""
+        return ExportProxy(
+            self._client, f"/inventory/export/{export_id}", Export, cacheable=False
+        )
 
     def list(
         self, *, page: int | None = None, per_page: int | None = None

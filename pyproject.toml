@@ -130,6 +130,7 @@ exclude = [ "src/discogs_sdk/models/_lazy_fields.py" ]
 # ``Seller`` extends ``UserSummary``, so the base name has to be listed too.
 ignore_bodies_if_inherits_from = [ "SDKModel", "UserSummary" ]
 ignore_names = [
+  "_cacheable",
   "_clean_discogs_env",
   "fast_sqlite_busy_timeout",
   "model_config",

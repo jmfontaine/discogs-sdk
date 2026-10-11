@@ -38,6 +38,7 @@ class LazyResource(Generic[_M]):
     _path: str
     _model_cls: type[_M]
     _params: dict[str, Any] | None
+    _cacheable: bool
 
     def __init__(
         self,
@@ -46,11 +47,15 @@ class LazyResource(Generic[_M]):
         model_cls: type[_M],
         *,
         params: dict[str, Any] | None = None,
+        cacheable: bool = True,
     ) -> None:
+        """*cacheable* ``False`` sends the request past the response cache, for a
+        resource whose data changes while a cached copy would still be fresh."""
         self._client = client
         self._path = path
         self._model_cls = model_cls
         self._params = params
+        self._cacheable = cacheable
         # Written through object.__setattr__ and read through
         # object.__getattribute__: a plain read would recurse through __getattr__.
         object.__setattr__(self, "_resolved", None)
@@ -65,7 +70,10 @@ class LazyResource(Generic[_M]):
         path = object.__getattribute__(self, "_path")
         model_cls = object.__getattribute__(self, "_model_cls")
         params = object.__getattribute__(self, "_params")
-        response = client._send("GET", client._build_url(path), params=params)
+        cacheable = object.__getattribute__(self, "_cacheable")
+        response = client._send(
+            "GET", client._build_url(path), params=params, cacheable=cacheable
+        )
         resolved = model_cls.model_validate(response.json())
         object.__setattr__(self, "_resolved", resolved)
         return resolved
