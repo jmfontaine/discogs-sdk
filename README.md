@@ -134,6 +134,7 @@ The full guide lives in [`docs/`](https://github.com/jmfontaine/discogs-sdk/tree
 - [Custom HTTP clients](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/http-clients.md) — injecting an `httpx2` client
 - [Models](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/models.md) — field naming, timestamps, original API values
 - [Migrating from python3-discogs-client](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/migrating-from-python3-discogs-client.md) — idiom-by-idiom translation and behaviour differences
+- [Endpoint map](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/endpoints.md) — which SDK call reaches which Discogs endpoint
 
 ## Examples
 

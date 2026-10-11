@@ -24,6 +24,10 @@ deps-update:
 dead-code:
     scripts/check_dead_code.sh
 
+# Check docs/endpoints.md is up to date with the SDK sources
+endpoints-check:
+    uv run python scripts/generate_endpoints.py --check
+
 # Run formatters
 format:
     uv run pyproject-fmt pyproject.toml
@@ -33,6 +37,10 @@ format:
 format-check:
     uv run pyproject-fmt --check pyproject.toml
     uv run ruff format --check
+
+# Generate docs/endpoints.md (the endpoint-to-SDK-call map) from the SDK sources
+generate-endpoints:
+    uv run python scripts/generate_endpoints.py
 
 # Generate sync code from async sources
 generate-sync:
@@ -59,7 +67,7 @@ pre-commit-update:
     uv run pre-commit autoupdate --freeze
 
 # Run all quality assurance checks
-qa: dead-code deps-unused format-check lint sync-check type-check verify-types
+qa: dead-code deps-unused endpoints-check format-check lint sync-check type-check verify-types
 
 # Tag, push, and monitor the publish workflow
 release:

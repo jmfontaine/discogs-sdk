@@ -8,10 +8,11 @@ Three independent checks:
    lives in ``reference/discogs_api/`` and is git-ignored, so this runs only where
    that copy is present.
 
-   Scope: routes only. The reference puts several operations on one route and
-   documents their parameters in prose, neither of which this extracts, so a
-   pass means no route has drifted -- not that every operation and parameter is
-   implemented.
+   Scope: routes only. The SDK side comes from the extractor in
+   ``scripts/generate_endpoints.py``, which also writes ``docs/endpoints.md``
+   (one row per verb and route; ``just generate-endpoints``). The reference
+   documents parameters in prose, which neither extracts, so a pass means no
+   route has drifted -- not that every operation and parameter is implemented.
 
 2. Every ```json``` example block in the reference is claimed by exactly one
    ``Example`` in ``tests/documented_payloads.py``, and every claimed body
@@ -35,7 +36,6 @@ Three independent checks:
 from __future__ import annotations
 
 import argparse
-import ast
 import json
 import re
 import subprocess
@@ -45,8 +45,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from generate_endpoints import ExtractionError, normalise_route, sdk_routes
+
 ROOT = Path(__file__).resolve().parent.parent
-ASYNC_SRC = ROOT / "src" / "discogs_sdk" / "_async"
 API_DOCS = ROOT / "reference" / "discogs_api"
 
 # ``tests`` is a package at the repo root; make it importable regardless of the
@@ -94,16 +95,10 @@ UPSTREAM_MISSING_FEATURES: dict[str, str] = {
 }
 
 
-def _normalise(path: str) -> str:
-    path = re.sub(r"\{\?[^}]*\}", "", path)  # drop {?query,params} suffixes
-    path = re.sub(r"\{[^}]*\}", "{}", path)  # collapse path parameters
-    return path.split("?")[0].rstrip("/")
-
-
 def _documented_routes() -> set[str]:
     """Route templates from the local API reference copy."""
     found = {
-        _normalise(raw)
+        normalise_route(raw)
         for doc in sorted(API_DOCS.glob("*.md"))
         for raw in re.findall(r"^`(/[^`]+)`", doc.read_text(), re.MULTILINE)
     }
@@ -111,90 +106,18 @@ def _documented_routes() -> set[str]:
     return found
 
 
-def _is_base_path_call(node: ast.AST) -> bool:
-    return (
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and node.func.attr == "_base_path"
-        and isinstance(node.func.value, ast.Name)
-        and node.func.value.id == "self"
-    )
-
-
-def _render(
-    node: ast.AST, base: str | None, names: dict[str, str] | None = None
-) -> str | None:
-    """Render a string literal, f-string, local name, or ``_base_path()`` call."""
-    if isinstance(node, ast.Constant):
-        return node.value if isinstance(node.value, str) else None
-    if isinstance(node, ast.Name) and names is not None:
-        return names.get(node.id)
-    if base is not None and _is_base_path_call(node):
-        return base
-    if not isinstance(node, ast.JoinedStr):
-        return None
-    parts: list[str] = []
-    for value in node.values:
-        if isinstance(value, ast.Constant) and isinstance(value.value, str):
-            parts.append(value.value)
-        elif isinstance(value, ast.FormattedValue):
-            rendered = _render(value.value, base, names)
-            parts.append(rendered if rendered is not None else "{}")
-    return "".join(parts)
-
-
-def _base_path_of(class_node: ast.ClassDef) -> str | None:
-    """The template this class's ``_base_path()`` returns, if it has one."""
-    for item in class_node.body:
-        if not isinstance(item, ast.FunctionDef) or item.name != "_base_path":
-            continue
-        names: dict[str, str] = {}
-        for statement in item.body:
-            if (
-                isinstance(statement, ast.Assign)
-                and len(statement.targets) == 1
-                and isinstance(statement.targets[0], ast.Name)
-            ):
-                rendered = _render(statement.value, None, names)
-                if rendered is not None:
-                    names[statement.targets[0].id] = rendered
-            elif isinstance(statement, ast.Return) and statement.value is not None:
-                return _render(statement.value, None, names)
-    return None
-
-
-def _collect(node: ast.AST, base: str | None, out: set[str]) -> None:
-    """Walk *node*, rendering route literals but never descending into f-strings."""
-    for child in ast.iter_child_nodes(node):
-        if isinstance(child, ast.ClassDef):
-            _collect(child, _base_path_of(child), out)
-            continue
-        if isinstance(child, ast.FunctionDef) and child.name == "_base_path":
-            # Its template is a prefix, not a route. It counts only where a
-            # caller passes self._base_path() as a request path.
-            continue
-        rendered = _render(child, base)
-        if rendered is not None:
-            if rendered.startswith("/"):
-                out.add(_normalise(rendered))
-            continue  # the pieces of an f-string are not routes of their own
-        _collect(child, base, out)
-
-
 def _sdk_routes() -> set[str]:
-    found: set[str] = set()
-    for source in sorted(ASYNC_SRC.rglob("*.py")):
-        _collect(ast.parse(source.read_text()), None, found)
-    return {
-        route
-        for route in found
-        if re.fullmatch(r"/[a-z][a-z_]*(/.+)?", route) and route.count("/") > 1
-    }
+    """Route templates the SDK sends, from the extractor behind ``docs/endpoints.md``."""
+    return sdk_routes()
 
 
 def _check_sdk() -> bool:
     documented = _documented_routes()
-    reached = _sdk_routes()
+    try:
+        reached = _sdk_routes()
+    except ExtractionError as exc:
+        print(f"ERROR: {exc}")
+        return False
     missing = sorted(documented - reached)
     unknown = sorted(reached - documented)
 

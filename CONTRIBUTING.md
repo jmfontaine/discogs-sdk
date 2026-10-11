@@ -42,7 +42,9 @@ Key commands:
 
 ```bash
 just check-endpoints    # Verify every documented endpoint is reachable
+just endpoints-check    # Verify docs/endpoints.md is up to date without regenerating
 just format             # Auto-format code
+just generate-endpoints # Regenerate docs/endpoints.md from the SDK sources
 just generate-sync      # Regenerate _sync/ from _async/ sources
 just lint-fix           # Auto-fix lint issues
 just qa                 # All checks (see PR checklist below)
@@ -55,8 +57,14 @@ Run `just --list` to see all available commands.
 
 `just check-endpoints` compares the routes the SDK calls against the local API reference in `reference/discogs_api/`,
 failing on a documented route the SDK never reaches and on a route the SDK calls that the reference does not
-document. It checks routes only — not per-route operations, and not query or body parameters, which the reference
-describes in prose. It is not part of `just qa`, because that reference copy is git-ignored and so is absent in CI.
+document. It checks routes only — not query or body parameters, which the reference describes in prose. It is not
+part of `just qa`, because that reference copy is git-ignored and so is absent in CI.
+
+`docs/endpoints.md` maps each Discogs endpoint to the SDK call that reaches it, one row per verb and route. It is
+generated from the SDK sources alone, never from the reference, so `just endpoints-check` (part of `just qa`, and a
+step in the CI and publish quality jobs) can fail a stale copy. After adding or renaming a resource method, run
+`just generate-endpoints` and commit the result. The generator stops with an error on a resource class it cannot
+reach from `client`, so a new resource is never left out silently.
 
 Adding `--compare-upstream` runs drift probes against a fresh clone of `python3-discogs-client`: markers that must
 stay present, or substrings that must stay absent, in its sources. They are signals, not proof — a firing probe
@@ -196,6 +204,7 @@ Before opening a PR, make sure the following are done:
 - [ ] Tests added or updated and passing (`just test`)
 - [ ] `just qa` passes
 - [ ] Sync code regenerated if `_async/` changed (`just generate-sync`)
+- [ ] Endpoint map regenerated if a resource method changed (`just generate-endpoints`)
 - [ ] New public APIs exported from `__init__.py`
 
 ### What to expect
