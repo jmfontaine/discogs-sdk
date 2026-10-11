@@ -46,7 +46,7 @@ with Discogs() as client:
     # Sub-resource accessors (like .rating) never trigger HTTP.
     # Only the final .get() / .list() creates a lazy or paginated object.
     rating = client.releases.get(352665).rating.get()
-    print(rating.rating)  # CommunityRating with average and count
+    print(rating.rating)  # RatingInfo with average and count
 
     # ── Browse an artist's releases ────────────────────────────────
     artist = client.artists.get(3857)  # Nine Inch Nails

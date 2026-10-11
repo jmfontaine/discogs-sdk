@@ -20,7 +20,7 @@ from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
 
-from discogs_sdk import AsyncDiscogs, Discogs
+from discogs_sdk import AsyncDiscogs, CommunityRating, Discogs, RatingInfo
 from discogs_sdk.models.artist import Artist
 from discogs_sdk.models.release import Release
 
@@ -45,6 +45,11 @@ def sync_usage(client: Discogs) -> None:
 
 def maybe_user_rating(client: Discogs, username: str | None) -> None:
     client.releases.get(352665).rating.get(username)
+
+
+def rating_info_usage(community_rating: CommunityRating) -> None:
+    info: RatingInfo = community_rating.rating
+    print(info.average, info.count)
 
 
 async def async_rating_usage(client: AsyncDiscogs) -> None:
