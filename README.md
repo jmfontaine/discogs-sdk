@@ -331,6 +331,12 @@ it logs a warning on the `discogs_sdk` logger and carries on: a lookup counts as
 response still reaches you. Using the cache after it has been closed raises `RuntimeError`. The database runs in WAL
 mode, so `cache.db-wal` and `cache.db-shm` may appear next to `cache.db`.
 
+The SQLite database holds the full bodies of your private responses (identity, orders with buyer addresses,
+collection), so put `cache_dir` somewhere only you can read, such as `~/.cache/my-app`, never a shared path like
+`/tmp`. A directory the cache creates is private (`0o700`) and `cache.db` is `0o600`; on POSIX, an existing `cache.db`
+that is a symlink or belongs to another user raises `PermissionError`. Entries keep only the `Content-Type`, `ETag` and
+`Last-Modified` response headers.
+
 `client.no_cache()` bypasses the cache for the current execution context. Scopes nest, the previous state is
 restored even when the block raises, and concurrent tasks or threads each carry their own state:
 

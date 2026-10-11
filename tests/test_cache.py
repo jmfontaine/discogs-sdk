@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 import functools
+import gc
 import logging
+import os
 import sqlite3
+import stat
 import subprocess
 import sys
 import time
+import warnings
+from collections.abc import Iterator
+from contextlib import contextmanager
 from unittest.mock import patch
 
 import pytest
@@ -262,4 +268,158 @@ class TestSQLiteCachePragmas:
         assert "mode stays delete" in caplog.text
         cache.set("GET:http://x/1", 200, {}, b"a")
         assert cache.get("GET:http://x/1") == (200, {}, b"a")
+        cache.close()
+
+
+@contextmanager
+def umask(mask: int) -> Iterator[None]:
+    previous = os.umask(mask)
+    try:
+        yield
+    finally:
+        os.umask(previous)
+
+
+def mode_of(path) -> int:
+    return stat.S_IMODE(os.lstat(path).st_mode)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX file modes and ownership")
+class TestSQLiteCachePermissions:
+    """The database holds private responses, so only its owner may reach it."""
+
+    def test_created_directories_are_private_even_under_umask_0(self, tmp_path):
+        nested = tmp_path / "a" / "b"
+        with umask(0):
+            cache = SQLiteCache(ttl=60, cache_dir=nested)
+        assert mode_of(nested) == 0o700
+        assert mode_of(tmp_path / "a") == 0o700
+        cache.close()
+
+    def test_existing_directory_keeps_its_mode(self, tmp_path):
+        tmp_path.chmod(0o755)
+        SQLiteCache(ttl=60, cache_dir=tmp_path).close()
+        assert mode_of(tmp_path) == 0o755
+
+    def test_new_database_is_private_even_under_umask_0(self, tmp_path):
+        with umask(0):
+            cache = SQLiteCache(ttl=60, cache_dir=tmp_path)
+            cache.set("GET:http://x/1", 200, {}, b"a")
+            files = sorted(tmp_path.glob("cache.db*"))
+            # WAL mode keeps its sidecars around while the connection is open.
+            assert [f.name for f in files] == [
+                "cache.db",
+                "cache.db-shm",
+                "cache.db-wal",
+            ]
+            assert mode_of(tmp_path / "cache.db") == 0o600
+            assert all(mode_of(f) & 0o077 == 0 for f in files)
+            cache.close()
+
+    def test_world_readable_database_is_tightened(self, tmp_path):
+        SQLiteCache(ttl=60, cache_dir=tmp_path).close()
+        (tmp_path / "cache.db").chmod(0o644)
+        cache = SQLiteCache(ttl=60, cache_dir=tmp_path)
+        assert mode_of(tmp_path / "cache.db") == 0o600
+        cache.set("GET:http://x/1", 200, {}, b"a")
+        assert cache.get("GET:http://x/1") == (200, {}, b"a")
+        cache.close()
+
+    def test_world_readable_sidecar_is_tightened(self, tmp_path):
+        SQLiteCache(ttl=60, cache_dir=tmp_path).close()
+        wal = tmp_path / "cache.db-wal"
+        wal.touch()
+        wal.chmod(0o644)
+        cache = SQLiteCache(ttl=60, cache_dir=tmp_path)
+        assert mode_of(wal) == 0o600
+        cache.close()
+
+    def test_symlinked_database_is_refused(self, tmp_path):
+        target = tmp_path / "elsewhere.db"
+        target.write_bytes(b"not yours")
+        target.chmod(0o644)
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir()
+        (cache_dir / "cache.db").symlink_to(target)
+        with pytest.raises(PermissionError, match="cache.db"):
+            SQLiteCache(ttl=60, cache_dir=cache_dir)
+        assert target.read_bytes() == b"not yours"
+        assert mode_of(target) == 0o644
+
+    def test_symlinked_sidecar_is_refused(self, tmp_path):
+        target = tmp_path / "elsewhere"
+        target.write_bytes(b"")
+        target.chmod(0o644)
+        cache_dir = tmp_path / "cache"
+        SQLiteCache(ttl=60, cache_dir=cache_dir).close()
+        (cache_dir / "cache.db-wal").symlink_to(target)
+        with pytest.raises(PermissionError, match="cache.db-wal"):
+            SQLiteCache(ttl=60, cache_dir=cache_dir)
+        assert mode_of(target) == 0o644
+
+    @pytest.mark.parametrize(
+        "make",
+        [
+            os.mkdir,
+            os.mkfifo,
+            # Read-only for its owner, so it takes the read-only open path.
+            functools.partial(os.mkfifo, mode=0o444),
+        ],
+        ids=["directory", "fifo", "read-only-fifo"],
+    )
+    def test_database_that_is_not_a_regular_file_is_refused(self, tmp_path, make):
+        make(tmp_path / "cache.db")
+        with pytest.raises(PermissionError, match="cache.db"):
+            SQLiteCache(ttl=60, cache_dir=tmp_path)
+
+    def test_database_owned_by_someone_else_is_refused(self, tmp_path, monkeypatch):
+        SQLiteCache(ttl=60, cache_dir=tmp_path).close()
+        (tmp_path / "cache.db").chmod(0o644)
+        monkeypatch.setattr(os, "geteuid", lambda: os.stat(tmp_path).st_uid + 1)
+        with pytest.raises(PermissionError, match="cache.db"):
+            SQLiteCache(ttl=60, cache_dir=tmp_path)
+        # Someone else's file is reported, never chmodded.
+        assert mode_of(tmp_path / "cache.db") == 0o644
+
+    def test_vetting_keeps_the_locks_of_an_open_connection(self, tmp_path):
+        """Closing any descriptor of a file drops every POSIX lock the process holds
+        on it, so vetting must not open a database another connection uses."""
+        first = SQLiteCache(ttl=60, cache_dir=tmp_path)
+        first.set("GET:http://x/1", 200, {}, b"a")
+        SQLiteCache(ttl=60, cache_dir=tmp_path).close()
+        # A connection that closes believing it is the last one checkpoints and
+        # deletes the WAL file that `first` still uses.
+        script = (
+            "import sqlite3, sys\n"
+            "db = sqlite3.connect(sys.argv[1])\n"
+            "db.execute('SELECT count(*) FROM cache_entries').fetchall()\n"
+            "db.close()\n"
+        )
+        subprocess.run(
+            [sys.executable, "-c", script, str(tmp_path / "cache.db")], check=True
+        )
+        assert (tmp_path / "cache.db-wal").exists()
+        assert first.get("GET:http://x/1") == (200, {}, b"a")
+        first.close()
+
+    def test_a_cache_collected_unclosed_is_vetted_again(self, tmp_path):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", ResourceWarning)
+            SQLiteCache(ttl=60, cache_dir=tmp_path)  # dropped without close()
+            gc.collect()
+        (tmp_path / "cache.db").chmod(0o644)
+        SQLiteCache(ttl=60, cache_dir=tmp_path).close()
+        assert mode_of(tmp_path / "cache.db") == 0o600
+
+    @pytest.mark.skipif(
+        os.name == "posix" and os.geteuid() == 0, reason="root ignores file modes"
+    )
+    def test_read_only_database_still_degrades(self, tmp_path, caplog):
+        SQLiteCache(ttl=60, cache_dir=tmp_path).close()
+        (tmp_path / "cache.db").chmod(0o400)
+        caplog.set_level(logging.WARNING, logger="discogs_sdk")
+        cache = SQLiteCache(ttl=60, cache_dir=tmp_path)
+        cache.set("GET:http://x/1", 200, {}, b"a")
+        assert "readonly database" in caplog.text
+        assert cache.get("GET:http://x/1") is None
         cache.close()

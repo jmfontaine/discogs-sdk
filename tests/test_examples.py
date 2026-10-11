@@ -56,3 +56,15 @@ def test_example_imports(example_path: Path):
         exec(compile(import_source, example_path, "exec"), module.__dict__)  # noqa: S102
     finally:
         sys.modules.pop(module_name, None)
+
+
+@pytest.mark.parametrize(
+    "example_path",
+    EXAMPLE_FILES,
+    ids=[p.stem for p in EXAMPLE_FILES],
+)
+def test_example_cache_dir_is_not_in_tmp(example_path: Path):
+    """A predictable path under /tmp lets other local users read or plant the cache."""
+    for node in ast.walk(ast.parse(example_path.read_text())):
+        if isinstance(node, ast.keyword) and node.arg == "cache_dir":
+            assert "/tmp" not in ast.unparse(node.value)

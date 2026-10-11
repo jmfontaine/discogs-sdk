@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import sqlite3
 from unittest.mock import patch
 
 import httpx2
@@ -304,6 +306,31 @@ class TestCacheBranch:
             assert r2.json() == {"id": 1}
             assert "content-encoding" not in r2.headers
             client.close()
+
+    def test_only_allow_listed_headers_are_stored(self, tmp_path):
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            router.get("/releases/352665").respond(
+                200,
+                json=make_release(),
+                headers={
+                    "ETag": '"abc"',
+                    "Last-Modified": "Sat, 10 Oct 2026 00:00:00 GMT",
+                    "Set-Cookie": "session=secret",
+                    "X-Discogs-Ratelimit": "60",
+                    "X-Discogs-Ratelimit-Remaining": "59",
+                },
+            )
+            client = Discogs(token="t", cache=True, cache_dir=tmp_path)
+            client.releases.get(352665).title  # noqa: B018 — triggers resolve
+            client.close()
+        db = sqlite3.connect(tmp_path / "cache.db")
+        (headers,) = db.execute("SELECT headers FROM cache_entries").fetchone()
+        db.close()
+        assert json.loads(headers) == {
+            "content-type": "application/json",
+            "etag": '"abc"',
+            "last-modified": "Sat, 10 Oct 2026 00:00:00 GMT",
+        }
 
     def test_no_cache_context_manager(self):
         with respx.mock(base_url=BASE_URL, using="httpcore2") as router:

@@ -55,6 +55,10 @@ _CACHE_ONLY: ContextVar[frozenset[int]] = ContextVar(
     "discogs_sdk_cache_only", default=frozenset()
 )
 _CACHEABLE_METHODS = frozenset({"GET", "HEAD"})
+# The only response headers a cache entry keeps. Others (Set-Cookie, rate-limit
+# counters) are private or stale on a hit, and the wire-encoding ones would be
+# wrong, because httpx2 has already decompressed response.content.
+_CACHED_HEADERS = frozenset({"content-type", "etag", "last-modified"})
 
 
 class Discogs(BaseClient):
@@ -302,17 +306,10 @@ class Discogs(BaseClient):
                 stored = False
                 if use_cache and 200 <= response.status_code < 300:
                     assert self._cache is not None  # narrowed by use_cache
-                    # response.content is already decompressed by httpx2, so strip
-                    # transport-layer headers that describe the wire encoding.
                     cache_headers = {
                         k: v
                         for k, v in response.headers.items()
-                        if k.lower()
-                        not in (
-                            "content-encoding",
-                            "content-length",
-                            "transfer-encoding",
-                        )
+                        if k.lower() in _CACHED_HEADERS
                     }
                     self._cache.set(
                         cache_key, response.status_code, cache_headers, response.content

@@ -14,6 +14,8 @@ Covers:
   - Submissions by type (artists, labels)
 """
 
+from pathlib import Path
+
 import httpx2
 
 from discogs_sdk import (
@@ -85,9 +87,13 @@ client = Discogs(
 # In-memory cache with 1-hour TTL (default):
 cached_client = Discogs(token="YOUR_TOKEN_HERE", cache=True)
 
-# Custom TTL (5 minutes) and SQLite persistence:
+# Custom TTL (5 minutes) and SQLite persistence. The database holds your private
+# responses, so keep it in a directory only you can read, never under /tmp:
 cached_client = Discogs(
-    token="YOUR_TOKEN_HERE", cache=True, cache_ttl=300, cache_dir="/tmp/my-cache"
+    token="YOUR_TOKEN_HERE",
+    cache=True,
+    cache_ttl=300,
+    cache_dir=Path.home() / ".cache" / "my-app",
 )
 
 # Repeated calls for the same resource hit the cache:
