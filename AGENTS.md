@@ -268,6 +268,8 @@ page or the upload API — there is no `pip yank`), then bump the patch version 
 - Never commit on `main`. Work starts on a branch, named after the existing ones
   (`fix/issue-<N>-<slug>` for an issue, otherwise `ci/`, `docs/`, … with a slug), and
   lands through a pull request
+- Finished work is committed, pushed and opened as a pull request without asking first.
+  Stop for input only when a decision needs the user
 - `main` accepts only signed commits that GitHub verifies, and rejects force pushes and
   deletion (ruleset "Protect default branch"). GitHub's "Rebase and merge" drops commit
   signatures, so the rule blocks it: a pull request lands by fast-forwarding `main` to its
