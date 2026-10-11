@@ -71,7 +71,7 @@ means re-read its sources before trusting the comparison table. Run it before ed
 
 ### Adding a new resource
 
-1. Add the resource to `src/discogs_sdk/_async/resources/`, export from `_async/resources/__init__.py`
+1. Add the resource to `src/discogs_sdk/_async/resources/`
 2. Wire it into `src/discogs_sdk/_async/_client.py`
 3. Add models to `src/discogs_sdk/models/`, export from `models/__init__.py` and `__init__.py`
 4. Write tests in `tests/async/` and `tests/sync/`

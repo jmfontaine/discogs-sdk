@@ -113,7 +113,6 @@ lint.per-file-ignores."src/discogs_sdk/_async/_client.py" = [ "ASYNC251" ]
 lint.per-file-ignores."tests/test_model_aliases.py" = [ "B009" ]
 
 [tool.deptry]
-per_rule_ignores.DEP001 = [ "tomllib" ]
 per_rule_ignores.DEP002 = [ "tzdata" ]
 
 [tool.pyproject-fmt]
@@ -152,7 +151,5 @@ ignore_names = [
   "_keep_raw",
   "fast_sqlite_busy_timeout",
   "model_config",
-  "prices",
   "pytestmark",
-  "return_value",
 ]
