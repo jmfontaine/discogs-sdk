@@ -14,6 +14,7 @@ from discogs_sdk._async._oauth import (
     get_access_token,
     get_request_token,
 )
+from discogs_sdk._events import RateLimit
 from discogs_sdk._exceptions import (
     AuthenticationError,
     DiscogsAPIError,
@@ -178,7 +179,15 @@ class TestTokenResponseFailures:
         body = "oauth_problem=permission_denied"
         with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
             router.route(method=method, path=path).mock(
-                return_value=respx.MockResponse(200, text=body)
+                return_value=respx.MockResponse(
+                    200,
+                    text=body,
+                    headers={
+                        "X-Discogs-Ratelimit": "60",
+                        "X-Discogs-Ratelimit-Used": "14",
+                        "X-Discogs-Ratelimit-Remaining": "46",
+                    },
+                )
             )
             with pytest.raises(DiscogsAPIError) as exc_info:
                 await call()
@@ -186,6 +195,9 @@ class TestTokenResponseFailures:
         assert exc_info.value.status_code == 200
         assert exc_info.value.response_body == body
         assert "permission_denied" in str(exc_info.value)
+        assert exc_info.value.method == method
+        assert exc_info.value.url == f"{BASE_URL}{path}"
+        assert exc_info.value.ratelimit == RateLimit(60, 14, 46)
 
     @pytest.mark.parametrize(
         "body",

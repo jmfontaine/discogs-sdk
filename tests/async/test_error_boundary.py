@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 import respx
 
-from discogs_sdk import AsyncDiscogs
+from discogs_sdk import AsyncDiscogs, RateLimit
 from discogs_sdk._exceptions import (
     AuthenticationError,
     DiscogsAPIError,
@@ -13,7 +15,18 @@ from discogs_sdk._exceptions import (
     NotFoundError,
     RateLimitError,
 )
-from tests.conftest import BASE_URL, make_paginated_response, make_release
+from tests.conftest import (
+    BASE_URL,
+    make_artist_release,
+    make_paginated_response,
+    make_release,
+)
+
+RATELIMIT_HEADERS = {
+    "X-Discogs-Ratelimit": "60",
+    "X-Discogs-Ratelimit-Used": "14",
+    "X-Discogs-Ratelimit-Remaining": "46",
+}
 
 GATEWAY_HTML = (
     "<html><head><title>502 Bad Gateway</title></head><body>nginx</body></html>"
@@ -63,6 +76,8 @@ class TestNonJsonFailures:
             await client.marketplace.orders.update("1-1", status="Shipped")
 
         assert exc_info.value.status_code == 502
+        assert exc_info.value.method == "POST"
+        assert exc_info.value.url == f"{BASE_URL}/marketplace/orders/1-1"
 
     async def test_identity(self, client, respx_mock):
         respx_mock.get("/oauth/identity").respond(502, html=GATEWAY_HTML)
@@ -98,13 +113,16 @@ class TestNonJsonFailures:
 
     async def test_plain_text_429_keeps_retry_after(self, client, respx_mock):
         respx_mock.get("/releases/352665").respond(
-            429, text="slow down", headers={"Retry-After": "17"}
+            429,
+            text="slow down",
+            headers={"Retry-After": "17", **RATELIMIT_HEADERS},
         )
 
         with pytest.raises(RateLimitError) as exc_info:
             await client.releases.get(352665)
 
         assert exc_info.value.retry_after == "17"
+        assert exc_info.value.ratelimit == RateLimit(60, 14, 46)
         assert exc_info.value.response_body == "slow down"
 
     async def test_json_error_messages_still_map(self, client, respx_mock):
@@ -139,6 +157,76 @@ class TestNonJsonFailures:
         assert len(exc_info.value.args[0]) == 500
         assert exc_info.value.retry_after == "17"
         assert exc_info.value.response_body == "slow down " * 60
+
+
+class TestFailedRequestIsIdentified:
+    async def test_not_found_names_method_and_url(self, client, respx_mock):
+        respx_mock.get("/releases/352665").respond(
+            404, json={"message": "Release not found."}
+        )
+
+        with pytest.raises(NotFoundError) as exc_info:
+            await client.releases.get(352665)
+
+        assert exc_info.value.method == "GET"
+        assert exc_info.value.url == f"{BASE_URL}/releases/352665"
+
+    async def test_url_keeps_query_string(self, client, respx_mock):
+        respx_mock.get("/database/search").respond(500, json={"message": "Boom"})
+
+        with pytest.raises(DiscogsAPIError) as exc_info:
+            async for _ in client.search(q="Nine Inch Nails", type="artist"):
+                pass
+
+        assert exc_info.value.url == (
+            f"{BASE_URL}/database/search?page=1&q=Nine+Inch+Nails&type=artist"
+        )
+
+    async def test_failed_second_page_names_that_page(self, client, respx_mock):
+        page1 = make_paginated_response(
+            "releases",
+            [make_artist_release()],
+            pages=2,
+            next_url=f"{BASE_URL}/artists/3857/releases?page=2&per_page=1",
+        )
+        respx_mock.get("/artists/3857/releases").mock(
+            side_effect=[
+                respx.MockResponse(200, json=page1),
+                respx.MockResponse(404, json={"message": "Page not found."}),
+            ]
+        )
+
+        with pytest.raises(NotFoundError) as exc_info:
+            async for _ in client.artists.get(3857).releases.list():
+                pass
+
+        assert exc_info.value.url == (
+            f"{BASE_URL}/artists/3857/releases?page=2&per_page=1"
+        )
+
+    async def test_exhausted_retries_keep_the_rate_limit_budget(self, respx_mock):
+        client = AsyncDiscogs(token="test-token", max_retries=1)
+        route = respx_mock.get("/releases/352665").respond(
+            500, json={"message": "Boom"}, headers=RATELIMIT_HEADERS
+        )
+
+        with (
+            patch("asyncio.sleep", new_callable=AsyncMock),
+            pytest.raises(DiscogsAPIError) as exc_info,
+        ):
+            await client.releases.get(352665)
+
+        assert route.call_count == 2
+        assert exc_info.value.method == "GET"
+        assert exc_info.value.ratelimit == RateLimit(60, 14, 46)
+
+    async def test_ratelimit_is_none_without_the_headers(self, client, respx_mock):
+        respx_mock.get("/releases/352665").respond(500, json={"message": "Boom"})
+
+        with pytest.raises(DiscogsAPIError) as exc_info:
+            await client.releases.get(352665)
+
+        assert exc_info.value.ratelimit is None
 
 
 class TestSuccessfulResponsesAreUntouched:

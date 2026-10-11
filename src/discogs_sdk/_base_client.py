@@ -200,6 +200,8 @@ def raise_for_response(response: httpx2.Response) -> None:
         body,
         retry_after=response.headers.get("Retry-After"),
         ratelimit=RateLimit.from_headers(response.headers),
+        method=response.request.method,
+        url=str(response.request.url),
     )
 
 
@@ -209,8 +211,14 @@ def maybe_raise(
     *,
     retry_after: str | None = None,
     ratelimit: RateLimit | None = None,
+    method: str | None = None,
+    url: str | None = None,
 ) -> None:
-    """Raise the ``DiscogsAPIError`` subclass matching an error *status_code*."""
+    """Raise the ``DiscogsAPIError`` subclass matching an error *status_code*.
+
+    *method*, *url* and *ratelimit* identify the failed request on the exception,
+    whatever its class; *retry_after* only reaches ``RateLimitError``.
+    """
     if status_code < 400:
         return
 
@@ -232,6 +240,8 @@ def maybe_raise(
                 status_code=429,
                 response_body=body,
                 retry_after=retry_after,
+                method=method,
+                url=url,
                 ratelimit=ratelimit,
             )
         case _:
@@ -241,6 +251,9 @@ def maybe_raise(
         message,
         status_code=status_code,
         response_body=body,
+        method=method,
+        url=url,
+        ratelimit=ratelimit,
     )
 
 

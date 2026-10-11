@@ -24,6 +24,7 @@ from discogs_sdk._base_client import (
     error_message,
     raise_for_response,
 )
+from discogs_sdk._events import RateLimit
 from discogs_sdk._exceptions import DiscogsAPIError, DiscogsConnectionError
 from discogs_sdk._oauth_types import AccessToken, RequestToken
 
@@ -62,6 +63,9 @@ def _parse_token(response: httpx2.Response) -> tuple[str, str]:
         error_message(message),
         status_code=response.status_code,
         response_body=response.text,
+        method=response.request.method,
+        url=str(response.request.url),
+        ratelimit=RateLimit.from_headers(response.headers),
     )
 
 

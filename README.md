@@ -245,8 +245,8 @@ from discogs_sdk import NotFoundError, RateLimitError, AuthenticationError
 try:
     release = client.releases.get(999999999)
     _ = release.title
-except NotFoundError:
-    print("Not found")
+except NotFoundError as exc:
+    print(f"Not found: {exc.method} {exc.url}")
 except RateLimitError as exc:
     print(f"Rate limited, retry after {exc.retry_after}s")
     if exc.ratelimit:  # the 429's own X-Discogs-Ratelimit* headers, when present
@@ -254,6 +254,13 @@ except RateLimitError as exc:
 except AuthenticationError:
     print("Bad credentials")
 ```
+
+Every `DiscogsAPIError` names the request that failed: `exc.method` (upper-case) and
+`exc.url` (fully resolved, query string included, as in `RequestEvent.url`), so an
+error raised while iterating a listing points at the page that failed. `exc.ratelimit`
+holds the `RateLimit` from the failing response's `X-Discogs-Ratelimit*` headers for
+any status, or `None` when they are missing. All three are `None` on an exception you
+construct yourself without them.
 
 The full exception hierarchy:
 
@@ -442,9 +449,9 @@ leaves the last known value in place. It is `None` until the first live response
 
 `on_request` receives one `RequestEvent` per logical request, invoked synchronously — after a cache hit, or after the
 final network response and before any error is raised, so the event exists even when the call raises. Intermediate
-retried attempts do not emit; the final event carries `attempts`. A call that ends in `DiscogsConnectionError` emits
-nothing, since there is no response. Exceptions raised by the callback propagate unchanged; keep it cheap and never
-block in it, because the async client calls it from the event loop.
+retried attempts do not emit; the final event carries `attempts`. A call that ends in `DiscogsConnectionError` or
+`CacheMissError` emits nothing, since there is no response. Exceptions raised by the callback propagate unchanged;
+keep it cheap and never block in it, because the async client calls it from the event loop.
 
 | Field | Meaning |
 |---|---|

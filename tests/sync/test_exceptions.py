@@ -99,6 +99,12 @@ class TestDiscogsAPIError:
         assert err.status_code == 404
         assert err.response_body == body
 
+    def test_request_context_defaults_to_none(self):
+        err = DiscogsAPIError("not found", status_code=404, response_body={})
+        assert err.method is None
+        assert err.url is None
+        assert err.ratelimit is None
+
 
 class TestRateLimitError:
     def test_retry_after_default_none(self):
@@ -114,6 +120,8 @@ class TestRateLimitError:
     def test_ratelimit_default_none(self):
         err = RateLimitError("limited", status_code=429, response_body={})
         assert err.ratelimit is None
+        assert err.method is None
+        assert err.url is None
 
     def test_ratelimit_set(self):
         err = RateLimitError(
@@ -193,13 +201,23 @@ class TestPickleAndCopy:
         ids=["dict", "str"],
     )
     def test_api_errors(self, round_trip, cls, status_code, body):
-        err = cls("Release not found.", status_code=status_code, response_body=body)
+        err = cls(
+            "Release not found.",
+            status_code=status_code,
+            response_body=body,
+            method="GET",
+            url=CACHE_URL,
+            ratelimit=RateLimit(60, 14, 46),
+        )
         clone = round_trip(err)
         assert type(clone) is cls
         assert clone is not err
         assert clone.args == ("Release not found.",)
         assert clone.status_code == status_code
         assert clone.response_body == body
+        assert clone.method == "GET"
+        assert clone.url == CACHE_URL
+        assert clone.ratelimit == RateLimit(60, 14, 46)
         assert str(clone) == f"{status_code}: Release not found."
 
     @ROUND_TRIPS
@@ -210,6 +228,8 @@ class TestPickleAndCopy:
             response_body={"message": "slow down"},
             retry_after="30",
             ratelimit=RateLimit(60, 60, 0),
+            method="GET",
+            url=CACHE_URL,
         )
         clone = round_trip(err)
         assert type(clone) is RateLimitError
@@ -219,6 +239,8 @@ class TestPickleAndCopy:
         assert clone.retry_after == "30"
         assert isinstance(clone.ratelimit, RateLimit)
         assert clone.ratelimit == RateLimit(60, 60, 0)
+        assert clone.method == "GET"
+        assert clone.url == CACHE_URL
         assert str(clone) == "429: slow down"
 
     @ROUND_TRIPS
@@ -256,7 +278,16 @@ class TestPickleAndCopy:
         _RecordingNotFoundError.calls.clear()
         clone = round_trip(err)
         assert _RecordingNotFoundError.calls == [
-            (("Release not found.",), {"status_code": 404, "response_body": {}})
+            (
+                ("Release not found.",),
+                {
+                    "status_code": 404,
+                    "response_body": {},
+                    "method": None,
+                    "url": None,
+                    "ratelimit": None,
+                },
+            )
         ]
         assert type(clone) is _RecordingNotFoundError
         assert clone.__notes__ == ["n"]

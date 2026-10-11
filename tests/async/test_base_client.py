@@ -16,6 +16,7 @@ from discogs_sdk._base_client import (
     build_oauth_header,
     maybe_raise,
 )
+from discogs_sdk._events import RateLimit
 from discogs_sdk._exceptions import (
     AuthenticationError,
     DiscogsAPIError,
@@ -298,6 +299,20 @@ class TestMaybeRaise:
             maybe_raise(418, body)
         assert exc_info.value.status_code == 418
         assert exc_info.value.response_body == body
+
+    @pytest.mark.parametrize("status_code", [400, 401, 403, 404, 422, 429, 500])
+    def test_request_context_reaches_every_error(self, status_code):
+        with pytest.raises(DiscogsAPIError) as exc_info:
+            maybe_raise(
+                status_code,
+                {},
+                method="DELETE",
+                url="https://api.discogs.com/marketplace/listings/1",
+                ratelimit=RateLimit(60, 14, 46),
+            )
+        assert exc_info.value.method == "DELETE"
+        assert exc_info.value.url == "https://api.discogs.com/marketplace/listings/1"
+        assert exc_info.value.ratelimit == RateLimit(60, 14, 46)
 
 
 class TestErrorMessage:
