@@ -143,9 +143,10 @@ cached_client.clear_cache()
 
 
 # ━━ Request events and rate-limit budget ━━━━━━━━━━━━━━━━━━━━━━━━━━
-# on_request receives one RequestEvent per logical request: after a
-# cache hit, or after the final network response (before any error is
-# raised). It runs synchronously, so keep it cheap and never block.
+# on_request receives one RequestEvent per logical request, before the call
+# returns or raises: after a cache hit, the final network response, a final
+# transport failure (status_code None) or a refused cache_only() lookup
+# (source "miss"). It runs synchronously, so keep it cheap and never block.
 def on_request(event: RequestEvent) -> None:
     print(
         f"{event.method} {event.url} -> {event.status_code} "

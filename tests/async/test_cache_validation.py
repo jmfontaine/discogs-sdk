@@ -7,6 +7,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
+from unittest.mock import AsyncMock, patch
 
 import pydantic
 import pytest
@@ -220,9 +221,35 @@ class TestInvalidCacheHits:
                     await endpoint.call(client)
             await client.close()
         assert route.call_count == 0
-        assert events == []
+        assert [(e.source, e.status_code, e.attempts) for e in events] == [
+            ("miss", None, 0)
+        ]
         assert backend.get(key) is None
         assert any(r.levelno == logging.WARNING for r in caplog.records)
+
+    async def test_rejected_hit_then_retried_fetch_emits_one_event(
+        self, endpoint, backend
+    ):
+        events = []
+        with mock_router() as router:
+            router.get(endpoint.path).mock(
+                side_effect=[
+                    respx.MockResponse(503),
+                    respx.MockResponse(200, json=endpoint.valid),
+                ]
+            )
+            client = AsyncDiscogs(
+                token="t", cache=backend, max_retries=1, on_request=events.append
+            )
+            seed_cache(
+                client, backend, endpoint.path, endpoint.invalid, params=endpoint.params
+            )
+            with patch("asyncio.sleep", new_callable=AsyncMock):
+                assert await endpoint.call(client) == endpoint.expected
+            await client.close()
+        assert [(e.source, e.status_code, e.attempts) for e in events] == [
+            ("network", 200, 2)
+        ]
 
     async def test_malformed_page_envelope_is_rejected(self, backend):
         endpoint = ENDPOINTS["page"]

@@ -33,6 +33,7 @@ from discogs_sdk._base_client import (
     BaseClient,
     MediaType,
     connection_error,
+    failed_request_url,
     may_retry_status,
     may_retry_transport_error,
     parse_retry_after,
@@ -152,8 +153,10 @@ class AsyncDiscogs(BaseClient):
             media_type: Response text format. ``"discogs"`` returns Discogs markup,
                 ``"html"`` returns HTML, ``"plaintext"`` returns plain text.
             on_request: Called once per request with a ``RequestEvent``: after a
-                cache hit, or after the final network response before any error
-                is raised. Invoked synchronously in the thread or task that made
+                cache hit, after the final network response, after the final
+                transport failure, or when ``cache_only()`` refuses the request,
+                always before any error is raised. Invoked synchronously in the
+                thread or task that made
                 the request, so keep it cheap and never block in it. Concurrent
                 requests report in completion order, and from several threads
                 the callback can run in several of them at once. Exceptions it
@@ -285,6 +288,7 @@ class AsyncDiscogs(BaseClient):
         cache_only = id(self) in _CACHE_ONLY.get()
         cache_key = ""
         parsed: Any = None
+        lookup_ms = 0.0
         if use_cache or cache_only:
             # httpx2 merges params into the URL, so build the request first to key
             # on the fully resolved URL.
@@ -340,7 +344,21 @@ class AsyncDiscogs(BaseClient):
                     return response if parse is None else parsed
         if cache_only:
             # Nothing below this line may run: the scope forbids network I/O.
-            raise CacheMissError(method.upper(), str(req.url))
+            miss = CacheMissError(method.upper(), str(req.url))
+            self._observe(
+                RequestEvent(
+                    method=method.upper(),
+                    url=str(req.url),
+                    status_code=None,
+                    source="miss",
+                    elapsed_ms=lookup_ms,
+                    attempts=0,
+                    stored=False,
+                    ratelimit=None,
+                    error=type(miss).__name__,
+                )
+            )
+            raise miss
 
         for attempt in range(self.max_retries + 1):
             logger.debug("HTTP request: %s %s", method, url)
@@ -360,7 +378,23 @@ class AsyncDiscogs(BaseClient):
                     logger.debug(
                         "HTTP connection error after %.0fms: %s", elapsed_ms, exc
                     )
-                    raise connection_error(exc) from exc
+                    failure = connection_error(exc)
+                    # No response, but the call still gets its one event, with
+                    # every attempt counted, before the error leaves.
+                    self._observe(
+                        RequestEvent(
+                            method=method.upper(),
+                            url=failed_request_url(exc, url),
+                            status_code=None,
+                            source="network",
+                            elapsed_ms=elapsed_ms,
+                            attempts=attempt + 1,
+                            stored=False,
+                            ratelimit=None,
+                            error=type(failure).__name__,
+                        )
+                    )
+                    raise failure from exc
                 delay = self._retry_delay(attempt)
                 logger.info(
                     "Retrying %s %s (attempt %d/%d) after connection error "

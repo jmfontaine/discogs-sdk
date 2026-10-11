@@ -138,6 +138,14 @@ def connection_error(exc: httpx2.RequestError) -> DiscogsConnectionError:
     return DiscogsConnectionError(str(exc), transient=transient)
 
 
+def failed_request_url(exc: httpx2.RequestError, fallback: str) -> str:
+    """The fully resolved URL of the request *exc* ended, else *fallback*."""
+    try:
+        return str(exc.request.url)
+    except RuntimeError:  # pragma: no cover - httpx2 attaches it to send errors
+        return fallback
+
+
 def parse_retry_after(value: str | None) -> float | None:
     """Seconds to wait per a ``Retry-After`` header, or None when it is unusable.
 

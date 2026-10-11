@@ -50,6 +50,7 @@ class TestRequestEvents:
         assert event.stored is False
         assert event.ratelimit == RateLimit(60, 14, 46)
         assert event.elapsed_ms >= 0
+        assert event.error is None
         assert client.ratelimit == RateLimit(60, 14, 46)
 
     async def test_cache_hit_event(self):
@@ -73,6 +74,7 @@ class TestRequestEvents:
         assert hit.ratelimit is None
         assert hit.url == f"{BASE_URL}/releases/352665"
         assert hit.status_code == 200
+        assert hit.error is None
         assert client.ratelimit == RateLimit(60, 14, 46)
 
     async def test_ratelimit_keeps_last_known_when_headers_absent(self):
@@ -123,18 +125,32 @@ class TestRequestEvents:
         assert events[0].attempts == 2
         assert events[0].status_code == 200
 
-    async def test_connection_error_emits_no_event(self):
+    async def test_connection_error_emits_one_event(self):
         events: list[RequestEvent] = []
         with mock_router() as router:
-            router.get("/releases/352665").mock(
+            route = router.get("/releases/352665").mock(
                 side_effect=httpx2.ConnectError("refused")
             )
-            client = AsyncDiscogs(token="t", max_retries=0, on_request=events.append)
-            with pytest.raises(DiscogsConnectionError):
-                await client._send("GET", f"{BASE_URL}/releases/352665")
+            client = AsyncDiscogs(token="t", max_retries=2, on_request=events.append)
+            with (
+                patch("asyncio.sleep", new_callable=AsyncMock),
+                pytest.raises(DiscogsConnectionError),
+            ):
+                await client._send(
+                    "GET", f"{BASE_URL}/releases/352665", params={"x": "1"}
+                )
             await client.close()
 
-        assert events == []
+        assert route.call_count == 3
+        (event,) = events
+        assert event.method == "GET"
+        assert event.url == f"{BASE_URL}/releases/352665?x=1"
+        assert event.status_code is None
+        assert event.source == "network"
+        assert event.attempts == 3
+        assert event.stored is False
+        assert event.ratelimit is None
+        assert event.error == "DiscogsConnectionError"
         assert client.ratelimit is None
 
     async def test_callback_exception_propagates(self):
@@ -163,7 +179,14 @@ class TestCacheOnly:
             await client.close()
 
         assert route.call_count == 0
-        assert events == []
+        (event,) = events
+        assert event.source == "miss"
+        assert event.status_code is None
+        assert event.attempts == 0
+        assert event.stored is False
+        assert event.ratelimit is None
+        assert event.error == "CacheMissError"
+        assert event.url == f"{BASE_URL}/releases/352665?x=1"
         assert exc_info.value.method == "GET"
         assert exc_info.value.url == f"{BASE_URL}/releases/352665?x=1"
 
