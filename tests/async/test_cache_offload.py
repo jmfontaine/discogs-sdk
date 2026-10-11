@@ -10,10 +10,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-import respx
 
 from discogs_sdk import AsyncDiscogs, CacheMissError, MemoryCache, RequestEvent
-from tests.conftest import BASE_URL, make_collection_folder, make_release
+from tests.conftest import make_collection_folder, make_release, mock_router
 
 _TRACE: ContextVar[str] = ContextVar("trace", default="unset")
 _FOLDER = "/users/trent_reznor/collection/folders/3"
@@ -51,7 +50,7 @@ class ThreadRecordingCache(MemoryCache):
 
 @pytest.fixture
 def router():
-    with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+    with mock_router() as router:
         yield router
 
 

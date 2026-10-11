@@ -14,10 +14,10 @@ from _pytest.outcomes import Failed, Skipped
 
 from discogs_sdk import Discogs
 from tests.conftest import (
-    BASE_URL,
     make_collection_folder,
     make_collection_instance_created,
     make_paginated_response,
+    mock_router,
 )
 from tests.integration import conftest as integration_conftest
 from tests.integration import test_collection as collection_workflow
@@ -97,9 +97,7 @@ class TestFolderSweep:
     """The sweep that reclaims debris is the suite's one unattended deletion."""
 
     def test_deletes_only_folders_this_suite_owns(self, client):
-        with respx.mock(
-            base_url=BASE_URL, using="httpcore2", assert_all_called=False
-        ) as router:
+        with mock_router(assert_all_called=False) as router:
             router.get(FOLDERS_PATH).respond(
                 200,
                 json={
@@ -143,7 +141,7 @@ class TestFolderSweep:
             assert near_miss_deleted.call_count == 0
 
     def test_empties_a_leftover_folder_before_deleting_it(self, client):
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.get(FOLDERS_PATH).respond(
                 200,
                 json={
@@ -178,7 +176,7 @@ class TestFolderSweep:
 
     def test_instance_already_gone_does_not_stop_the_sweep(self, client, sleeps):
         """A stale listing can still show the copy the test just removed."""
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.get(FOLDERS_PATH).respond(
                 200,
                 json={
@@ -218,9 +216,7 @@ class TestFolderSweep:
     def test_folder_that_never_shows_empty_is_left_for_the_next_run(
         self, client, sleeps
     ):
-        with respx.mock(
-            base_url=BASE_URL, using="httpcore2", assert_all_called=False
-        ) as router:
+        with mock_router(assert_all_called=False) as router:
             router.get(FOLDERS_PATH).respond(
                 200,
                 json={
@@ -248,7 +244,7 @@ class TestFolderSweep:
 
 class TestCollectionLifecycle:
     def test_deletes_only_the_instance_it_created(self, client, scratch_folder):
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.post(f"{FOLDER_PATH}/{CRUD_RELEASE_ID}").respond(
                 201,
                 json=make_collection_instance_created(
@@ -281,7 +277,7 @@ class TestCollectionLifecycle:
     def test_waits_for_a_listing_that_lags_behind_the_create(
         self, client, scratch_folder, sleeps
     ):
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.post(f"{FOLDER_PATH}/{CRUD_RELEASE_ID}").respond(
                 201,
                 json=make_collection_instance_created(
@@ -311,7 +307,7 @@ class TestCollectionLifecycle:
     def test_verification_failure_still_removes_only_the_created_instance(
         self, client, scratch_folder, sleeps
     ):
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.post(f"{FOLDER_PATH}/{CRUD_RELEASE_ID}").respond(
                 201,
                 json=make_collection_instance_created(
@@ -335,7 +331,7 @@ class TestCollectionLifecycle:
             assert sleeps == [10.0] * 5
 
     def test_failed_creation_deletes_nothing(self, client, scratch_folder):
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.post(f"{FOLDER_PATH}/{CRUD_RELEASE_ID}").mock(
                 return_value=respx.MockResponse(
                     422, json={"message": "Cannot add to this folder"}
@@ -361,7 +357,7 @@ class TestFolderLifecycle:
             make_collection_folder(id=0, name="All"),
             make_collection_folder(id=1, name="Uncategorized"),
         ]
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.post(FOLDERS_PATH).respond(201, json=created)
             router.get(FOLDERS_PATH).mock(
                 side_effect=in_turn(
@@ -401,7 +397,7 @@ LEFTOVER_WANT = {
 class TestWantlistLifecycle:
     def test_pre_existing_want_survives_unchanged(self, client, monkeypatch):
         monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.get(WANTLIST_PATH).respond(
                 200, json=make_paginated_response("wants", [EXISTING_WANT])
             )
@@ -419,7 +415,7 @@ class TestWantlistLifecycle:
     ):
         """A skip here would leave the scheduled job green and untested."""
         monkeypatch.setenv("GITHUB_ACTIONS", "true")
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.get(WANTLIST_PATH).respond(
                 200, json=make_paginated_response("wants", [EXISTING_WANT])
             )
@@ -432,7 +428,7 @@ class TestWantlistLifecycle:
             assert {call.request.method for call in router.calls} == {"GET"}
 
     def test_absent_want_completes_the_cycle_and_leaves_nothing_behind(self, client):
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.get(WANTLIST_PATH).mock(
                 side_effect=in_turn(
                     make_paginated_response("wants", []),
@@ -455,7 +451,7 @@ class TestWantlistLifecycle:
 
     def test_tagging_failure_still_removes_the_new_want(self, client):
         """A want that was created must not survive a failure of the next call."""
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.get(WANTLIST_PATH).respond(
                 200, json=make_paginated_response("wants", [])
             )
@@ -475,7 +471,7 @@ class TestWantlistLifecycle:
             assert deleted.call_count == 1
 
     def test_want_that_never_shows_up_fails_and_is_still_removed(self, client, sleeps):
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             # Every read, the pre-check and each poll alike, comes back empty.
             router.get(WANTLIST_PATH).respond(
                 200, json=make_paginated_response("wants", [])
@@ -499,7 +495,7 @@ class TestWantlistLifecycle:
 
     def test_own_leftover_want_is_reclaimed_rather_than_blocking_the_run(self, client):
         """A want the suite tagged is debris from a killed run, not user data."""
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.get(WANTLIST_PATH).respond(
                 200, json=make_paginated_response("wants", [LEFTOVER_WANT])
             )

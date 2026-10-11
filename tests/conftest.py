@@ -10,7 +10,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import respx
 from respx.mocks import Mocker
+from respx.router import MockRouter
 
 from discogs_sdk import MemoryCache
 
@@ -18,8 +20,9 @@ BASE_URL = "https://api.discogs.com"
 EXAMPLES_DIR = Path(__file__).resolve().parent.parent / "examples"
 
 # KLUDGE: mocked responses across this suite are built with `respx.MockResponse`
-# rather than the `httpx2.Response` the SDK actually returns, and every
-# `respx.mock(...)` has to pass `using="httpcore2"`. respx is written against
+# rather than the `httpx2.Response` the SDK actually returns, and every respx
+# router has to pass `using="httpcore2"`, which `mock_router` below does for the
+# `respx_mock` fixture and every inline router alike. respx is written against
 # httpx: its `return_value`/`side_effect` guards assert
 # `isinstance(..., httpx.Response)` and reject an `httpx2.Response` outright
 # (https://github.com/lundberg/respx/issues/324), and its built-in mockers patch
@@ -64,6 +67,29 @@ def _require_httpcore2_mocker():
         require_httpcore2_mocker()
     except RuntimeError as exc:
         pytest.exit(str(exc), returncode=pytest.ExitCode.USAGE_ERROR)
+
+
+def mock_router(
+    *, base_url: str | None = BASE_URL, assert_all_called: bool = True
+) -> MockRouter:
+    """Return a respx router that patches httpx2, to enter with ``with``.
+
+    Routes resolve against ``base_url``; pass ``None`` to match absolute URLs.
+    """
+    return respx.mock(
+        base_url=base_url, assert_all_called=assert_all_called, using="httpcore2"
+    )
+
+
+@pytest.fixture
+def respx_mock() -> Iterator[MockRouter]:
+    """Patch httpx2 for one test, with routes relative to the Discogs API.
+
+    Overrides the fixture respx's own pytest plugin provides, which patches only
+    httpx/httpcore and has no ``base_url``, so it would intercept nothing here.
+    """
+    with mock_router() as router:
+        yield router
 
 
 @pytest.fixture(autouse=True)

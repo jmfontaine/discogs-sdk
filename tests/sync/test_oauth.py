@@ -22,8 +22,8 @@ from discogs_sdk._sync._oauth import (
     get_access_token,
     get_request_token,
 )
+from tests.conftest import BASE_URL, mock_router
 
-BASE_URL = "https://api.discogs.com"
 REQUEST_TOKEN_PATH = "/oauth/request_token"
 ACCESS_TOKEN_PATH = "/oauth/access_token"
 
@@ -45,7 +45,7 @@ HELPERS = [
 
 class TestGetRequestToken:
     def test_returns_request_token(self):
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.get("/oauth/request_token").mock(
                 return_value=respx.MockResponse(
                     200, text="oauth_token=req-token&oauth_token_secret=req-secret"
@@ -58,7 +58,7 @@ class TestGetRequestToken:
             assert "oauth_token=req-token" in result.authorize_url
 
     def test_custom_callback_url(self):
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.get("/oauth/request_token").mock(
                 return_value=respx.MockResponse(
                     200, text="oauth_token=t&oauth_token_secret=s"
@@ -70,7 +70,7 @@ class TestGetRequestToken:
             assert result.oauth_token == "t"
 
     def test_401_raises_authentication_error(self):
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.get(REQUEST_TOKEN_PATH).mock(
                 return_value=respx.MockResponse(
                     401, json={"message": "Invalid consumer."}
@@ -83,7 +83,7 @@ class TestGetRequestToken:
 
     def test_400_raises_api_error_with_body(self):
         body = "oauth_problem=parameter_absent"
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.get(REQUEST_TOKEN_PATH).mock(
                 return_value=respx.MockResponse(400, text=body)
             )
@@ -95,7 +95,7 @@ class TestGetRequestToken:
 
     @pytest.mark.parametrize("token", ["a&b", "a b", "a&b c=d"])
     def test_authorize_url_encodes_token(self, token):
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.get(REQUEST_TOKEN_PATH).mock(
                 return_value=respx.MockResponse(
                     200,
@@ -116,7 +116,7 @@ class TestGetRequestToken:
 
 class TestGetAccessToken:
     def test_returns_access_token(self):
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.post("/oauth/access_token").mock(
                 return_value=respx.MockResponse(
                     200,
@@ -131,7 +131,7 @@ class TestGetAccessToken:
             assert result.oauth_token_secret == "access-secret"
 
     def test_403_raises_forbidden_error(self):
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.post(ACCESS_TOKEN_PATH).mock(
                 return_value=respx.MockResponse(403, json={"message": "Forbidden"})
             )
@@ -140,7 +140,7 @@ class TestGetAccessToken:
         assert exc_info.value.status_code == 403
 
     def test_429_raises_rate_limit_error_with_retry_after(self):
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.post(ACCESS_TOKEN_PATH).mock(
                 return_value=respx.MockResponse(
                     429,
@@ -154,7 +154,7 @@ class TestGetAccessToken:
         assert exc_info.value.retry_after == "5"
 
     def test_500_is_sent_once(self):
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             route = router.post(ACCESS_TOKEN_PATH).mock(
                 return_value=respx.MockResponse(500, text="Internal Server Error")
             )
@@ -164,7 +164,7 @@ class TestGetAccessToken:
         assert route.call_count == 1
 
     def test_connection_error_is_sent_once(self):
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             route = router.post(ACCESS_TOKEN_PATH).mock(
                 side_effect=httpx2.ConnectError("refused")
             )
@@ -177,7 +177,7 @@ class TestTokenResponseFailures:
     @pytest.mark.parametrize(("method", "path", "call"), HELPERS)
     def test_oauth_problem_without_tokens(self, method, path, call):
         body = "oauth_problem=permission_denied"
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.route(method=method, path=path).mock(
                 return_value=respx.MockResponse(
                     200,
@@ -210,7 +210,7 @@ class TestTokenResponseFailures:
     )
     @pytest.mark.parametrize(("method", "path", "call"), HELPERS)
     def test_missing_token_fields(self, method, path, call, body):
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.route(method=method, path=path).mock(
                 return_value=respx.MockResponse(200, text=body)
             )
@@ -227,7 +227,7 @@ class TestTokenResponseFailures:
     )
     @pytest.mark.parametrize(("method", "path", "call"), HELPERS)
     def test_transport_error_raises_connection_error(self, method, path, call, error):
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.route(method=method, path=path).mock(side_effect=error)
             with pytest.raises(DiscogsConnectionError) as exc_info:
                 call()

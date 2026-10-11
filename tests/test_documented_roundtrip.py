@@ -89,12 +89,6 @@ from tests.documented_payloads import (
 
 
 @pytest.fixture
-def respx_mock():
-    with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
-        yield router
-
-
-@pytest.fixture
 def client(respx_mock):
     return AsyncDiscogs(token="test-token")
 

@@ -12,7 +12,12 @@ from discogs_sdk import Discogs
 from discogs_sdk._exceptions import DiscogsAPIError, DiscogsError
 from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk.models.release import Release
-from tests.conftest import BASE_URL, make_paginated_response, make_release
+from tests.conftest import (
+    BASE_URL,
+    make_paginated_response,
+    make_release,
+    mock_router,
+)
 
 RELEASES = f"{BASE_URL}/releases"
 ARTIST_RELEASES = f"{BASE_URL}/artists/3857/releases"
@@ -766,7 +771,7 @@ def upstream():
         sent.append((str(request.url), request.headers.get("Authorization")))
         return respx.MockResponse(200, json=bodies.pop(0))
 
-    with respx.mock(using="httpcore2") as router:
+    with mock_router(base_url=None) as router:
         router.route().mock(side_effect=respond)
         yield sent, bodies
 

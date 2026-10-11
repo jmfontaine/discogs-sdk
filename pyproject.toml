@@ -81,8 +81,9 @@ dev = [
 # 3.15 deprecates and marks as slated for removal in 3.16
 # (`iscoroutinefunction` in 0.24, `AbstractEventLoopPolicy` in 1.0-1.3).
 # pytest-httpx2 is respx's httpx2 companion (same author). Importing its plugin
-# registers respx's "httpcore2" mocker, which is what `using="httpcore2"` in the
-# test fixtures selects; respx's built-in mockers only target httpx/httpcore.
+# registers respx's "httpcore2" mocker, which is what `using="httpcore2"` in
+# `mock_router` (tests/conftest.py) selects; respx's built-in mockers only
+# target httpx/httpcore.
 test = [
   "pytest>=8.3",
   "pytest-asyncio>=1.4",

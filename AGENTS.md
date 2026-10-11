@@ -126,20 +126,25 @@ Env vars: `DISCOGS_TOKEN`, `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `D
 
 ## Testing
 
-- HTTP mocking uses `respx` at the transport level via `respx_mock` fixture. Because the SDK runs on httpx2,
-  every `respx.mock(...)` call must pass `using="httpcore2"` — respx's built-in mockers only patch httpx/httpcore
-  and would silently intercept nothing. That mocker is registered by `pytest-httpx2` (respx's httpx2 companion,
-  same author), which loads as a pytest plugin. Code outside pytest (an ad-hoc script, a REPL) must
-  `import pytest_httpx2` before `respx.mock(using="httpcore2")`, or respx patches nothing and the requests reach
-  the real API. Inside pytest, a session-scoped autouse fixture in `tests/conftest.py` aborts the run before the
-  first test when the mocker is missing (plugin not installed, or disabled with `-p no:pytest_httpx2`)
+- HTTP mocking uses `respx` at the transport level via the `respx_mock` fixture, defined once in `tests/conftest.py`
+  (routes relative to `BASE_URL`). It overrides the fixture respx's own pytest plugin provides, which patches only
+  httpx/httpcore and has no `base_url`; never redefine it per file. A test that needs its own router, or one with
+  `assert_all_called=False`, enters `mock_router(...)` from `tests/conftest.py` rather than calling `respx.mock`.
+  Because the SDK runs on httpx2, every router must pass `using="httpcore2"` — respx's built-in mockers only patch
+  httpx/httpcore and would silently intercept nothing — and `mock_router` is the one place that does. That mocker
+  is registered by `pytest-httpx2` (respx's httpx2 companion, same author), which loads as a pytest plugin. Code
+  outside pytest (an ad-hoc script, a REPL) must `import pytest_httpx2` before `respx.mock(using="httpcore2")`, or
+  respx patches nothing and the requests reach the real API. Inside pytest, a session-scoped autouse fixture in
+  `tests/conftest.py` aborts the run before the first test when the mocker is missing (plugin not installed, or
+  disabled with `-p no:pytest_httpx2`)
 - Build mocked responses with `respx.MockResponse(...)`, never `httpx2.Response(...)`: respx's `return_value` and
   `side_effect` guards hard-code `isinstance(..., httpx.Response)` and reject httpx2 responses outright
   ([respx#324](https://github.com/lundberg/respx/issues/324)). Exceptions are the opposite — `side_effect` must
   raise `httpx2.*` errors, since an `httpx.ConnectError` surfaces unchanged and escapes the SDK's handlers.
   Both rules carry a `KLUDGE:` in `tests/conftest.py` with the removal condition
 - Shared payload factories in `tests/conftest.py` (`make_release()`, `make_artist()`, etc.)
-- Async tests in `tests/async/`, sync tests in `tests/sync/` (both hand-maintained)
+- Async tests in `tests/async/`, sync tests in `tests/sync/` (both hand-maintained). Tests of shared, client-agnostic
+  code (`BaseClient`, `build_oauth_header`, the exceptions) live once in `tests/`, not in both trees
 - `pytest-asyncio` with `asyncio_mode="auto"` — no need for `@pytest.mark.asyncio`
 - Integration tests marked with `@pytest.mark.integration`, excluded by default
 - `.github/workflows/integration.yml` runs the live suite weekly (and on manual dispatch) in two

@@ -11,13 +11,7 @@ import respx
 
 from discogs_sdk import AsyncDiscogs
 from discogs_sdk._exceptions import DiscogsConnectionError, RateLimitError
-from tests.conftest import BASE_URL, make_release
-
-
-@pytest.fixture
-def respx_mock():
-    with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
-        yield router
+from tests.conftest import make_release
 
 
 @pytest.fixture

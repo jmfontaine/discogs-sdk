@@ -6,7 +6,12 @@ import respx
 
 from discogs_sdk import AsyncDiscogs
 from discogs_sdk.models.search import SearchResult
-from tests.conftest import BASE_URL, make_paginated_response, make_search_result
+from tests.conftest import (
+    BASE_URL,
+    make_paginated_response,
+    make_search_result,
+    mock_router,
+)
 
 
 class TestSearch:
@@ -100,7 +105,7 @@ class TestSearch:
             ),
             make_paginated_response("results", [make_search_result(id=2)], page=2),
         ]
-        with respx.mock(using="httpcore2") as router:
+        with mock_router(base_url=None) as router:
             route = router.route().mock(
                 side_effect=lambda req: respx.MockResponse(200, json=bodies.pop(0))
             )

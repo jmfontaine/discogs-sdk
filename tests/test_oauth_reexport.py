@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import respx
-
 from discogs_sdk.oauth import (
     AccessToken,
     RequestToken,
@@ -12,7 +10,7 @@ from discogs_sdk.oauth import (
     get_access_token,
     get_request_token,
 )
-from tests.conftest import BASE_URL
+from tests.conftest import mock_router
 
 REQUEST_TOKEN_BODY = (
     "oauth_token=req-token&oauth_token_secret=req-secret&oauth_callback_confirmed=true"
@@ -29,7 +27,7 @@ def test_reexport_symbols():
 
 class TestSharedResultClasses:
     def test_sync_helpers_return_public_classes(self):
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.get("/oauth/request_token").respond(200, text=REQUEST_TOKEN_BODY)
             router.post("/oauth/access_token").respond(200, text=ACCESS_TOKEN_BODY)
 
@@ -44,7 +42,7 @@ class TestSharedResultClasses:
         assert access_token.oauth_token == "acc-token"
 
     async def test_async_helpers_return_the_same_classes(self):
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.get("/oauth/request_token").respond(200, text=REQUEST_TOKEN_BODY)
             router.post("/oauth/access_token").respond(200, text=ACCESS_TOKEN_BODY)
 

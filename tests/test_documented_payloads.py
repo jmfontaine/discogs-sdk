@@ -20,7 +20,7 @@ from discogs_sdk import AsyncDiscogs
 from discogs_sdk._exceptions import DiscogsAPIError
 from discogs_sdk.models._common import Price
 from discogs_sdk.models.release import PriceSuggestions
-from tests.conftest import BASE_URL
+from tests.conftest import mock_router
 from tests.documented_payloads import (
     DOCUMENTED_ENVELOPES,
     DOCUMENTED_ERRORS,
@@ -74,7 +74,7 @@ async def test_documented_error_body_raises_its_exception(name: str) -> None:
     entry = DOCUMENTED_ERRORS[name]
     body = {"message": "You don't have permission to access this resource."}
 
-    with respx.mock(base_url=BASE_URL, using="httpcore2") as mock:
+    with mock_router() as mock:
         mock.get("/releases/352665").mock(
             return_value=respx.MockResponse(entry.status, json=body)
         )

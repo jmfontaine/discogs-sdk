@@ -16,7 +16,7 @@ from discogs_sdk import (
     RateLimitError,
     RequestEvent,
 )
-from tests.conftest import BASE_URL, make_release
+from tests.conftest import BASE_URL, make_release, mock_router
 
 RATELIMIT_HEADERS = {
     "X-Discogs-Ratelimit": "60",
@@ -32,7 +32,7 @@ def _ok(headers: dict[str, str] | None = None) -> respx.MockResponse:
 class TestRequestEvents:
     async def test_network_event_fields(self):
         events: list[RequestEvent] = []
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.get("/releases/352665").mock(return_value=_ok(RATELIMIT_HEADERS))
             client = AsyncDiscogs(token="t", on_request=events.append)
             await client._send(
@@ -54,7 +54,7 @@ class TestRequestEvents:
 
     async def test_cache_hit_event(self):
         events: list[RequestEvent] = []
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             route = router.get("/releases/352665").mock(
                 return_value=_ok(RATELIMIT_HEADERS)
             )
@@ -77,7 +77,7 @@ class TestRequestEvents:
 
     async def test_ratelimit_keeps_last_known_when_headers_absent(self):
         events: list[RequestEvent] = []
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.get("/releases/352665").mock(
                 side_effect=[_ok(RATELIMIT_HEADERS), _ok()]
             )
@@ -92,7 +92,7 @@ class TestRequestEvents:
     async def test_ratelimit_error_carries_headers(self):
         events: list[RequestEvent] = []
         headers = {**RATELIMIT_HEADERS, "Retry-After": "17"}
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.get("/releases/352665").mock(
                 return_value=respx.MockResponse(
                     429, json={"message": "slow down"}, headers=headers
@@ -110,7 +110,7 @@ class TestRequestEvents:
 
     async def test_retries_produce_one_event_with_attempts(self):
         events: list[RequestEvent] = []
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.get("/releases/352665").mock(
                 side_effect=[respx.MockResponse(503), _ok()]
             )
@@ -125,7 +125,7 @@ class TestRequestEvents:
 
     async def test_connection_error_emits_no_event(self):
         events: list[RequestEvent] = []
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.get("/releases/352665").mock(
                 side_effect=httpx2.ConnectError("refused")
             )
@@ -141,7 +141,7 @@ class TestRequestEvents:
         def boom(event: RequestEvent) -> None:
             raise RuntimeError("observer failed")
 
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             router.get("/releases/352665").mock(return_value=_ok())
             client = AsyncDiscogs(token="t", on_request=boom)
             with pytest.raises(RuntimeError, match="observer failed"):
@@ -152,9 +152,7 @@ class TestRequestEvents:
 class TestCacheOnly:
     async def test_cache_only_miss_raises_before_network(self):
         events: list[RequestEvent] = []
-        with respx.mock(
-            base_url=BASE_URL, using="httpcore2", assert_all_called=False
-        ) as router:
+        with mock_router(assert_all_called=False) as router:
             route = router.get("/releases/352665").mock(return_value=_ok())
             client = AsyncDiscogs(token="t", cache=True, on_request=events.append)
             async with client.cache_only():
@@ -170,7 +168,7 @@ class TestCacheOnly:
         assert exc_info.value.url == f"{BASE_URL}/releases/352665?x=1"
 
     async def test_cache_only_hit_serves_from_cache(self):
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             route = router.get("/releases/352665").mock(return_value=_ok())
             client = AsyncDiscogs(token="t", cache=True)
             await client._send("GET", f"{BASE_URL}/releases/352665")
@@ -182,9 +180,7 @@ class TestCacheOnly:
         assert response.json()["id"] == make_release()["id"]
 
     async def test_cache_only_with_cache_disabled_raises(self):
-        with respx.mock(
-            base_url=BASE_URL, using="httpcore2", assert_all_called=False
-        ) as router:
+        with mock_router(assert_all_called=False) as router:
             route = router.get("/releases/352665").mock(return_value=_ok())
             client = AsyncDiscogs(token="t", cache=False)
             async with client.cache_only():
@@ -195,7 +191,7 @@ class TestCacheOnly:
         assert route.call_count == 0
 
     async def test_cache_only_inside_no_cache_raises(self):
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             route = router.get("/releases/352665").mock(return_value=_ok())
             client = AsyncDiscogs(token="t", cache=True)
             await client._send("GET", f"{BASE_URL}/releases/352665")
@@ -207,7 +203,7 @@ class TestCacheOnly:
         assert route.call_count == 1
 
     async def test_cache_only_scope_restores(self):
-        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+        with mock_router() as router:
             route = router.get("/releases/352665").mock(return_value=_ok())
             client = AsyncDiscogs(token="t", cache=True)
             async with client.cache_only():
@@ -225,9 +221,7 @@ class TestCacheOnly:
             await client.close()
 
     async def test_cache_only_non_get_raises(self):
-        with respx.mock(
-            base_url=BASE_URL, using="httpcore2", assert_all_called=False
-        ) as router:
+        with mock_router(assert_all_called=False) as router:
             route = router.post("/users/trent_reznor/wants/352665").mock(
                 return_value=_ok()
             )
