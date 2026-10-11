@@ -288,10 +288,17 @@ attributes (`status_code`, `response_body`, `retry_after`, `ratelimit`, `method`
 exception, `__cause__`, `__context__` and the traceback are not carried over.
 
 A paginated iterator (`.list()`, `search()`) that raises keeps its place. Whether the
-request for a page fails or one of the page's items fails validation (Pydantic's
-`ValidationError`), `page`, the totals and the URLs stay as they were before that page,
-and the next `next()` or `anext()` requests the same page again. Items already yielded
-are not repeated, and none are skipped.
+request for a page fails, the page's envelope has the wrong shape, or one of its items
+fails validation (Pydantic's `ValidationError`), `page`, the totals and the URLs stay as
+they were before that page, and the next `next()` or `anext()` requests the same page
+again. Items already yielded are not repeated, and none are skipped.
+
+A wrong shape raises `DiscogsError` naming the endpoint, the key and the JSON type
+received, for example `GET /users/trent_reznor/submissions: "submissions" is null,
+expected an object`. That covers a body that is not an object, a `pagination` or a
+non-empty `pagination.urls` that is not an object, and an items key that is not an
+array (or, for nested items, not an object on the way). An absent items key is an
+empty page.
 
 ## Examples
 

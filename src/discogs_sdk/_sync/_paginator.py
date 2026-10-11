@@ -8,9 +8,22 @@ from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from pydantic import BaseModel
 
+from discogs_sdk._exceptions import DiscogsError
+
 if TYPE_CHECKING:
     from discogs_sdk._sync._client import Discogs
 T = TypeVar("T", bound=BaseModel)
+_Shape = TypeVar("_Shape")
+# How a decoded JSON value is named in a malformed-envelope message.
+_JSON_TYPES: dict[type, str] = {
+    dict: "an object",
+    list: "an array",
+    str: "a string",
+    int: "a number",
+    float: "a number",
+    bool: "a boolean",
+    type(None): "null",
+}
 
 
 class SyncPage(Generic[T]):
@@ -28,6 +41,10 @@ class SyncPage(Generic[T]):
 
         {"submissions": {"releases": [...]}}
         items_path=["submissions", "releases"]
+
+    A body of any other shape raises ``DiscogsError`` and leaves the iterator
+    where it was. An absent ``pagination`` means no next page, and an absent
+    items key, at any depth, is an empty page.
     """
 
     def __init__(
@@ -66,23 +83,31 @@ class SyncPage(Generic[T]):
             response = self._client._send(
                 "GET", self._client._build_url(self._path), params=self._params
             )
-        body = response.json()
-        pagination = body.get("pagination", {})
+        body = self._expect("response body", response.json(), dict)
+        # An absent "pagination" means no metadata and no next page.
+        pagination = self._expect('"pagination"', body.get("pagination", {}), dict)
         page_number = pagination.get("page")
         per_page = pagination.get("per_page")
         total_items = pagination.get("items")
         total_pages = pagination.get("pages")
         # The reference documents first/prev/next/last; only "next" drives the
-        # iterator, but all four are worth surfacing.
-        urls = pagination.get("urls", {}) or {}
+        # iterator, but all four are worth surfacing. Null or empty means none.
+        urls = self._expect('"pagination.urls"', pagination.get("urls") or {}, dict)
         next_url = urls.get("next")
-        if self._items_path:
-            container = body
-            for key in self._items_path:
-                container = container.get(key, {})
-            raw_items = container if isinstance(container, list) else []
-        else:
-            raw_items = body.get(self._items_key, [])
+        # The flat items key is a path of one step. An absent key at any depth is
+        # an empty page: a page of /users/{username}/submissions can carry only
+        # some categories.
+        keys = self._items_path or [self._items_key]
+        container: dict[str, Any] = body
+        raw_items: list[Any] = []
+        for depth, key in enumerate(keys, start=1):
+            if key not in container:
+                break
+            name = f'"{".".join(keys[:depth])}"'
+            if depth < len(keys):
+                container = self._expect(name, container[key], dict)
+            else:
+                raw_items = self._expect(name, container[key], list)
         items = [self._model_cls.model_validate(item) for item in raw_items]
         # Commit only once the whole page has parsed: a page that raises above
         # leaves the paginator as it was, so the next call requests it again.
@@ -97,6 +122,18 @@ class SyncPage(Generic[T]):
         self._items = items
         self._index = 0
         self._first_page_fetched = True
+
+    def _expect(self, name: str, value: object, expected: type[_Shape]) -> _Shape:
+        """Return *value* when it is an *expected*, else raise ``DiscogsError``.
+
+        The message names the endpoint, *name* and the JSON type received, never
+        the value itself.
+        """
+        if isinstance(value, expected):
+            return value
+        raise DiscogsError(
+            f"GET {self._path}: {name} is {_JSON_TYPES[type(value)]}, expected {_JSON_TYPES[expected]}"
+        )
 
     @property
     def page(self) -> int | None:

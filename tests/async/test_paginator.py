@@ -519,7 +519,7 @@ def _artist_release(id: int | str, title: str) -> dict:
     return {"id": id, "title": title, "type": "release"}
 
 
-def _serve(respx_mock, path: str, bodies: list[dict]) -> respx.Route:
+def _serve(respx_mock, path: str, bodies: list[object]) -> respx.Route:
     responses = iter(bodies)
     return respx_mock.get(path).mock(
         side_effect=lambda req: respx.MockResponse(200, json=next(responses))
@@ -643,6 +643,109 @@ class TestPageThatFailsValidation:
             f"{SUBMISSIONS}?page=2",
             f"{SUBMISSIONS}?page=3",
         ]
+
+
+PAGINATION = {"page": 1, "pages": 1, "per_page": 50, "items": 1, "urls": {}}
+
+
+def _list(client: AsyncDiscogs, endpoint: str) -> AsyncPage:
+    if endpoint == "submissions":
+        return client.users.get("trent_reznor").submissions.list()
+    return client.artists.get(3857).releases.list()
+
+
+class TestMalformedEnvelope:
+    """A body of the wrong shape raises DiscogsError naming the key and the type."""
+
+    @pytest.mark.parametrize(
+        ("endpoint", "body", "message"),
+        [
+            pytest.param(
+                "submissions",
+                {"pagination": PAGINATION, "submissions": None},
+                '"submissions" is null, expected an object',
+                id="null-path-step",
+            ),
+            pytest.param(
+                "submissions",
+                {"pagination": PAGINATION, "submissions": []},
+                '"submissions" is an array, expected an object',
+                id="array-path-step",
+            ),
+            pytest.param(
+                "submissions",
+                {"pagination": PAGINATION, "submissions": {"releases": {"id": 1}}},
+                '"submissions.releases" is an object, expected an array',
+                id="object-final-path-step",
+            ),
+            pytest.param(
+                "releases",
+                {"pagination": PAGINATION, "releases": None},
+                '"releases" is null, expected an array',
+                id="null-items-key",
+            ),
+            pytest.param(
+                "releases",
+                {"pagination": PAGINATION, "releases": "The Fragile"},
+                '"releases" is a string, expected an array',
+                id="string-items-key",
+            ),
+            pytest.param(
+                "releases",
+                {"pagination": None, "releases": []},
+                '"pagination" is null, expected an object',
+                id="null-pagination",
+            ),
+            pytest.param(
+                "releases",
+                {"pagination": {**PAGINATION, "urls": "next"}, "releases": []},
+                '"pagination.urls" is a string, expected an object',
+                id="string-pagination-urls",
+            ),
+            pytest.param(
+                "releases",
+                [{"id": 352665, "title": "The Downward Spiral", "type": "release"}],
+                "response body is an array, expected an object",
+                id="array-body",
+            ),
+        ],
+    )
+    async def test_raises_discogs_error(
+        self, client, respx_mock, endpoint, body, message
+    ):
+        page = _list(client, endpoint)
+        _serve(respx_mock, page._path, [body])
+
+        with pytest.raises(DiscogsError) as exc_info:
+            await anext(page)
+
+        assert str(exc_info.value) == f"GET {page._path}: {message}"
+        assert page.page is None
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            pytest.param(
+                {"pagination": PAGINATION, "submissions": {"artists": []}},
+                id="absent-final-path-step",
+            ),
+            pytest.param({"submissions": {"releases": []}}, id="absent-pagination"),
+            pytest.param(
+                {
+                    "pagination": {**PAGINATION, "urls": None},
+                    "submissions": {"releases": []},
+                },
+                id="null-pagination-urls",
+            ),
+        ],
+    )
+    async def test_tolerated_gaps_yield_an_empty_page(self, client, respx_mock, body):
+        route = _serve(respx_mock, "/users/trent_reznor/submissions", [body])
+
+        page = client.users.get("trent_reznor").submissions.list()
+
+        assert [item async for item in page] == []
+        assert route.call_count == 1
 
 
 PROXY = "https://proxy.example"
