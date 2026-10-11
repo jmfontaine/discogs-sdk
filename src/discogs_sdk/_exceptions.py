@@ -45,7 +45,25 @@ class DiscogsConnectionError(DiscogsError):
 
     DNS failures, timeouts, refused or dropped connections, proxy errors, undecodable
     bodies and redirect loops. ``__cause__`` holds the underlying ``httpx2`` error.
+
+    Attributes:
+        transient: Whether another attempt may succeed. ``True`` exactly when the
+            SDK's own retry policy would retry a read (``GET``) that failed this
+            way: network errors, timeouts and a connection the server dropped.
+            ``False`` for failures that repeat on every attempt: proxy errors,
+            unsupported URL schemes, local protocol violations, undecodable
+            bodies and redirect loops. It describes the cause, not the request:
+            it is ``True`` for a write that timed out even though the SDK never
+            replays a write that may have reached the server. ``False`` on an
+            instance constructed without it.
     """
+
+    def __init__(self, *args: object, transient: bool = False) -> None:
+        super().__init__(*args)
+        self.transient = transient
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        return _reduce(self, self.args, {"transient": self.transient}, ("transient",))
 
 
 class CacheMissError(DiscogsError):

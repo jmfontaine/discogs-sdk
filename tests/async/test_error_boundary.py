@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+import copy
+import pickle
 from unittest.mock import AsyncMock, patch
 
+import httpx2
 import pytest
 import respx
 
 from discogs_sdk import AsyncDiscogs, RateLimit
+from discogs_sdk._base_client import may_retry_transport_error
 from discogs_sdk._exceptions import (
     AuthenticationError,
     DiscogsAPIError,
+    DiscogsConnectionError,
     ForbiddenError,
     NotFoundError,
     RateLimitError,
@@ -31,6 +36,31 @@ RATELIMIT_HEADERS = {
 GATEWAY_HTML = (
     "<html><head><title>502 Bad Gateway</title></head><body>nginx</body></html>"
 )
+
+# Transport failures a fresh attempt can cure, and ones that repeat on every attempt.
+TRANSIENT_CAUSES = [
+    httpx2.ConnectError("Connection refused"),
+    httpx2.ReadTimeout("Timed out reading response"),
+    httpx2.RemoteProtocolError("Server disconnected without sending a response."),
+]
+DETERMINISTIC_CAUSES = [
+    httpx2.ProxyError("407 Proxy Authentication Required"),
+    httpx2.UnsupportedProtocol("Request URL has an unsupported protocol"),
+    httpx2.LocalProtocolError("Illegal header value"),
+    httpx2.DecodingError("Error -3 while decompressing data"),
+    httpx2.TooManyRedirects("Exceeded maximum allowed redirects."),
+]
+
+
+def request_error_classes(
+    cls: type[httpx2.RequestError] = httpx2.RequestError,
+) -> list[type[httpx2.RequestError]]:
+    """*cls* and every ``httpx2`` subclass of it: each one the SDK maps."""
+    found = [cls]
+    for subclass in cls.__subclasses__():
+        if subclass.__module__.startswith("httpx2"):
+            found += request_error_classes(subclass)
+    return found
 
 
 @pytest.fixture
@@ -298,3 +328,87 @@ class TestHttpValidationErrorIsDistinctFromModelValidation:
             await client.marketplace.orders.update("1-1", status="Nope")
 
         assert exc_info.value.status_code == 422
+
+
+def cause_id(cause: httpx2.RequestError) -> str:
+    return type(cause).__name__
+
+
+async def read_release(client: AsyncDiscogs) -> None:
+    await client.releases.get(352665)
+
+
+async def create_listing(client: AsyncDiscogs) -> None:
+    await client.marketplace.listings.create(
+        release_id=352665, condition="Mint (M)", price=29.99
+    )
+
+
+# (HTTP method, path, call): a read the SDK retries, and a write it never replays.
+REQUESTS = [
+    pytest.param("GET", "/releases/352665", read_release, id="read"),
+    pytest.param("POST", "/marketplace/listings", create_listing, id="write"),
+]
+
+
+class TestConnectionErrorTransience:
+    """``transient`` says whether a read failing the same way would be retried."""
+
+    @pytest.mark.parametrize("cause", TRANSIENT_CAUSES, ids=cause_id)
+    async def test_transient_causes(self, client, respx_mock, cause):
+        respx_mock.get("/releases/352665").mock(side_effect=cause)
+
+        with pytest.raises(DiscogsConnectionError) as exc_info:
+            await client.releases.get(352665)
+
+        assert exc_info.value.transient is True
+        assert exc_info.value.__cause__ is cause
+
+    @pytest.mark.parametrize("cause", DETERMINISTIC_CAUSES, ids=cause_id)
+    async def test_deterministic_causes(self, client, respx_mock, cause):
+        respx_mock.get("/releases/352665").mock(side_effect=cause)
+
+        with pytest.raises(DiscogsConnectionError) as exc_info:
+            await client.releases.get(352665)
+
+        assert exc_info.value.transient is False
+        assert exc_info.value.__cause__ is cause
+
+    @pytest.mark.parametrize(
+        "cause_cls", request_error_classes(), ids=lambda cls: cls.__name__
+    )
+    @pytest.mark.parametrize(("method", "path", "call"), REQUESTS)
+    async def test_matches_the_read_retry_policy(
+        self, client, respx_mock, method, path, call, cause_cls
+    ):
+        cause = cause_cls("Transport failure")
+        respx_mock.route(method=method, path=path).mock(side_effect=cause)
+
+        with pytest.raises(DiscogsConnectionError) as exc_info:
+            await call(client)
+
+        assert exc_info.value.__cause__ is cause
+        assert exc_info.value.transient is may_retry_transport_error("GET", cause)
+
+    @pytest.mark.parametrize(
+        "round_trip",
+        [lambda exc: pickle.loads(pickle.dumps(exc)), copy.copy, copy.deepcopy],
+        ids=["pickle", "copy", "deepcopy"],
+    )
+    @pytest.mark.parametrize(
+        ("cause", "transient"),
+        [(TRANSIENT_CAUSES[0], True), (DETERMINISTIC_CAUSES[0], False)],
+        ids=["transient", "deterministic"],
+    )
+    async def test_survives_pickle_and_copy(
+        self, client, respx_mock, round_trip, cause, transient
+    ):
+        respx_mock.get("/releases/352665").mock(side_effect=cause)
+
+        with pytest.raises(DiscogsConnectionError) as exc_info:
+            await client.releases.get(352665)
+        clone = round_trip(exc_info.value)
+
+        assert type(clone) is DiscogsConnectionError
+        assert clone.transient is transient
+        assert clone.args == exc_info.value.args

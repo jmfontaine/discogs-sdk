@@ -20,6 +20,7 @@ from discogs_sdk._events import RateLimit, RequestEvent
 from discogs_sdk._exceptions import (
     AuthenticationError,
     DiscogsAPIError,
+    DiscogsConnectionError,
     DiscogsError,
     ForbiddenError,
     NotFoundError,
@@ -125,6 +126,16 @@ def may_retry_transport_error(method: str, exc: httpx2.RequestError) -> bool:
     if method.upper() in _SAFE_METHODS:
         return isinstance(exc, _TRANSIENT_TRANSPORT_ERRORS)
     return isinstance(exc, _PRE_SEND_TRANSPORT_ERRORS)
+
+
+def connection_error(exc: httpx2.RequestError) -> DiscogsConnectionError:
+    """``DiscogsConnectionError`` for *exc*, the transport failure that ended a request.
+
+    ``transient`` is whether a read failing this way would be retried, whatever the
+    method of the request that failed: it classifies the cause, not the request.
+    """
+    transient = may_retry_transport_error("GET", exc)
+    return DiscogsConnectionError(str(exc), transient=transient)
 
 
 def parse_retry_after(value: str | None) -> float | None:

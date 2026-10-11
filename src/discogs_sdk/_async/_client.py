@@ -32,6 +32,7 @@ from discogs_sdk._base_client import (
     MAX_RETRY_AFTER,
     BaseClient,
     MediaType,
+    connection_error,
     is_json,
     may_retry_status,
     may_retry_transport_error,
@@ -40,7 +41,7 @@ from discogs_sdk._base_client import (
 )
 from discogs_sdk._cache import MemoryCache, ResponseCache, SQLiteCache
 from discogs_sdk._events import RateLimit, RequestEvent
-from discogs_sdk._exceptions import CacheMissError, DiscogsConnectionError
+from discogs_sdk._exceptions import CacheMissError
 
 if TYPE_CHECKING:
     from discogs_sdk._async._paginator import AsyncPage
@@ -302,7 +303,7 @@ class AsyncDiscogs(BaseClient):
                     logger.debug(
                         "HTTP connection error after %.0fms: %s", elapsed_ms, exc
                     )
-                    raise DiscogsConnectionError(str(exc)) from exc
+                    raise connection_error(exc) from exc
                 delay = self._retry_delay(attempt)
                 logger.info(
                     "Retrying %s %s (attempt %d/%d) after connection error "

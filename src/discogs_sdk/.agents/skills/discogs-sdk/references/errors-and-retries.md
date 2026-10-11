@@ -21,7 +21,10 @@
 Every transport failure surfaces as `DiscogsConnectionError`, chained to the underlying `httpx2` error
 (`exc.__cause__`). Reads retry the transient ones: network errors, timeouts, and a keep-alive connection the server
 closed (`RemoteProtocolError`). Failures that would repeat identically — `LocalProtocolError`, `UnsupportedProtocol`,
-`ProxyError`, `DecodingError`, `TooManyRedirects` — are raised at once for every method.
+`ProxyError`, `DecodingError`, `TooManyRedirects` — are raised at once for every method. `exc.transient` records that
+classification, so you can tell "try again later" from "fix your setup" without importing `httpx2`: it is `True`
+exactly when a read failing the same way would be retried, even if the failed request was a mutation the SDK did not
+replay.
 
 `max_retries=N` allows up to N + 1 attempts: the first request plus N retries, so the default 3 means up to 4
 requests for one call. A read is retried on 429, 500, 502, 503 and 504 and on the transient transport failures above.
@@ -145,7 +148,7 @@ stays in `exc.response_body`.
 
 Every SDK exception survives `pickle`, `copy.copy` and `copy.deepcopy` with its
 attributes (`status_code`, `response_body`, `retry_after`, `ratelimit`, `method`,
-`url`) and any notes, so an error raised in a `ProcessPoolExecutor` or
+`url`, `transient`) and any notes, so an error raised in a `ProcessPoolExecutor` or
 `multiprocessing` worker reaches the parent as the same class. As with any pickled
 exception, `__cause__`, `__context__` and the traceback are not carried over.
 

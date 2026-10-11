@@ -21,11 +21,12 @@ from discogs_sdk._base_client import (
     DEFAULT_BASE_URL,
     USER_AGENT,
     build_oauth_header,
+    connection_error,
     error_message,
     raise_for_response,
 )
 from discogs_sdk._events import RateLimit
-from discogs_sdk._exceptions import DiscogsAPIError, DiscogsConnectionError
+from discogs_sdk._exceptions import DiscogsAPIError
 from discogs_sdk._oauth_types import AccessToken, RequestToken
 
 _ACCESS_TOKEN_PATH = "/oauth/access_token"
@@ -44,7 +45,7 @@ def _send(method: str, url: str, auth_header: str) -> httpx2.Response:
         with httpx2.Client() as client:
             response = client.request(method, url, headers=headers)
     except httpx2.RequestError as exc:
-        raise DiscogsConnectionError(str(exc)) from exc
+        raise connection_error(exc) from exc
     raise_for_response(response)
     return response
 

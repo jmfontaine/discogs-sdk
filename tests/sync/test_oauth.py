@@ -235,14 +235,21 @@ class TestTokenResponseFailures:
         assert exc_info.value.response_body == body
 
     @pytest.mark.parametrize(
-        "error",
-        [httpx2.ConnectError("refused"), httpx2.ReadTimeout("timed out")],
-        ids=["connect", "read_timeout"],
+        ("error", "transient"),
+        [
+            (httpx2.ConnectError("refused"), True),
+            (httpx2.ReadTimeout("timed out"), True),
+            (httpx2.ProxyError("407 Proxy Authentication Required"), False),
+        ],
+        ids=["connect", "read_timeout", "proxy"],
     )
     @pytest.mark.parametrize(("method", "path", "call"), HELPERS)
-    def test_transport_error_raises_connection_error(self, method, path, call, error):
+    def test_transport_error_raises_connection_error(
+        self, method, path, call, error, transient
+    ):
         with mock_router() as router:
             router.route(method=method, path=path).mock(side_effect=error)
             with pytest.raises(DiscogsConnectionError) as exc_info:
                 call()
         assert exc_info.value.__cause__ is error
+        assert exc_info.value.transient is transient

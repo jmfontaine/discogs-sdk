@@ -72,8 +72,14 @@ except ValidationError as exc:
 except DiscogsAPIError as exc:
     # Any other HTTP error status (400, 500, 502, 503, etc.)
     print(f"API error {exc.status_code}: {exc.response_body}")
-except DiscogsConnectionError:
-    print("Network error — check your connection")
+except DiscogsConnectionError as exc:
+    # transient: a network error or timeout that may clear on its own, rather
+    # than a failure that repeats on every attempt (proxy error, unsupported
+    # URL scheme, undecodable body, redirect loop).
+    if exc.transient:
+        print("Network error — try again later")
+    else:
+        print(f"Retrying will not help: {exc}")
 except DiscogsError:
     print("Unexpected SDK error")
 

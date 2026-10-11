@@ -106,6 +106,26 @@ class TestDiscogsAPIError:
         assert err.ratelimit is None
 
 
+class TestDiscogsConnectionError:
+    @pytest.mark.parametrize(
+        "args", [(), ("connection refused",), ("a", 1)], ids=["none", "one", "two"]
+    )
+    def test_direct_construction_defaults_to_not_transient(self, args):
+        err = DiscogsConnectionError(*args)
+        assert err.args == args
+        assert err.transient is False
+
+    @ROUND_TRIPS
+    def test_transient_survives_round_trip(self, round_trip):
+        err = DiscogsConnectionError("connection refused", transient=True)
+        _add_note_and_attribute(err)
+        clone = round_trip(err)
+        assert clone.transient is True
+        assert clone.args == ("connection refused",)
+        assert clone.__notes__ == ["n"]
+        assert clone.extra == 1
+
+
 class TestRateLimitError:
     def test_retry_after_default_none(self):
         err = RateLimitError("limited", status_code=429, response_body={})
