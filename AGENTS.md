@@ -60,7 +60,11 @@ if True:  # ASYNC
 else:
     time.sleep(delay)
 ```
-The sync generator keeps only the `else` branch.
+The sync generator keeps only the `else` branch, or drops the whole statement when there is
+no `else`. The `# ASYNC` comment must be on the `if True:` line; any other `if True:` under
+`_async/` fails generation, and so does an `else`-less directive that is the only statement
+in the body of a function, class or other compound statement. A failed run leaves `_sync/`
+untouched.
 
 ### Shared Base (`_base_client.py`)
 

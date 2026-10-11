@@ -11,6 +11,13 @@ under src/discogs_sdk/_sync/.
 Branch directives:
     if True:  # ASYNC          — with else: splice in the else body only
     if True:  # ASYNC          — without else: remove entirely
+
+The ``# ASYNC`` comment must sit on the ``if True:`` line itself. Any other
+``if True:`` under _async/ is an error, and so is a directive without else
+that is the only statement in the body of a function, class or other compound
+statement, since removing it would leave that body empty (an ``else`` emptied
+this way just disappears). Generation fails before anything is written, so a
+failed run leaves src/discogs_sdk/_sync/ as it was.
 """
 
 from __future__ import annotations
@@ -24,6 +31,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import NoReturn
 
 import ast_comments
 
@@ -76,6 +84,23 @@ from typing import TYPE_CHECKING
 '''
 
 
+_SCOPES = (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+
+
+def _display(path: Path) -> str:
+    """Return *path* relative to the repository root when it lies inside it."""
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
+def _fail(path: str, line: int, scope: list[str], message: str) -> NoReturn:
+    where = ".".join(scope) or "<module>"
+    print(f"ERROR: {path}:{line}: in {where}: {message}", file=sys.stderr)
+    sys.exit(1)
+
+
 def _is_async_branch(node: ast.If) -> bool:
     """Return True if ``node`` is ``if True:  # ASYNC``."""
     if not (isinstance(node.test, ast.Constant) and node.test.value is True):
@@ -83,8 +108,49 @@ def _is_async_branch(node: ast.If) -> bool:
     # ast_comments inserts Comment nodes with inline=True for trailing comments.
     # The ``# ASYNC`` comment ends up as the first item in the body.
     if node.body and isinstance(node.body[0], ast_comments.Comment):
-        return "ASYNC" in node.body[0].value
+        return node.body[0].inline and "ASYNC" in node.body[0].value
     return False
+
+
+def _check_directives(node: ast.AST, path: str, scope: list[str]) -> None:
+    """Fail on every ``if True:`` under *node* that is not an ASYNC directive.
+
+    Covers the async-only branches too, although the generator drops them.
+    """
+    for child in ast.iter_child_nodes(node):
+        if (
+            isinstance(child, ast.If)
+            and isinstance(child.test, ast.Constant)
+            and child.test.value is True
+            and not _is_async_branch(child)
+        ):
+            _fail(
+                path,
+                child.lineno,
+                scope,
+                "`if True:` is not an ASYNC directive; put `# ASYNC` on the "
+                "`if True:` line",
+            )
+        inner = [*scope, child.name] if isinstance(child, _SCOPES) else scope
+        _check_directives(child, path, inner)
+
+
+def _has_statement(values: list[ast.AST]) -> bool:
+    """Return True if *values* holds a statement (comments do not count)."""
+    return any(isinstance(value, ast.stmt) for value in values)
+
+
+def _needs_statement(node: ast.AST, field: str) -> bool:
+    """Return True if *field* of *node* must keep a statement to stay valid.
+
+    An emptied ``else`` just disappears, but a body cannot, and neither can the
+    ``finally`` of a ``try`` without ``except`` clauses. A module may be empty.
+    """
+    if isinstance(node, ast.Module):
+        return False
+    if field == "body":
+        return True
+    return field == "finalbody" and not getattr(node, "handlers", None)
 
 
 def _rename_in_string(s: str) -> str:
@@ -197,9 +263,53 @@ def _render_field_mixins() -> str:
 class AsyncToSyncTransformer(ast.NodeTransformer):
     """Convert async Python AST to sync Python AST."""
 
-    def __init__(self) -> None:
+    def __init__(self, path: str = "<string>") -> None:
         # Models whose field declarations the generated module must import.
         self.field_mixins: list[str] = []
+        self._path = path
+        self._scope: list[str] = []
+        # Lines of the ASYNC directives without else removed so far.
+        self._removed: list[int] = []
+
+    def generic_visit(self, node: ast.AST) -> ast.AST:
+        # ast.NodeTransformer.generic_visit, plus scope tracking and a check that
+        # removing a directive never empties a block.
+        depth = len(self._scope)
+        if isinstance(node, _SCOPES):
+            self._scope.append(node.name)
+        for field, old_value in ast.iter_fields(node):
+            if isinstance(old_value, list):
+                removed = len(self._removed)
+                had_code = _has_statement(old_value)
+                new_values: list[object] = []
+                for value in old_value:
+                    # Non-node entries (the None in ``kw_defaults``) stay as they are.
+                    if not isinstance(value, ast.AST):
+                        new_values.append(value)
+                        continue
+                    visited = self.visit(value)
+                    if isinstance(visited, list):
+                        new_values.extend(visited)
+                    elif visited is not None:
+                        new_values.append(visited)
+                old_value[:] = new_values
+                if (
+                    had_code
+                    and _needs_statement(node, field)
+                    and not _has_statement(old_value)
+                ):
+                    _fail(
+                        self._path,
+                        self._removed[removed],
+                        self._scope,
+                        "ASYNC directive without else is the only statement of "
+                        "its body, and removing it would leave the body empty; "
+                        "add an else branch with the sync code",
+                    )
+            elif isinstance(old_value, ast.AST):
+                setattr(node, field, self.visit(old_value))
+        del self._scope[depth:]
+        return node
 
     def visit_AsyncFor(self, node: ast.AsyncFor) -> ast.For:
         self.generic_visit(node)
@@ -287,6 +397,7 @@ class AsyncToSyncTransformer(ast.NodeTransformer):
                 return result
             else:
                 # No else branch: remove entirely.
+                self._removed.append(node.lineno)
                 return []
 
         # Normal if statement — visit children as usual.
@@ -316,15 +427,24 @@ class AsyncToSyncTransformer(ast.NodeTransformer):
         return node
 
 
+def _build(tmp: Path) -> tuple[Path, Path, int]:
+    """Generate and format all output under *tmp*, writing nothing else.
+
+    Return the sync package directory, the field-mixin module and the file count.
+    """
+    tmp_dst = tmp / "_sync"
+    count = _generate(tmp_dst)
+    tmp_fields = tmp / "_lazy_fields.py"
+    tmp_fields.write_text(_render_field_mixins())
+    _ruff_format(tmp_dst)
+    _ruff_format(tmp_fields)
+    return tmp_dst, tmp_fields, count
+
+
 def _check() -> None:
     """Regenerate into a temp dir and compare against the existing generated files."""
     with tempfile.TemporaryDirectory() as tmp:
-        tmp_dst = Path(tmp) / "_sync"
-        count = _generate(tmp_dst)
-        tmp_fields = Path(tmp) / "_lazy_fields.py"
-        tmp_fields.write_text(_render_field_mixins())
-        _ruff_format(tmp_dst)
-        _ruff_format(tmp_fields)
+        tmp_dst, tmp_fields, count = _build(Path(tmp))
 
         if not DST.exists():
             print(
@@ -367,10 +487,7 @@ def _find_differences(cmp: filecmp.dircmp[str], prefix: str = "") -> list[str]:
 
 
 def _generate(dst: Path) -> int:
-    """Generate sync files into *dst*. Return file count."""
-    if dst.exists():
-        shutil.rmtree(dst)
-
+    """Generate sync files into the new directory *dst*. Return file count."""
     count = 0
     for src_file in sorted(SRC.rglob("*.py")):
         rel = src_file.relative_to(SRC)
@@ -378,7 +495,7 @@ def _generate(dst: Path) -> int:
         dst_file.parent.mkdir(parents=True, exist_ok=True)
 
         content = src_file.read_text()
-        dst_file.write_text(transform(content))
+        dst_file.write_text(transform(content, _display(src_file)))
         count += 1
 
     return count
@@ -394,8 +511,11 @@ def _ruff_format(target: Path) -> None:
         (["check", "--select", "I", "--fix", "--quiet"], "ruff check"),
         (["format"], "ruff format"),
     ):
+        # The output lives in a temp dir outside the project, where ruff takes its
+        # settings (and first-party detection for import sorting) from the cwd.
         result = subprocess.run(
             [sys.executable, "-m", "ruff", *args, str(target)],
+            cwd=ROOT,
             capture_output=True,
             text=True,
             check=False,
@@ -428,10 +548,14 @@ def _import_insertion_point(body: list[ast.stmt]) -> int:
     return index
 
 
-def transform(source: str) -> str:
-    """Transform async source code to sync using AST."""
+def transform(source: str, path: str = "<string>") -> str:
+    """Transform async source code to sync using AST.
+
+    *path* names the source in error messages.
+    """
     tree = ast_comments.parse(source)
-    transformer = AsyncToSyncTransformer()
+    _check_directives(tree, path, [])
+    transformer = AsyncToSyncTransformer(path)
     tree = transformer.visit(tree)
     if transformer.field_mixins:
         names = [
@@ -459,18 +583,20 @@ def main() -> None:
         _check()
         return
 
-    FIELDS_MODULE.write_text(_render_field_mixins())
-    count = _generate(DST)
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_dst, tmp_fields, count = _build(Path(tmp))
+        # Replace the committed output only once every file has been generated
+        # and formatted, so a failed run leaves it as it was.
+        if DST.exists():
+            shutil.rmtree(DST)
+        shutil.copytree(tmp_dst, DST)
+        shutil.copyfile(tmp_fields, FIELDS_MODULE)
+
     for src_file in sorted(SRC.rglob("*.py")):
         print(f"  {src_file.relative_to(SRC)}")
 
     print(f"\nGenerated {count} files in {DST.relative_to(ROOT)}")
     print(f"Generated {FIELDS_MODULE.relative_to(ROOT)}")
-
-    print("\nRunning ruff format...")
-    _ruff_format(DST)
-    _ruff_format(FIELDS_MODULE)
-    print("Done.")
 
 
 if __name__ == "__main__":

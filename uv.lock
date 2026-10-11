@@ -445,7 +445,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "ast-comments", specifier = ">=1.2" },
+    { name = "ast-comments", specifier = ">=1.2.3" },
     { name = "beautifulsoup4", specifier = ">=4.13" },
     { name = "curl-cffi", specifier = ">=0.13" },
     { name = "deptry", specifier = ">=0.24" },
