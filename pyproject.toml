@@ -25,7 +25,7 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
-  "httpx2>=2.12",
+  "httpx2>=2.11",
   # pydantic 2.13 and earlier pin pydantic-core releases with no cp315 wheels,
   # so on Python 3.15 they have to be compiled from source, and that build is
   # rejected by the macOS dynamic loader (observed on macOS 27: the stripped
