@@ -109,7 +109,10 @@ class AsyncPage(Generic[T]):
         for depth, key in enumerate(keys, start=1):
             if key not in container:
                 break
-            name = f'"{".".join(keys[:depth])}"'
+            # No quotes inside the replacement field: ast.unparse renders those
+            # differently across 3.13 patch releases, which breaks the sync check.
+            step = ".".join(keys[:depth])
+            name = f'"{step}"'
             if depth < len(keys):
                 container = self._expect(name, container[key], dict)
             else:
