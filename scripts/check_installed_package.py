@@ -3,8 +3,9 @@
 
 Run with the interpreter of an environment where the wheel was installed from
 its published metadata (not from ``uv.lock``). It asserts the dependency floors
-that metadata is supposed to enforce, then exercises the parts of the SDK that
-need no network: model validation and lazy proxy construction.
+that metadata is supposed to enforce, checks that the agent skill and its
+references were installed, then exercises the parts of the SDK that need no
+network: model validation and lazy proxy construction.
 
 The pydantic floor is the interesting part. Python 3.15 needs pydantic 2.14 or
 newer, whose pydantic-core pin ships cp315 wheels, and environment markers are
@@ -15,6 +16,7 @@ interpreter, leaving the install with an unbuildable pydantic-core.
 from __future__ import annotations
 
 import sys
+from importlib.resources import files
 
 import pydantic
 
@@ -25,6 +27,16 @@ MINIMUM_PYDANTIC = (2, 12)
 # Mirrors the Python 3.15 clause in pyproject.toml: 2.13 and earlier have no
 # cp315 wheels.
 MINIMUM_PYDANTIC_315 = (2, 14)
+# Relative to the installed package; the same files as SKILL_FILES in
+# scripts/check_distributions.py.
+SKILL_FILES = (
+    ".agents/skills/discogs-sdk/SKILL.md",
+    ".agents/skills/discogs-sdk/references/caching.md",
+    ".agents/skills/discogs-sdk/references/endpoints.md",
+    ".agents/skills/discogs-sdk/references/errors-and-retries.md",
+    ".agents/skills/discogs-sdk/references/migrating-from-python3-discogs-client.md",
+    ".agents/skills/discogs-sdk/references/pagination.md",
+)
 
 
 def installed_pydantic() -> tuple[int, int]:
@@ -43,6 +55,11 @@ def main() -> None:
             f"{'.'.join(map(str, minimum))} floor "
             f"required on Python {sys.version.split()[0]}"
         )
+
+    package = files("discogs_sdk")
+    missing = [name for name in SKILL_FILES if not package.joinpath(name).is_file()]
+    if missing:
+        raise SystemExit(f"the installed package is missing {', '.join(missing)}")
 
     release = Release.model_validate(
         {

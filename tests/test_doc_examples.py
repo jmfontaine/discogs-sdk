@@ -340,6 +340,8 @@ COLLECTION_REQUESTS = (
     f"GET {COLLECTION_USER}/wants",
 )
 
+SKILL_MD = "src/discogs_sdk/.agents/skills/discogs-sdk/SKILL.md"
+
 # Keyed by path relative to the repository root.
 DOC_ROUTES: dict[str, DocRoutes] = {
     "README.md": DocRoutes(
@@ -457,11 +459,29 @@ DOC_ROUTES: dict[str, DocRoutes] = {
         routes=(_search, _identity, _folders),
         requests=(SEARCH_GET, "GET /oauth/identity", f"GET {FOLDERS}"),
     ),
+    SKILL_MD: DocRoutes(
+        routes=(_release, _artist, _artist_releases, _search),
+        requests=(
+            RELEASE_GET,
+            # Async: the kept proxy chains to the artist's releases
+            "GET /artists/3857",
+            "GET /artists/3857/releases",
+            SEARCH_GET,
+            # no_cache(); cache_only() raises CacheMissError before any request
+            RELEASE_GET,
+        ),
+    ),
 }
 
 
 def _documents() -> list[Path]:
-    candidates = [REPO_ROOT / "README.md", *sorted(REPO_ROOT.glob("docs/**/*.md"))]
+    candidates = [
+        REPO_ROOT / "README.md",
+        *sorted(REPO_ROOT.glob("docs/**/*.md")),
+        # The packaged agent skill; its references/ are generated copies of
+        # docs/ pages whose blocks already run above.
+        REPO_ROOT / SKILL_MD,
+    ]
     return [path for path in candidates if collect_blocks(path)]
 
 

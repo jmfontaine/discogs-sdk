@@ -35,6 +35,8 @@ jobs:
         run: uv run python scripts/generate_sync.py --check
       - name: Check endpoint map
         run: uv run python scripts/generate_endpoints.py --check
+      - name: Check agent skill references
+        run: uv run python scripts/generate_skill_refs.py --check
       - name: Check dead code
         run: scripts/check_dead_code.sh
       - name: Check pyproject.toml

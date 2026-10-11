@@ -42,6 +42,10 @@ format-check:
 generate-endpoints:
     uv run python scripts/generate_endpoints.py
 
+# Copy the docs pages the packaged agent skill uses into its references/ (--check to verify)
+generate-skill-refs *args:
+    uv run python scripts/generate_skill_refs.py {{ args }}
+
 # Generate sync code from async sources
 generate-sync:
     uv run python scripts/generate_sync.py
@@ -67,7 +71,7 @@ pre-commit-update:
     uv run pre-commit autoupdate --freeze
 
 # Run all quality assurance checks
-qa: dead-code deps-unused endpoints-check format-check lint sync-check type-check verify-types
+qa: dead-code deps-unused endpoints-check format-check lint skill-refs-check sync-check type-check verify-types
 
 # Tag, push, and monitor the publish workflow
 release:
@@ -116,6 +120,10 @@ setup:
     uv sync --all-extras --all-groups  # Install dependencies
     uv run pre-commit install  # Install pre-commit hooks
     echo "Run 'source .venv/bin/activate' to activate the Python virtual environment"
+
+# Check the agent skill's references/ match the docs pages they copy
+skill-refs-check:
+    uv run python scripts/generate_skill_refs.py --check
 
 # Check sync code is up to date with async sources
 sync-check:

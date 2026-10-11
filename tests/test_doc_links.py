@@ -12,6 +12,7 @@ here touches the network.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -21,10 +22,24 @@ from tests.conftest import REPO_ROOT
 from tests.markdown_links import Link, find_anchors, find_links
 
 README = REPO_ROOT / "README.md"
-DOCUMENTS = [README, *sorted((REPO_ROOT / "docs").glob("**/*.md"))]
+DOCUMENTS = [
+    README,
+    *sorted((REPO_ROOT / "docs").glob("**/*.md")),
+    # The packaged agent skill and its generated references
+    *sorted((REPO_ROOT / "src" / "discogs_sdk" / ".agents").glob("**/*.md")),
+]
+_VERSION = re.search(
+    r'^version = "([^"]+)"$',
+    (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"),
+    re.MULTILINE,
+)
+assert _VERSION is not None
+# The skill references pin links to the release tag of the current version,
+# which matches the working tree until the next bump.
 REPO_URLS = tuple(
-    f"https://github.com/jmfontaine/discogs-sdk/{kind}/main/"
+    f"https://github.com/jmfontaine/discogs-sdk/{kind}/{ref}/"
     for kind in ("blob", "tree")
+    for ref in ("main", f"v{_VERSION.group(1)}")
 )
 
 
