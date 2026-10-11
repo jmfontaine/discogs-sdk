@@ -112,14 +112,17 @@ class TestExportsRequest:
 
 class TestExportsList:
     def test_list(self, client, respx_mock):
-        respx_mock.get("/inventory/export").mock(
+        route = respx_mock.get("/inventory/export").mock(
             return_value=respx.MockResponse(
                 200, json=make_paginated_response("items", [make_export()])
             )
         )
-        results = list(client.exports.list())
+        results = list(client.exports.list(page=2, per_page=50))
         assert len(results) == 1
         assert isinstance(results[0], Export)
+        params = route.calls.last.request.url.params
+        assert params["page"] == "2"
+        assert params["per_page"] == "50"
 
 
 class TestExportsGet:

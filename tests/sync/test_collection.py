@@ -63,7 +63,7 @@ class TestCollectionFoldersGet:
 
 class TestCollectionFoldersCRUD:
     def test_create(self, client, respx_mock):
-        respx_mock.post("/users/trent_reznor/collection/folders").mock(
+        route = respx_mock.post("/users/trent_reznor/collection/folders").mock(
             return_value=respx.MockResponse(
                 201, json=make_collection_folder(id=2, name="New")
             )
@@ -71,9 +71,12 @@ class TestCollectionFoldersCRUD:
         lazy = client.users.get("trent_reznor")
         result = lazy.collection.folders.create(name="New")
         assert result.name == "New"
+        request = route.calls.last.request
+        assert json.loads(request.content) == {"name": "New"}
+        assert not request.url.params
 
     def test_update(self, client, respx_mock):
-        respx_mock.post("/users/trent_reznor/collection/folders/2").mock(
+        route = respx_mock.post("/users/trent_reznor/collection/folders/2").mock(
             return_value=respx.MockResponse(
                 200, json=make_collection_folder(id=2, name="Renamed")
             )
@@ -81,6 +84,9 @@ class TestCollectionFoldersCRUD:
         lazy = client.users.get("trent_reznor")
         result = lazy.collection.folders.update(2, name="Renamed")
         assert result.name == "Renamed"
+        request = route.calls.last.request
+        assert json.loads(request.content) == {"name": "Renamed"}
+        assert not request.url.params
 
     def test_delete(self, client, respx_mock):
         respx_mock.delete("/users/trent_reznor/collection/folders/2").mock(
@@ -100,7 +106,9 @@ class TestCollectionFoldersCRUD:
 
 class TestFolderReleases:
     def test_list(self, client, respx_mock):
-        respx_mock.get("/users/trent_reznor/collection/folders/0/releases").mock(
+        route = respx_mock.get(
+            "/users/trent_reznor/collection/folders/0/releases"
+        ).mock(
             return_value=respx.MockResponse(
                 200,
                 json=make_paginated_response("releases", [make_collection_item()]),
@@ -111,9 +119,30 @@ class TestFolderReleases:
         results = list(folder.releases.list())
         assert len(results) == 1
         assert isinstance(results[0], CollectionItem)
+        # Unset filters are not sent; the paginator only supplies the first page.
+        assert dict(route.calls.last.request.url.params) == {"page": "1"}
+
+    def test_list_sends_every_filter(self, client, respx_mock):
+        route = respx_mock.get(
+            "/users/trent_reznor/collection/folders/0/releases"
+        ).mock(
+            return_value=respx.MockResponse(
+                200,
+                json=make_paginated_response("releases", [make_collection_item()]),
+            )
+        )
+        folder = client.users.get("trent_reznor").collection.folders.get(0)
+        _ = list(
+            folder.releases.list(sort="added", sort_order="desc", page=2, per_page=50)
+        )
+        params = route.calls.last.request.url.params
+        assert params["sort"] == "added"
+        assert params["sort_order"] == "desc"
+        assert params["page"] == "2"
+        assert params["per_page"] == "50"
 
     def test_create_returns_the_new_instance_identity(self, client, respx_mock):
-        respx_mock.post(
+        route = respx_mock.post(
             "/users/trent_reznor/collection/folders/1/releases/352665"
         ).mock(
             return_value=respx.MockResponse(
@@ -126,6 +155,9 @@ class TestFolderReleases:
 
         assert isinstance(created, CollectionInstanceCreated)
         assert created.instance_id == 20
+        request = route.calls.last.request
+        assert request.content == b""
+        assert not request.url.params
         assert created.resource_url.endswith("/instances/20")
 
     def test_create_error(self, client, respx_mock):
@@ -149,7 +181,7 @@ class TestDeepChaining:
         assert respx_mock.calls.call_count == 0
 
     def test_instance_fields_update(self, client, respx_mock):
-        respx_mock.post(
+        route = respx_mock.post(
             "/users/trent_reznor/collection/folders/3/releases/400027/instances/42/fields/1"
         ).mock(return_value=respx.MockResponse(204))
         lazy = client.users.get("trent_reznor")
@@ -157,6 +189,8 @@ class TestDeepChaining:
         ref = folder.releases.get(400027)
         instance = ref.instances.get(42)
         instance.fields.update(1, value="Mint (M)")
+        assert json.loads(route.calls.last.request.content) == {"value": "Mint (M)"}
+        assert not route.calls.last.request.url.params
 
     def test_instance_fields_update_error(self, client, respx_mock):
         respx_mock.post(
@@ -171,13 +205,15 @@ class TestDeepChaining:
 
 class TestCollectionInstances:
     def test_update(self, client, respx_mock):
-        respx_mock.post(
+        route = respx_mock.post(
             "/users/trent_reznor/collection/folders/0/releases/400027/instances/1"
         ).mock(return_value=respx.MockResponse(204))
         lazy = client.users.get("trent_reznor")
         folder = lazy.collection.folders.get(0)
         ref = folder.releases.get(400027)
         ref.instances.update(1, rating=4)
+        assert json.loads(route.calls.last.request.content) == {"rating": 4}
+        assert not route.calls.last.request.url.params
 
     def test_update_error(self, client, respx_mock):
         respx_mock.post(

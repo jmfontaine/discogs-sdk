@@ -63,16 +63,25 @@ class TestMarketplaceListings:
         assert result.listing_id == 41578241
         assert result.resource_url == f"{BASE_URL}/marketplace/listings/41578241"
         assert route.call_count == 1
+        assert json.loads(route.calls.last.request.content) == {
+            "release_id": 400027,
+            "condition": "Mint (M)",
+            "price": 9.99,
+            "status": "For Sale",
+        }
+        assert not route.calls.last.request.url.params
         # No hidden follow-up fetch to flesh out the listing.
         assert [call.request.method for call in respx_mock.calls] == ["POST"]
         # An acknowledgement, not a listing: no always-None listing fields.
         assert not hasattr(result, "price")
 
     def test_update(self, client, respx_mock):
-        respx_mock.post("/marketplace/listings/123").mock(
+        route = respx_mock.post("/marketplace/listings/123").mock(
             return_value=respx.MockResponse(204)
         )
         client.marketplace.listings.update(123, price=12.99)
+        assert json.loads(route.calls.last.request.content) == {"price": 12.99}
+        assert not route.calls.last.request.url.params
 
     def test_update_error(self, client, respx_mock):
         respx_mock.post("/marketplace/listings/123").mock(
@@ -179,12 +188,31 @@ class TestMarketplaceOrders:
         assert len(results) == 1
         assert isinstance(results[0], Order)
 
+    def test_list_with_params(self, client, respx_mock):
+        route = respx_mock.get("/marketplace/orders").mock(
+            return_value=respx.MockResponse(
+                200, json=make_paginated_response("orders", [make_order()])
+            )
+        )
+        results = list(
+            client.marketplace.orders.list(
+                status="New Order", sort="id", sort_order="desc"
+            )
+        )
+        assert len(results) == 1
+        params = route.calls.last.request.url.params
+        assert params["status"] == "New Order"
+        assert params["sort"] == "id"
+        assert params["sort_order"] == "desc"
+
     def test_update_order(self, client, respx_mock):
-        respx_mock.post("/marketplace/orders/1-1").mock(
+        route = respx_mock.post("/marketplace/orders/1-1").mock(
             return_value=respx.MockResponse(200, json=make_order(status="Shipped"))
         )
         result = client.marketplace.orders.update("1-1", status="Shipped")
         assert result.status == "Shipped"
+        assert json.loads(route.calls.last.request.content) == {"status": "Shipped"}
+        assert not route.calls.last.request.url.params
 
     @pytest.mark.parametrize(
         ("fields", "body"),
@@ -238,7 +266,7 @@ class TestOrderMessages:
         assert isinstance(results[0], OrderMessage)
 
     def test_create_message(self, client, respx_mock):
-        respx_mock.post("/marketplace/orders/1-1/messages").mock(
+        route = respx_mock.post("/marketplace/orders/1-1/messages").mock(
             return_value=respx.MockResponse(
                 200, json=make_order_message(message="Shipped!")
             )
@@ -246,9 +274,12 @@ class TestOrderMessages:
         lazy = client.marketplace.orders.get("1-1")
         result = lazy.messages.create(message="Shipped!")
         assert result.message == "Shipped!"
+        # `status` is dropped, not sent as null.
+        assert json.loads(route.calls.last.request.content) == {"message": "Shipped!"}
+        assert not route.calls.last.request.url.params
 
     def test_create_message_with_status(self, client, respx_mock):
-        respx_mock.post("/marketplace/orders/1-1/messages").mock(
+        route = respx_mock.post("/marketplace/orders/1-1/messages").mock(
             return_value=respx.MockResponse(
                 200, json=make_order_message(message="Shipped!")
             )
@@ -256,6 +287,11 @@ class TestOrderMessages:
         lazy = client.marketplace.orders.get("1-1")
         result = lazy.messages.create(message="Shipped!", status="Shipped")
         assert isinstance(result, OrderMessage)
+        assert json.loads(route.calls.last.request.content) == {
+            "message": "Shipped!",
+            "status": "Shipped",
+        }
+        assert not route.calls.last.request.url.params
 
 
 class TestMarketplaceFee:

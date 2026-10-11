@@ -41,7 +41,7 @@ class TestMasterVersions:
         assert all(isinstance(v, MasterVersion) for v in results)
 
     async def test_versions_list_with_params(self, client, respx_mock):
-        respx_mock.get("/masters/5765/versions").mock(
+        route = respx_mock.get("/masters/5765/versions").mock(
             return_value=respx.MockResponse(
                 200, json=make_paginated_response("versions", [make_master_version()])
             )
@@ -54,9 +54,14 @@ class TestMasterVersions:
             )
         ]
         assert len(results) == 1
+        params = route.calls.last.request.url.params
+        assert params["format"] == "Vinyl"
+        assert params["country"] == "US"
+        assert params["sort"] == "released"
+        assert params["sort_order"] == "asc"
 
     async def test_none_params_filtered(self, client, respx_mock):
-        respx_mock.get("/masters/5765/versions").mock(
+        route = respx_mock.get("/masters/5765/versions").mock(
             return_value=respx.MockResponse(
                 200, json=make_paginated_response("versions", [make_master_version()])
             )
@@ -65,6 +70,7 @@ class TestMasterVersions:
         # None values should be filtered out, not sent as "None"
         results = [item async for item in lazy.versions.list(format=None)]
         assert len(results) == 1
+        assert "format" not in route.calls.last.request.url.params
 
 
 class TestMasterModel:

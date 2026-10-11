@@ -25,15 +25,18 @@ class TestLabelsGet:
 class TestLabelReleases:
     async def test_releases_list(self, client, respx_mock):
         items = [make_label_release(id=i) for i in range(2)]
-        respx_mock.get("/labels/26011/releases").mock(
+        route = respx_mock.get("/labels/26011/releases").mock(
             return_value=respx.MockResponse(
                 200, json=make_paginated_response("releases", items)
             )
         )
         lazy = client.labels.get(26011)
-        results = [item async for item in lazy.releases.list()]
+        results = [item async for item in lazy.releases.list(page=2, per_page=50)]
         assert len(results) == 2
         assert all(isinstance(r, LabelRelease) for r in results)
+        params = route.calls.last.request.url.params
+        assert params["page"] == "2"
+        assert params["per_page"] == "50"
 
 
 class TestLabelModel:

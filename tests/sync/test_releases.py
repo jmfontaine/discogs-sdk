@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 import respx
 
@@ -59,7 +61,7 @@ class TestReleaseRating:
         assert result.username == "trent_reznor"
 
     def test_update_rating(self, client, respx_mock):
-        respx_mock.put("/releases/400027/rating/trent_reznor").mock(
+        route = respx_mock.put("/releases/400027/rating/trent_reznor").mock(
             return_value=respx.MockResponse(
                 200, json=make_user_release_rating(rating=4)
             )
@@ -67,6 +69,8 @@ class TestReleaseRating:
         lazy = client.releases.get(400027)
         result = lazy.rating.update("trent_reznor", 4)
         assert isinstance(result, UserReleaseRating)
+        assert json.loads(route.calls.last.request.content) == {"rating": 4}
+        assert not route.calls.last.request.url.params
 
     def test_delete_rating(self, client, respx_mock):
         respx_mock.delete("/releases/400027/rating/trent_reznor").mock(

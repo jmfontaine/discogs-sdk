@@ -64,7 +64,7 @@ class TestArtistReleases:
         assert request.url.params["per_page"] == "25"
 
     async def test_releases_list_with_sort(self, client, respx_mock):
-        respx_mock.get("/artists/40/releases").mock(
+        route = respx_mock.get("/artists/40/releases").mock(
             return_value=respx.MockResponse(
                 200, json=make_paginated_response("releases", [make_artist_release()])
             )
@@ -74,6 +74,9 @@ class TestArtistReleases:
             item async for item in lazy.releases.list(sort="year", sort_order="desc")
         ]
         assert len(results) == 1
+        params = route.calls.last.request.url.params
+        assert params["sort"] == "year"
+        assert params["sort_order"] == "desc"
 
 
 class TestArtistModel:

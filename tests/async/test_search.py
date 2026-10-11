@@ -82,7 +82,7 @@ class TestSearch:
         ]
 
     async def test_additional_params(self, client, respx_mock):
-        respx_mock.get("/database/search").mock(
+        route = respx_mock.get("/database/search").mock(
             return_value=respx.MockResponse(
                 200, json=make_paginated_response("results", [make_search_result()])
             )
@@ -92,6 +92,10 @@ class TestSearch:
             async for item in client.search(query="test", type="release", year="1994")
         ]
         assert len(results) == 1
+        params = route.calls.last.request.url.params
+        assert params["q"] == "test"
+        assert params["type"] == "release"
+        assert params["year"] == "1994"
 
     async def test_next_link_is_rebased_onto_base_url(self):
         proxy = "https://proxy.example"

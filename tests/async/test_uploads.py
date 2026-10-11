@@ -24,6 +24,16 @@ def _multipart_without_boundary(request) -> bytes:
     return request.content.replace(boundary, b"BOUNDARY")
 
 
+def _assert_csv_upload(request, content: bytes) -> None:
+    """The request is the multipart form with one `upload` part Discogs documents."""
+    assert request.headers["Content-Type"].startswith("multipart/form-data; boundary=")
+    assert _multipart_without_boundary(request) == (
+        b"--BOUNDARY\r\n"
+        b'Content-Disposition: form-data; name="upload"; filename="inventory.csv"\r\n'
+        b"Content-Type: text/csv\r\n\r\n" + content + b"\r\n--BOUNDARY--\r\n"
+    )
+
+
 _LOCATION = {"Location": "https://api.discogs.com/inventory/upload/599632"}
 _ROUTES = [
     pytest.param("create", "/inventory/upload/add", id="create"),
@@ -41,8 +51,9 @@ def csv_file(tmp_path):
 
 class TestUploadsCreate:
     async def test_create(self, client, respx_mock, csv_file):
-        respx_mock.post("/inventory/upload/add").respond(200, headers=_LOCATION)
+        route = respx_mock.post("/inventory/upload/add").respond(200, headers=_LOCATION)
         assert await client.uploads.create(file=str(csv_file)) == 599632
+        _assert_csv_upload(route.calls.last.request, b"header\nrow1")
 
     async def test_create_error(self, client, respx_mock, csv_file):
         respx_mock.post("/inventory/upload/add").respond(400, json={"message": "Bad"})
@@ -68,8 +79,11 @@ class TestUploadsCreate:
 
 class TestUploadsChange:
     async def test_change(self, client, respx_mock, csv_file):
-        respx_mock.post("/inventory/upload/change").respond(200, headers=_LOCATION)
+        route = respx_mock.post("/inventory/upload/change").respond(
+            200, headers=_LOCATION
+        )
         assert await client.uploads.change(file=str(csv_file)) == 599632
+        _assert_csv_upload(route.calls.last.request, b"header\nrow1")
 
     async def test_change_error(self, client, respx_mock, csv_file):
         respx_mock.post("/inventory/upload/change").respond(
@@ -82,8 +96,11 @@ class TestUploadsChange:
 
 class TestUploadsDelete:
     async def test_delete(self, client, respx_mock, csv_file):
-        respx_mock.post("/inventory/upload/delete").respond(200, headers=_LOCATION)
+        route = respx_mock.post("/inventory/upload/delete").respond(
+            200, headers=_LOCATION
+        )
         assert await client.uploads.delete(file=str(csv_file)) == 599632
+        _assert_csv_upload(route.calls.last.request, b"header\nrow1")
 
     async def test_delete_error(self, client, respx_mock, csv_file):
         respx_mock.post("/inventory/upload/delete").respond(
@@ -133,7 +150,7 @@ class TestUploadJobId:
 
 class TestUploadsList:
     async def test_list(self, client, respx_mock):
-        respx_mock.get("/inventory/upload").mock(
+        route = respx_mock.get("/inventory/upload").mock(
             return_value=respx.MockResponse(
                 200,
                 json=make_paginated_response(
@@ -141,7 +158,10 @@ class TestUploadsList:
                 ),
             )
         )
-        results = [item async for item in client.uploads.list()]
+        results = [item async for item in client.uploads.list(page=2, per_page=50)]
+        params = route.calls.last.request.url.params
+        assert params["page"] == "2"
+        assert params["per_page"] == "50"
         assert [upload.id for upload in results] == [1, 2]
         assert (
             results[1].results == "CSV file contains 1 records.<p>Processed 1 records."

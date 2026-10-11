@@ -14,15 +14,18 @@ from tests.conftest import make_paginated_response, make_want
 
 class TestWantlistList:
     def test_list(self, client, respx_mock):
-        respx_mock.get("/users/trent_reznor/wants").mock(
+        route = respx_mock.get("/users/trent_reznor/wants").mock(
             return_value=respx.MockResponse(
                 200, json=make_paginated_response("wants", [make_want()])
             )
         )
         lazy = client.users.get("trent_reznor")
-        results = list(lazy.wantlist.list())
+        results = list(lazy.wantlist.list(page=2, per_page=50))
         assert len(results) == 1
         assert isinstance(results[0], Want)
+        params = route.calls.last.request.url.params
+        assert params["page"] == "2"
+        assert params["per_page"] == "50"
 
 
 class TestWantlistCreate:
@@ -32,25 +35,30 @@ class TestWantlistCreate:
         The endpoint takes nothing but the release id: Discogs discards `notes`
         and `rating` sent here, so the SDK does not offer them.
         """
-        respx_mock.put("/users/trent_reznor/wants/400027").mock(
+        route = respx_mock.put("/users/trent_reznor/wants/400027").mock(
             return_value=respx.MockResponse(201, json=make_want())
         )
         lazy = client.users.get("trent_reznor")
         result = lazy.wantlist.create(release_id=400027)
         assert isinstance(result, Want)
-        assert respx_mock.calls[0].request.method == "PUT"
-        assert not respx_mock.calls[0].request.content
+        request = route.calls.last.request
+        assert request.method == "PUT"
+        assert request.content == b""
+        assert not request.url.params
 
 
 class TestWantlistUpdate:
     def test_update_uses_post(self, client, respx_mock):
-        respx_mock.post("/users/trent_reznor/wants/400027").mock(
+        route = respx_mock.post("/users/trent_reznor/wants/400027").mock(
             return_value=respx.MockResponse(200, json=make_want(rating=3))
         )
         lazy = client.users.get("trent_reznor")
         result = lazy.wantlist.update(400027, rating=3)
         assert isinstance(result, Want)
-        assert respx_mock.calls[0].request.method == "POST"
+        request = route.calls.last.request
+        assert request.method == "POST"
+        assert json.loads(request.content) == {"rating": 3}
+        assert not request.url.params
 
     @pytest.mark.parametrize(
         ("fields", "body"),

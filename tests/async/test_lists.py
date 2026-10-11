@@ -33,16 +33,19 @@ class TestListsGet:
 
 class TestUserLists:
     async def test_list(self, client, respx_mock):
-        respx_mock.get("/users/trent_reznor/lists").mock(
+        route = respx_mock.get("/users/trent_reznor/lists").mock(
             return_value=respx.MockResponse(
                 200, json=make_paginated_response("lists", [make_list_summary()])
             )
         )
         lazy = client.users.get("trent_reznor")
-        results = [item async for item in lazy.lists.list()]
+        results = [item async for item in lazy.lists.list(page=2, per_page=50)]
         assert len(results) == 1
         assert isinstance(results[0], ListSummary)
         assert results[0].name == "Industrial Essentials"
+        params = route.calls.last.request.url.params
+        assert params["page"] == "2"
+        assert params["per_page"] == "50"
 
 
 class TestListModel:

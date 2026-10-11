@@ -111,37 +111,46 @@ def _all_submissions() -> dict:
 
 class TestUserSubmissions:
     def test_submissions_releases(self, client, respx_mock):
-        respx_mock.get("/users/trent_reznor/submissions").mock(
+        route = respx_mock.get("/users/trent_reznor/submissions").mock(
             return_value=respx.MockResponse(200, json=_all_submissions())
         )
         lazy = client.users.get("trent_reznor")
-        results = list(lazy.submissions.list())
+        results = list(lazy.submissions.list(page=2, per_page=50))
         assert all(isinstance(s, Release) for s in results)
         assert [s.id for s in results] == [1, 2]
         assert results[0].year == 1994
+        params = route.calls.last.request.url.params
+        assert params["page"] == "2"
+        assert params["per_page"] == "50"
 
     def test_submissions_artists(self, client, respx_mock):
-        respx_mock.get("/users/trent_reznor/submissions").mock(
+        route = respx_mock.get("/users/trent_reznor/submissions").mock(
             return_value=respx.MockResponse(200, json=_all_submissions())
         )
         lazy = client.users.get("trent_reznor")
-        results = list(lazy.submissions.artists.list())
+        results = list(lazy.submissions.artists.list(page=2, per_page=50))
         assert all(isinstance(a, Artist) for a in results)
         assert [a.id for a in results] == [10, 11]
+        params = route.calls.last.request.url.params
+        assert params["page"] == "2"
+        assert params["per_page"] == "50"
 
     def test_submissions_labels(self, client, respx_mock):
-        respx_mock.get("/users/trent_reznor/submissions").mock(
+        route = respx_mock.get("/users/trent_reznor/submissions").mock(
             return_value=respx.MockResponse(200, json=_all_submissions())
         )
         lazy = client.users.get("trent_reznor")
-        results = list(lazy.submissions.labels.list())
+        results = list(lazy.submissions.labels.list(page=2, per_page=50))
         assert all(isinstance(item, Label) for item in results)
         assert [item.id for item in results] == [20, 21]
+        params = route.calls.last.request.url.params
+        assert params["page"] == "2"
+        assert params["per_page"] == "50"
 
 
 class TestUserContributions:
     def test_contributions_list(self, client, respx_mock):
-        respx_mock.get("/users/trent_reznor/contributions").mock(
+        route = respx_mock.get("/users/trent_reznor/contributions").mock(
             return_value=respx.MockResponse(
                 200, json=make_paginated_response("contributions", [make_release()])
             )
@@ -151,19 +160,28 @@ class TestUserContributions:
         assert len(results) == 1
         assert isinstance(results[0], Release)
         assert results[0].year == 1994
+        params = route.calls.last.request.url.params
+        assert params["sort"] == "label"
+        assert params["sort_order"] == "asc"
 
 
 class TestUserInventory:
     def test_inventory_list(self, client, respx_mock):
-        respx_mock.get("/users/trent_reznor/inventory").mock(
+        route = respx_mock.get("/users/trent_reznor/inventory").mock(
             return_value=respx.MockResponse(
                 200, json=make_paginated_response("listings", [make_listing()])
             )
         )
         lazy = client.users.get("trent_reznor")
-        results = list(lazy.inventory.list(sort="price"))
+        results = list(
+            lazy.inventory.list(sort="price", sort_order="desc", status="For Sale")
+        )
         assert len(results) == 1
         assert isinstance(results[0], Listing)
+        params = route.calls.last.request.url.params
+        assert params["sort"] == "price"
+        assert params["sort_order"] == "desc"
+        assert params["status"] == "For Sale"
 
 
 class TestUserNamespace:
