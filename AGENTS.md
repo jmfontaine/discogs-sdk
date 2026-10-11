@@ -317,9 +317,10 @@ page or the upload API — there is no `pip yank`), then bump the patch version 
 - `examples/` contains runnable usage examples (quickstart, auth, database, collection, marketplace, async)
 - All examples in docs, README, docstrings, and `examples/` must use Nine Inch Nails related data (artist 3857, release 352665, master 3719, label 647 Nothing Records, etc.)
 - Run `git` commands directly, never with `git -C`
-- Never commit on `main`. Work starts on a branch, named after the existing ones
-  (`fix/issue-<N>-<slug>` for an issue, otherwise `ci/`, `docs/`, … with a slug), and
-  lands through a pull request
+- Never commit on `main`. Work starts on a branch named `<type>/issue-<N>-<slug>` for an
+  issue, otherwise `<type>/<slug>`, where `<type>` is the Conventional Commits type of the
+  change (`feat`, `fix`, `docs`, `test`, `ci`, …); a version bump goes on
+  `release/vX.Y.Z`. Either way it lands through a pull request
 - Finished work is committed, pushed and opened as a pull request without asking first.
   Stop for input only when a decision needs the user
 - `main` accepts only signed commits that GitHub verifies, and rejects force pushes and
