@@ -15,7 +15,13 @@ import respx
 from discogs_sdk import AsyncDiscogs
 from discogs_sdk._cache import MemoryCache, SQLiteCache
 from discogs_sdk._exceptions import AuthenticationError, DiscogsAPIError, NotFoundError
-from tests.conftest import BASE_URL, exclusive_lock, make_identity, make_release
+from tests.conftest import (
+    BASE_URL,
+    exclusive_lock,
+    make_collection_folder,
+    make_identity,
+    make_release,
+)
 
 
 class TestCustomHttpClient:
@@ -479,6 +485,123 @@ def backend(request, tmp_path):
 
 # A gateway error page served with a 200, as some proxies do.
 _HTML = b"<html>oops</html>"
+
+
+_FOLDER = "/users/trent_reznor/collection/folders/1"
+
+
+def _folder(name: str) -> respx.MockResponse:
+    return respx.MockResponse(200, json=make_collection_folder(id=1, name=name))
+
+
+class _ClearFails(MemoryCache):
+    def __init__(self) -> None:
+        super().__init__(ttl=600)
+
+    def clear(self) -> None:
+        raise RuntimeError("cache backend is down")
+
+
+class TestWritesEvictTheCache:
+    """A successful write clears the cache, so no cached read returns pre-write data.
+
+    Each test first proves the read is served from the cache, so an eviction
+    cannot pass just because nothing was cached."""
+
+    @pytest.mark.parametrize("sqlite", [False, True], ids=["memory", "sqlite"])
+    async def test_updated_folder_is_read_back(self, tmp_path, sqlite):
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            router.get(_FOLDER).mock(
+                side_effect=[_folder("Before update"), _folder("After update")]
+            )
+            router.post(_FOLDER).mock(return_value=_folder("After update"))
+            client = AsyncDiscogs(
+                token="t", cache=True, cache_dir=tmp_path if sqlite else None
+            )
+            folders = client.users.get("trent_reznor").collection.folders
+            assert (await folders.get(1)).name == "Before update"
+            assert (await folders.get(1)).name == "Before update"
+            assert router.calls.call_count == 1
+            await folders.update(1, name="After update")
+            assert (await folders.get(1)).name == "After update"
+            assert router.calls.call_count == 3
+            await client.close()
+
+    async def test_unrelated_reads_are_evicted_too(self):
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            router.post(_FOLDER).mock(return_value=_folder("After update"))
+            client = AsyncDiscogs(token="t", cache=True)
+            await client.releases.get(352665)
+            await client.releases.get(352665)
+            assert route.call_count == 1
+            await client.users.get("trent_reznor").collection.folders.update(
+                1, name="After update"
+            )
+            await client.releases.get(352665)
+            assert route.call_count == 2
+            await client.close()
+
+    @pytest.mark.parametrize("status", [404, 500])
+    async def test_failed_write_keeps_the_cache(self, status):
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            router.post(_FOLDER).respond(status, json={"message": "nope"})
+            client = AsyncDiscogs(token="t", cache=True)
+            await client.releases.get(352665)
+            with pytest.raises(DiscogsAPIError):
+                await client.users.get("trent_reznor").collection.folders.update(
+                    1, name="After update"
+                )
+            await client.releases.get(352665)
+            assert route.call_count == 1
+            await client.close()
+
+    async def test_write_inside_no_cache_still_evicts(self):
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            router.post(_FOLDER).mock(return_value=_folder("After update"))
+            client = AsyncDiscogs(token="t", cache=True)
+            await client.releases.get(352665)
+            await client.releases.get(352665)
+            assert route.call_count == 1
+            async with client.no_cache():
+                await client.users.get("trent_reznor").collection.folders.update(
+                    1, name="After update"
+                )
+            await client.releases.get(352665)
+            assert route.call_count == 2
+            await client.close()
+
+    async def test_write_through_one_client_evicts_a_shared_cache(self):
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            route = router.get("/releases/352665").respond(200, json=make_release())
+            router.post(_FOLDER).mock(return_value=_folder("After update"))
+            cache = MemoryCache(ttl=600)
+            reader = AsyncDiscogs(token="t", cache=cache)
+            writer = AsyncDiscogs(token="t", cache=cache)
+            await reader.releases.get(352665)
+            await writer.releases.get(352665)
+            assert route.call_count == 1
+            await writer.users.get("trent_reznor").collection.folders.update(
+                1, name="After update"
+            )
+            await reader.releases.get(352665)
+            assert route.call_count == 2
+            await reader.close()
+            await writer.close()
+
+    async def test_failing_clear_never_fails_the_write(self, caplog):
+        caplog.set_level(logging.WARNING, logger="discogs_sdk")
+        with respx.mock(base_url=BASE_URL, using="httpcore2") as router:
+            router.post(_FOLDER).mock(return_value=_folder("After update"))
+            client = AsyncDiscogs(token="t", cache=_ClearFails())
+            folder = await client.users.get("trent_reznor").collection.folders.update(
+                1, name="After update"
+            )
+            assert folder.name == "After update"
+            await client.close()
+        assert "cache backend is down" in caplog.text
 
 
 class TestNonJsonBodiesAreNotCached:

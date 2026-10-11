@@ -56,6 +56,8 @@ _CACHE_ONLY: ContextVar[frozenset[int]] = ContextVar(
     "discogs_sdk_cache_only", default=frozenset()
 )
 _CACHEABLE_METHODS = frozenset({"GET", "HEAD"})
+# Methods whose success may change what any cached read would return.
+_WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 # The only response headers a cache entry keeps. Others (Set-Cookie, rate-limit
 # counters) are private or stale on a hit, and the wire-encoding ones would be
 # wrong, because httpx2 has already decompressed response.content.
@@ -118,6 +120,10 @@ class Discogs(BaseClient):
                 backend, or a ``ResponseCache`` instance for a custom one.
                 Entries are partitioned by credential identity and response
                 representation, so clients sharing a cache stay isolated.
+                A successful write (``POST``, ``PUT``, ``DELETE``) clears the
+                whole cache, shared ones included; proxies and pages already
+                resolved keep their data, so fetch a new proxy or iterate again
+                to see the change.
                 The client closes a cache it built from ``True``; an injected
                 instance stays yours: ``close()`` never closes it, so close it
                 yourself once every client using it is done.
@@ -344,6 +350,25 @@ class Discogs(BaseClient):
                         cache_key, response.status_code, cache_headers, response.content
                     )
                     stored = True
+                if (
+                    self._cache is not None
+                    and method.upper() in _WRITE_METHODS
+                    and (200 <= response.status_code < 300)
+                ):
+                    # Any cached read may now be stale: the written URL, list pages,
+                    # query variants, other representations. So the whole cache
+                    # goes, also under no_cache(), which skips reads and stores but
+                    # must not leave stale entries behind. The write has already
+                    # happened, so a failing clear is logged, never raised.
+                    try:
+                        self._cache.clear()
+                    except Exception as exc:  # noqa: BLE001 - any ResponseCache
+                        logger.warning(
+                            "Could not clear the response cache after %s %s: %s",
+                            method.upper(),
+                            url,
+                            exc,
+                        )
                 # Emitted before the error boundary so the event exists even when
                 # the call raises.
                 self._observe(

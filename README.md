@@ -329,6 +329,14 @@ stores nothing, so a polling loop sees the job finish. A resolved proxy keeps it
 `get()` call each time. Inside `cache_only()` these reads raise `CacheMissError`. `exports.list()`, `uploads.list()`
 and `exports.download()` are cached as usual.
 
+A successful write (`POST`, `PUT` or `DELETE` with a 2xx answer) clears the whole response cache, so no entry cached
+before the write is served after it: not the written URL, not a list page, not a related folder or count. The rule
+holds inside `no_cache()` too, and a cache shared between clients is cleared for all of them; entries are refetched on
+demand, which costs requests. A failed write leaves the cache alone, and a cache that fails to clear is logged without
+failing the write. Proxies and pages already resolved keep their in-memory data, so fetch a new proxy or iterate again
+to see the change. Discogs itself may take a while to show a write, and a refetch made in that window caches what it
+returned.
+
 A cache built from `cache=True` belongs to the client, and `client.close()` closes it. A `ResponseCache` instance you
 pass in stays yours, like an injected `http_client`: `client.close()` never closes it, so one cache can outlive any of
 the clients sharing it. Call its `close()` yourself once every client using it is done.
