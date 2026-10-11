@@ -244,8 +244,9 @@ class Discogs(BaseClient):
             req = self._http_client.build_request(method, url, **build_kwargs)
         if use_cache:
             cache_key = self._build_cache_key(method, str(req.url), headers["Accept"])
+            assert self._cache is not None  # narrowed by use_cache
             t0 = time.monotonic()
-            cached = self._cache.get(cache_key)  # type: ignore[union-attr]
+            cached = self._cache.get(cache_key)
             lookup_ms = (time.monotonic() - t0) * 1000
             if cached is not None:
                 status, cached_headers, body = cached

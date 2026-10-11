@@ -455,7 +455,9 @@ The cache types are exported from `discogs_sdk`. To store responses elsewhere, s
 four methods: `get(key)` returns a `CacheEntry`, the `(status_code, headers, body)` tuple, or `None` on a miss or an
 expired entry; `set(key, status_code, headers, body)` stores one; `clear()` drops every entry; `close()` releases
 whatever the backend holds. The base constructor takes the `ttl` in seconds, and the backend is the one that enforces
-it:
+it. A backend must be thread-safe: so that disk I/O never blocks the event loop, `AsyncDiscogs` may call `get`, `set`
+and `clear` from worker threads, while `clear_cache()` and `close()` run on the calling thread, and concurrent requests
+overlap. The example takes a lock for that:
 
 ```python
 import threading
@@ -593,8 +595,9 @@ completion order rather than start order, and with several threads the callback 
 `client.ratelimit` is the value from whichever live response completed last, not necessarily the one with the lowest
 `remaining`: under concurrency it is a hint for pacing, not a global count.
 
-The cache that `cache=True` builds locks internally. A custom `ResponseCache` shared across threads needs its own
-locking, because the client calls its methods without synchronisation.
+The cache that `cache=True` builds locks internally. A custom `ResponseCache` needs its own locking whenever several
+threads share it, and with `AsyncDiscogs` that is always the case: the async client may call the cache from worker
+threads so that disk I/O never blocks the event loop, and it calls its methods without synchronisation.
 
 ### Custom HTTP clients
 

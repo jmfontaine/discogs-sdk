@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from discogs_sdk._async._lazy import AsyncLazyResource
 from discogs_sdk._async._paginator import AsyncPage
 from discogs_sdk._async._resource import AsyncAPIResource
@@ -12,13 +14,13 @@ class UploadProxy(AsyncLazyResource[Upload]):
 
 
 class Uploads(AsyncAPIResource):
-    async def create(self, *, file: str) -> None:
+    async def create(self, *, file: str | os.PathLike[str]) -> None:
         await self._post_file("/inventory/upload/add", file_path=file)
 
-    async def change(self, *, file: str) -> None:
+    async def change(self, *, file: str | os.PathLike[str]) -> None:
         await self._post_file("/inventory/upload/change", file_path=file)
 
-    async def delete(self, *, file: str) -> None:
+    async def delete(self, *, file: str | os.PathLike[str]) -> None:
         await self._post_file("/inventory/upload/delete", file_path=file)
 
     def list(

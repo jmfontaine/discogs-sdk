@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import os
+
 from discogs_sdk._base_client import path_segment
 from discogs_sdk._sync._lazy import LazyResource
 from discogs_sdk._sync._paginator import SyncPage
@@ -16,13 +18,13 @@ class UploadProxy(LazyResource[Upload], UploadFields):
 
 
 class Uploads(SyncAPIResource):
-    def create(self, *, file: str) -> None:
+    def create(self, *, file: str | os.PathLike[str]) -> None:
         self._post_file("/inventory/upload/add", file_path=file)
 
-    def change(self, *, file: str) -> None:
+    def change(self, *, file: str | os.PathLike[str]) -> None:
         self._post_file("/inventory/upload/change", file_path=file)
 
-    def delete(self, *, file: str) -> None:
+    def delete(self, *, file: str | os.PathLike[str]) -> None:
         self._post_file("/inventory/upload/delete", file_path=file)
 
     def list(

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+if True:  # ASYNC
+    import asyncio
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 
@@ -50,9 +53,15 @@ class AsyncAPIResource:
     ) -> httpx2.Response:
         return await self._request("POST", path, json=json, params=params)
 
-    async def _post_file(self, path: str, *, file_path: str) -> httpx2.Response:
+    async def _post_file(
+        self, path: str, *, file_path: str | os.PathLike[str]
+    ) -> httpx2.Response:
         p = Path(file_path)
-        data = p.read_bytes()
+        if True:  # ASYNC
+            # Reading a whole CSV would stall every task on the loop.
+            data = await asyncio.to_thread(p.read_bytes)
+        else:
+            data = p.read_bytes()
         return await self._client._send(
             "POST",
             self._client._build_url(path),

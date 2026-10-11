@@ -17,6 +17,12 @@ from tests.conftest import (
 )
 
 
+def _multipart_without_boundary(request) -> bytes:
+    """The request's multipart body with its random boundary blanked out."""
+    boundary = request.headers["Content-Type"].split("boundary=")[1].encode()
+    return request.content.replace(boundary, b"BOUNDARY")
+
+
 class TestUploadsCreate:
     async def test_create(self, client, respx_mock, tmp_path):
         csv_file = tmp_path / "inventory.csv"
@@ -34,6 +40,21 @@ class TestUploadsCreate:
         )
         with pytest.raises(DiscogsAPIError):
             await client.uploads.create(file=str(csv_file))
+
+    async def test_path_posts_the_same_multipart_body_as_str(
+        self, client, respx_mock, tmp_path
+    ):
+        csv_file = tmp_path / "inventory.csv"
+        csv_file.write_text("release_id,price\n352665,25.00\n")
+        route = respx_mock.post("/inventory/upload/add").respond(200)
+        await client.uploads.create(file=csv_file)
+        await client.uploads.create(file=str(csv_file))
+        bodies = [_multipart_without_boundary(call.request) for call in route.calls]
+        assert bodies[0] == bodies[1]
+        assert (
+            b'Content-Disposition: form-data; name="upload"; filename="inventory.csv"'
+            b"\r\nContent-Type: text/csv\r\n\r\nrelease_id,price\n352665,25.00\n"
+        ) in bodies[0]
 
 
 class TestUploadsChange:

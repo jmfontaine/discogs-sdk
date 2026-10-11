@@ -154,7 +154,9 @@ if observed.ratelimit and observed.ratelimit.remaining < 10:
 
 # ━━ Custom cache backend ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Subclass ResponseCache to plug in any storage backend.
-# Implement get(), set(), clear(), and close().
+# Implement get(), set(), clear(), and close(), thread-safely: AsyncDiscogs may
+# call get(), set() and clear() from worker threads, so that disk I/O never
+# blocks the event loop.
 import threading
 
 from discogs_sdk import CacheEntry, ResponseCache

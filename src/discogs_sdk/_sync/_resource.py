@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 
@@ -52,7 +53,9 @@ class SyncAPIResource:
     ) -> httpx2.Response:
         return self._request("POST", path, json=json, params=params)
 
-    def _post_file(self, path: str, *, file_path: str) -> httpx2.Response:
+    def _post_file(
+        self, path: str, *, file_path: str | os.PathLike[str]
+    ) -> httpx2.Response:
         p = Path(file_path)
         data = p.read_bytes()
         return self._client._send(

@@ -251,8 +251,15 @@ class AsyncDiscogs(BaseClient):
         if use_cache:
             cache_key = self._build_cache_key(method, str(req.url), headers["Accept"])
 
+            assert self._cache is not None  # narrowed by use_cache
             t0 = time.monotonic()
-            cached = self._cache.get(cache_key)  # type: ignore[union-attr]
+            if True:  # ASYNC
+                # A cache may touch the disk (SQLiteCache reads, deletes an expired
+                # row and commits), so it runs on a worker thread. to_thread copies
+                # the context, so the cache sees the calling task's.
+                cached = await asyncio.to_thread(self._cache.get, cache_key)
+            else:
+                cached = self._cache.get(cache_key)
             lookup_ms = (time.monotonic() - t0) * 1000
             if cached is not None:
                 status, cached_headers, body = cached
@@ -361,12 +368,22 @@ class AsyncDiscogs(BaseClient):
                         for k, v in response.headers.items()
                         if k.lower() in _CACHED_HEADERS
                     }
-                    self._cache.set(
-                        cache_key,
-                        response.status_code,
-                        cache_headers,
-                        response.content,
-                    )
+                    if True:  # ASYNC
+                        # Awaited before the event and the return, like the lookup.
+                        await asyncio.to_thread(
+                            self._cache.set,
+                            cache_key,
+                            response.status_code,
+                            cache_headers,
+                            response.content,
+                        )
+                    else:
+                        self._cache.set(
+                            cache_key,
+                            response.status_code,
+                            cache_headers,
+                            response.content,
+                        )
                     stored = True
                 if (
                     self._cache is not None
@@ -379,7 +396,12 @@ class AsyncDiscogs(BaseClient):
                     # must not leave stale entries behind. The write has already
                     # happened, so a failing clear is logged, never raised.
                     try:
-                        self._cache.clear()
+                        if True:  # ASYNC
+                            # Shielded: a task cancelled while the clear waits for a
+                            # worker must not skip it, since the write is done.
+                            await asyncio.shield(asyncio.to_thread(self._cache.clear))
+                        else:
+                            self._cache.clear()
                     except Exception as exc:  # noqa: BLE001 - any ResponseCache
                         logger.warning(
                             "Could not clear the response cache after %s %s: %s",

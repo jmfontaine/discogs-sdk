@@ -119,6 +119,12 @@ class ResponseCache(ABC):
     also does when it opens). Entries still within the TTL are kept, so their
     number is bounded by the TTL times the store rate, not by a fixed count.
     Subclasses choose their own policy: no method here requires a sweep.
+
+    ``AsyncDiscogs`` may call ``get``, ``set`` and ``clear`` from worker threads
+    (``asyncio.to_thread``) so that disk I/O never blocks the event loop, while
+    ``clear_cache()`` and ``close()`` run on the calling thread, and concurrent
+    requests overlap. A backend must therefore be thread-safe even when only one
+    async client uses it; the built-in ones take a lock.
     """
 
     def __init__(self, ttl: float) -> None:
