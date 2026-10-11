@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import httpx2
 import pytest
 from markdown_it import MarkdownIt
 from respx.router import MockRouter
@@ -219,9 +220,7 @@ def _sub_resources(router: MockRouter) -> None:
 
 
 def _collection(router: MockRouter) -> None:
-    router.get(FOLDERS).respond(
-        200, json={"folders": [make_collection_folder(id=0, name="All")]}
-    )
+    _folders(router)
     router.post(FOLDERS).respond(
         201, json=make_collection_folder(id=2, name="Industrial", count=0)
     )
@@ -277,6 +276,17 @@ def _identity(router: MockRouter) -> None:
 def _wants(router: MockRouter) -> None:
     router.get(f"{COLLECTION_USER}/wants").respond(
         200, json=make_paginated_response("wants", [make_want(id=352665)])
+    )
+
+
+def _want_put_times_out(router: MockRouter) -> None:
+    # A read timeout after the PUT went out: the SDK does not resend it.
+    router.put(WANT).mock(side_effect=httpx2.ReadTimeout("read timed out"))
+
+
+def _folders(router: MockRouter) -> None:
+    router.get(FOLDERS).respond(
+        200, json={"folders": [make_collection_folder(id=0, name="All")]}
     )
 
 
@@ -361,11 +371,23 @@ DOC_ROUTES: dict[str, DocRoutes] = {
     ),
     "docs/concurrency.md": DocRoutes(routes=(_release,), requests=(RELEASE_GET,)),
     "docs/errors-and-retries.md": DocRoutes(
-        routes=(_not_found,), requests=("GET /releases/999999999",)
+        routes=(_identity, _want_put_times_out, _wants, _not_found),
+        requests=(
+            # Settling an ambiguous write: the PUT times out once, one poll finds it
+            "GET /oauth/identity",
+            f"PUT {WANT}",
+            f"GET {COLLECTION_USER}/wants",
+            # Error handling
+            "GET /releases/999999999",
+        ),
     ),
     "docs/getting-started.md": DocRoutes(
         routes=(_release, _artist, _search, _sub_resources),
         requests=(
+            # Behaviors to know: lazy loading, then the async proxy kept for chaining
+            RELEASE_GET,
+            "GET /artists/3857",
+            "GET /artists/3857/releases",
             # Fetching resources: the master and label proxies are never read
             RELEASE_GET,
             "GET /artists/3857",
@@ -386,6 +408,10 @@ DOC_ROUTES: dict[str, DocRoutes] = {
         requests=(RELEASE_GET, RELEASE_GET),
     ),
     "docs/observability.md": DocRoutes(routes=(_release,), requests=(RELEASE_GET,)),
+    "docs/pagination.md": DocRoutes(
+        routes=(_search, _identity, _folders),
+        requests=(SEARCH_GET, "GET /oauth/identity", f"GET {FOLDERS}"),
+    ),
 }
 
 

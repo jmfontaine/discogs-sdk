@@ -37,9 +37,8 @@ of the task that awaited first, so its `no_cache()` or `cache_only()` scope, or 
 Enter the scope before the first await, or call `get()` again inside it for a proxy of your own. Cancelling one waiting
 task leaves the request and the other tasks alone.
 
-A page returned by `.list()` or `search()` is a single-pass iterator for one consumer. Several threads or tasks
-iterating the same page race on its position and can fetch a page twice and yield its items twice, and a page that
-is exhausted yields nothing on a second pass. Call `.list()` or `search()` again for each consumer and each pass.
+A page returned by `.list()` or `search()` is a single-pass iterator for one consumer: call `.list()` or `search()`
+again for each thread, task and pass. See [One consumer, one pass](pagination.md#one-consumer-one-pass).
 
 `on_request` runs on the thread or task that made the request, once that request completes, so events arrive in
 completion order rather than start order, and with several threads the callback can run in several of them at once.

@@ -23,6 +23,12 @@ failing the write. Proxies and pages already resolved keep their in-memory data,
 to see the change. Discogs itself may take a while to show a write, and a refetch made in that window caches what it
 returned.
 
+A write that fails ambiguously (a timeout, a dropped connection, a 5xx) leaves the cache alone too, and it may still
+have taken effect. To settle it, poll for a bounded time with a new proxy or a new `.list()` iterator inside
+`client.no_cache()`, so neither an earlier cache entry nor a resolved proxy answers for Discogs. One read that misses
+the change does not prove a create failed; if polling cannot establish the outcome, report it as unknown rather than
+resubmitting. [Settling an ambiguous write](errors-and-retries.md#settling-an-ambiguous-write) has an example.
+
 A cache built from `cache=True` belongs to the client, and `client.close()` closes it. A `ResponseCache` instance you
 pass in stays yours, like an injected `http_client`: `client.close()` never closes it, so one cache can outlive any of
 the clients sharing it. Call its `close()` yourself once every client using it is done.

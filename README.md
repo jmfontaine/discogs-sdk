@@ -99,11 +99,27 @@ async def main():
 asyncio.run(main())
 ```
 
+## Behaviors to know
+
+- **Lazy loading.** `.get()` sends no request; the first data attribute access does, and that is where
+  `NotFoundError` is raised. [More](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/getting-started.md#lazy-loading)
+- **Async.** `await` a proxy for its data and use `async for` on pages. Awaiting returns the model, which has no
+  sub-resources, so keep the proxy to chain (`artist_proxy.releases.list()`).
+  [More](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/getting-started.md#async-proxies)
+- **Pagination cost.** `search()` and most `.list()` methods fetch pages on demand. Each page is a GET against the rate
+  limit (60/min authenticated, 25/min anonymous); a cache hit costs nothing and retries can cost more.
+  [More](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/pagination.md)
+- **Retries.** Reads retry; a mutation is never replayed after an ambiguous failure.
+  [More](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/errors-and-retries.md#settling-an-ambiguous-write)
+- **Caching.** Off by default; only `GET`/`HEAD` are cached; a successful write clears the cache.
+  [More](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/caching.md)
+
 ## Documentation
 
 The full guide lives in [`docs/`](https://github.com/jmfontaine/discogs-sdk/tree/main/docs):
 
-- [Getting started](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/getting-started.md) — installation, fetching, search, sub-resources, async usage
+- [Getting started](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/getting-started.md) — behaviors to know, installation, fetching, search, sub-resources, async usage
+- [Pagination](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/pagination.md) — what a page costs, stopping early, page attributes
 - [Authentication](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/authentication.md) — personal token, consumer key/secret, OAuth 1.0a, credential precedence
 - [Collection and marketplace](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/collection-and-marketplace.md) — folders, instances, wantlist, listings, orders
 - [Errors and retries](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/errors-and-retries.md) — rate limits, retries, the exception hierarchy

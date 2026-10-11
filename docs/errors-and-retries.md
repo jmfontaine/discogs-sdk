@@ -31,6 +31,55 @@ Fewer attempts are sent when:
 
 The `attempts` field of [`RequestEvent`](observability.md) reports how many were sent.
 
+## Settling an ambiguous write
+
+When a `POST`, `PUT` or `DELETE` fails with `DiscogsConnectionError` (a timeout, a dropped connection) or a 5xx, the
+change may or may not have been made, and the SDK will not send it again. Settle the outcome by reading, not by
+resubmitting:
+
+- Poll for a bounded time, each time with a new proxy or a new `.list()` iterator inside `client.no_cache()`. A
+  proxy that already fetched never refetches, and outside `no_cache()` a read may be served from the cache.
+- Discogs serves stale reads after a write: a change has taken from 17 to 37 seconds to appear. One read that does not
+  show the change does not prove the write failed.
+- If polling cannot establish the outcome, report it as unknown. Resubmitting a create blindly can make a duplicate.
+
+The SDK has no automatic reconciliation. A sketch for a want:
+
+```python
+import time
+
+from discogs_sdk import Discogs, DiscogsAPIError, DiscogsConnectionError
+
+client = Discogs()
+user = client.users.get(client.user.identity().username)
+
+
+def want_listed(release_id: int) -> bool:
+    with client.no_cache():  # a new iterator, every page from Discogs
+        return any(want.id == release_id for want in user.wantlist.list())
+
+
+ambiguous = False
+try:
+    user.wantlist.create(release_id=352665)
+except DiscogsConnectionError:
+    ambiguous = True  # timed out or dropped: the PUT may have landed
+except DiscogsAPIError as exc:
+    if exc.status_code < 500:
+        raise  # a 4xx is a definite refusal
+    ambiguous = True
+
+if ambiguous:
+    deadline = time.monotonic() + 120
+    while not want_listed(352665):
+        if time.monotonic() > deadline:
+            print("Unknown whether the want was added; check again later")
+            break
+        time.sleep(10)
+```
+
+Each poll here pages through the whole wantlist, so keep the interval wide on a large one.
+
 ## Error handling
 
 ```python
@@ -98,18 +147,8 @@ attributes (`status_code`, `response_body`, `retry_after`, `ratelimit`, `method`
 `multiprocessing` worker reaches the parent as the same class. As with any pickled
 exception, `__cause__`, `__context__` and the traceback are not carried over.
 
-A paginated iterator (`.list()`, `search()`) that raises keeps its place. Whether the
-request for a page fails, the page's envelope has the wrong shape, or one of its items
-fails validation (Pydantic's `ValidationError`), `page`, the totals and the URLs stay as
-they were before that page, and the next `next()` or `anext()` requests the same page
-again. Items already yielded are not repeated, and none are skipped.
-
-A wrong shape raises `DiscogsError` naming the endpoint, the key and the JSON type
-received, for example `GET /users/trent_reznor/submissions: "submissions" is null,
-expected an object`. That covers a body that is not an object, a `pagination` or a
-non-empty `pagination.urls` that is not an object, and an items key that is not an
-array (or, for nested items, not an object on the way). An absent items key is an
-empty page.
+A paginated iterator that raises keeps its place, and a page with the wrong shape raises `DiscogsError`; see
+[When a page fails](pagination.md#when-a-page-fails).
 
 ### Exceptions outside `DiscogsError`
 
@@ -125,8 +164,8 @@ credentials, the SDK lets three exceptions through on purpose, and
 - `pydantic.ValidationError` (a `ValueError`) when a 2xx JSON body does not fit the
   model, such as a release whose `id` is not a number. The response was a success,
   so this is a parsing failure rather than an API error. Only a list page's envelope
-  is checked by the SDK itself, as described above; its items go to Pydantic like
-  any other model.
+  is checked by the SDK itself (see [Pagination](pagination.md#when-a-page-fails)); its
+  items go to Pydantic like any other model.
 - `FileNotFoundError` (an `OSError`) from `client.uploads.create()`, `change()` or
   `delete()` when `file` names a path that does not exist. The file is read before
   any request is sent, so there is no response to map.
