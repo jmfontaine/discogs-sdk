@@ -34,15 +34,15 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           # Jobs on the same Python otherwise compute the same cache key and
           # race to reserve it, which logs a warning in whichever loses.
           cache-suffix: ${{ github.job }}
       - name: Install dependencies
-        run: uv sync --all-extras --all-groups
+        run: uv sync --locked --all-extras --all-groups
       - name: Check the token is configured
         # Every authenticated fixture skips without it, so a missing secret
         # would produce a green run that tested nothing.
@@ -74,13 +74,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           cache-suffix: ${{ github.job }}
       - name: Install dependencies
-        run: uv sync --all-extras --all-groups
+        run: uv sync --locked --all-extras --all-groups
       - name: Run the anonymous tests
         # No credentials in this job's environment at all, so there is nothing
         # to leak into the client, and this runner's IP budget is untouched.

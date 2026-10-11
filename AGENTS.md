@@ -323,6 +323,12 @@ page or the upload API — there is no `pip yank`), then bump the patch version 
   with a marker whose exact form matters — read the comment there before touching it
 - Dead-code analysis runs through `scripts/check_dead_code.sh`, which pins the tool and its interpreter;
   every caller (justfile, pre-commit, both workflows) invokes that script rather than `deadcode` directly
+- Every `uses:` in `.github/workflows/` names a full commit SHA followed by its release tag as a comment
+  (`actions/checkout@<sha> # v7.0.1`); Dependabot's `github-actions` updates rewrite both. Pin a new action the
+  same way, to the SHA of a version tag, never a branch
+- CI installs with `uv sync --locked` and exports the wheel jobs' test stack with `uv export --locked`, so a
+  `pyproject.toml` dependency change without `uv lock` in the same commit fails the build. Only the `lowest` job
+  re-resolves, on purpose (`--resolution lowest-direct`)
 - All public API exports go through `src/discogs_sdk/__init__.py`
 - New resources: add to `_async/resources/`, wire into `_async/_client.py`, export from `__init__.py`, then regenerate sync
 - New models: add to `models/`, export from `models/__init__.py` and `__init__.py`
