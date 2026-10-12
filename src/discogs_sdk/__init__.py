@@ -15,6 +15,7 @@ from discogs_sdk._exceptions import (
     RateLimitError,
     ValidationError,
 )
+from discogs_sdk._page_result import PageResult
 from discogs_sdk._sync._client import Discogs
 from discogs_sdk._sync._paginator import SyncPage
 from discogs_sdk.models import (
@@ -92,6 +93,7 @@ __all__ = [
     # Paginators
     "AsyncPage",
     "SyncPage",
+    "PageResult",
     # Client config
     "AuthMode",
     "MediaType",

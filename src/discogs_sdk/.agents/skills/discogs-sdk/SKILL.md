@@ -29,7 +29,8 @@ skill ships inside the installed package, so it matches that version.
    authenticated, 25/min anonymous). These
    methods accept `per_page`, have no `len()` or slicing, and populate `total_items`/`total_pages` from the first
    fetched response when it supplies them. `collection.folders.list()` and `collection.fields.list()` each make one
-   logical GET and return a plain list. `break` early; never `list()` a large result set.
+   logical GET and return a plain list. `break` early; never `list()` a large result set. For exactly one page at a
+   fixed cost, pass `page`/`per_page` and call `.fetch()`: one logical GET returning a `PageResult`, iteration untouched.
 6. **Rate limits.** The SDK does not pace requests. Check `client.ratelimit is not None` before reading `.remaining`;
    the value is a pacing hint, not an atomic budget shared across concurrent work. Do not wrap reads in another retry
    layer: reads already retry.

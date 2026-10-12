@@ -124,7 +124,7 @@ asyncio.run(main())
 The full guide lives in [`docs/`](https://github.com/jmfontaine/discogs-sdk/tree/main/docs):
 
 - [Getting started](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/getting-started.md) — behaviors to know, installation, fetching, search, sub-resources, async usage
-- [Pagination](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/pagination.md) — what a page costs, stopping early, page attributes
+- [Pagination](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/pagination.md) — what a page costs, stopping early, fetching one page, page attributes
 - [Authentication](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/authentication.md) — personal token, consumer key/secret, OAuth 1.0a, credential precedence
 - [Collection and marketplace](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/collection-and-marketplace.md) — folders, instances, wantlist, listings, orders
 - [Errors and retries](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/errors-and-retries.md) — rate limits, retries, the exception hierarchy

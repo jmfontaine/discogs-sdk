@@ -1,7 +1,7 @@
 # discogs-sdk documentation
 
 1. [Getting started](getting-started.md): behaviors to know, installation, fetching resources, search, sub-resources, async usage
-2. [Pagination](pagination.md): what a page costs, stopping early, page attributes
+2. [Pagination](pagination.md): what a page costs, stopping early, fetching one page, page attributes
 3. [Authentication](authentication.md): personal token, consumer key/secret, OAuth 1.0a, credential precedence
 4. [Collection and marketplace](collection-and-marketplace.md): folders, instances, wantlist, listings, orders
 5. [Errors and retries](errors-and-retries.md): rate limits, retries, settling an ambiguous write, the exception hierarchy

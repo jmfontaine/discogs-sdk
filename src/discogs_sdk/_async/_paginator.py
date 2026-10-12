@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Generic, TypeVar
 from pydantic import BaseModel
 
 from discogs_sdk._exceptions import DiscogsError
+from discogs_sdk._page_result import PageResult
 
 if TYPE_CHECKING:
     from discogs_sdk._async._client import AsyncDiscogs
@@ -148,6 +149,36 @@ class AsyncPage(Generic[T]):
 
         items = [self._model_cls.model_validate(item) for item in raw_items]
         return pagination, urls, items
+
+    async def fetch(self) -> PageResult[T]:
+        """Fetch the page this listing was created for, with exactly one request.
+
+        That is the page and page size given to ``.list()`` or ``search()``
+        (``page`` defaults to 1), never the page iteration has reached. The
+        result is a new ``PageResult`` snapshot; reading it sends nothing.
+
+        ``fetch()`` leaves this object alone: its position, buffered items and
+        metadata properties stay as they were, so it can be called any number of
+        times before, during or after iteration without changing what iteration
+        yields. The request goes through the cache, ``on_request`` and the retry
+        policy like any other, and the body is checked the same way as during
+        iteration: a malformed envelope raises ``DiscogsError`` and an item that
+        fails validation raises Pydantic's ``ValidationError``.
+        """
+        pagination, urls, items = await self._client._send(
+            "GET",
+            self._client._build_url(self._path),
+            params=self._params,
+            parse=self._parse_page,
+        )
+        return PageResult(
+            items=items,
+            page=pagination.get("page"),
+            per_page=pagination.get("per_page"),
+            total_items=pagination.get("items"),
+            total_pages=pagination.get("pages"),
+            urls=dict(urls),
+        )
 
     def _expect(self, name: str, value: object, expected: type[_Shape]) -> _Shape:
         """Return *value* when it is an *expected*, else raise ``DiscogsError``.

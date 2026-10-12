@@ -456,8 +456,14 @@ DOC_ROUTES: dict[str, DocRoutes] = {
     ),
     "docs/observability.md": DocRoutes(routes=(_release,), requests=(RELEASE_GET,)),
     "docs/pagination.md": DocRoutes(
-        routes=(_search, _identity, _folders),
-        requests=(SEARCH_GET, "GET /oauth/identity", f"GET {FOLDERS}"),
+        routes=(_search, _identity, _folders, _artist_releases),
+        requests=(
+            SEARCH_GET,
+            "GET /oauth/identity",
+            f"GET {FOLDERS}",
+            # fetch(): exactly one request for the page asked for
+            "GET /artists/3857/releases",
+        ),
     ),
     SKILL_MD: DocRoutes(
         routes=(_release, _artist, _artist_releases, _search),

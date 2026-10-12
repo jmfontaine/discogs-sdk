@@ -12,7 +12,9 @@ consumes the applicable budget (60/min authenticated, 25/min anonymous). These m
 
 Retries follow the client's `max_retries`: a page that keeps failing with a retryable error sends up to
 `max_retries + 1` attempts, four by default (see [Errors and retries](errors-and-retries.md#rate-limits-and-retries)).
-Calling `.list()` or `search()` sends nothing; the first page is requested when iteration starts.
+Calling `.list()` or `search()` sends nothing; the first page is requested when iteration starts. Iteration requests
+the next page as soon as the current one runs out, so its cost grows with how far you go; `fetch()`, below, costs
+exactly one logical GET.
 
 ## Stopping early
 
@@ -44,6 +46,29 @@ user = client.users.get(client.user.identity().username)
 folders = user.collection.folders.list()  # one GET, a plain list
 print(len(folders), folders[0].name)
 ```
+
+## Fetching one page
+
+To page under your own control (a `--page` option, page links in a UI, a job resuming at a known page), call
+`fetch()` on the object `.list()` or `search()` returned. It sends exactly one request, for the `page` and `per_page`
+you passed (`page` defaults to 1), and returns a `PageResult` snapshot: `items`, `page`, `per_page`, `total_items`,
+`total_pages` and `urls`, the `first`/`prev`/`next`/`last` links the response supplied. Reading the result sends
+nothing more.
+
+```python
+listing = client.artists.get(3857).releases.list(page=2, per_page=50)
+result = listing.fetch()  # one GET: page 2 at 50 per page
+for release in result.items:
+    print(release.title)
+print(result.page, result.total_pages, result.urls.get("next"))
+```
+
+With `AsyncDiscogs`, `await listing.fetch()`. The request goes through the cache, `on_request` and the retry policy
+like any other: a second `fetch()` of the same page is a cache hit when caching is on. The body is checked as during
+iteration, so a malformed envelope raises the same `DiscogsError` (see [When a page fails](#when-a-page-fails)).
+`fetch()` never moves the object it is called on: its position, buffered items and attributes stay as they were, so
+calling it before, during or after iteration changes nothing iteration yields. `PageResult` is exported from
+`discogs_sdk`, cannot be reassigned, and pickles and copies like the SDK's other value types.
 
 ## Page attributes
 
