@@ -119,6 +119,37 @@ asyncio.run(main())
 - **Caching.** Off by default; only `GET`/`HEAD` are cached; a successful write clears the cache.
   [More](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/caching.md)
 
+## Design principles
+
+The SDK does more than relay requests: it pages, retries, renames keys and parses timestamps. These rules say what it
+may and may not do, and every new feature is checked against them.
+
+- **Requests stay predictable.** A low-level method sends only the requests its documentation names. Combining calls
+  is fine; the method documents the cost, and every call is observable through `on_request`. Auto-paging sends
+  one GET per page as you iterate
+  ([cost](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/pagination.md#what-a-page-costs)), a lazy proxy
+  sends one GET on its first data access
+  ([lazy loading](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/getting-started.md#lazy-loading)), and a
+  retried read emits one `RequestEvent` whose `attempts` counts every send
+  ([observability](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/observability.md)).
+- **Data may be normalized** (names, types, timestamps, URLs) when nothing is lost, because `raw` keeps the original;
+  when the result is computed from the response alone; and when the normalization is documented. Examples are
+  [renamed keys](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/models.md#field-naming),
+  [timestamps parsed into aware `datetime`s](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/models.md#timestamps)
+  and the [absolute `uri` on search results](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/models.md#search-result-links).
+  A guess the SDK cannot avoid is measured, documented and checkable through `raw`, like the
+  `America/Los_Angeles` zone it assumes for a timestamp sent without an offset.
+- **Data is never made up.** The SDK invents no value that the API did not send or that cannot be computed from what
+  it sent, such as a guessed currency. A timestamp it cannot parse becomes `None`, not an estimate.
+- **Helpers may combine calls for common use cases.** They send requests only through the SDK's public methods, so
+  the cache, retries and `on_request` apply to them as to any other call.
+- **Defaults are safe, sane and unsurprising.** In particular, helpers don't cap their effort by default. A caller who
+  wants a bound passes one, and a capped result says whether it is complete.
+- **Undocumented behaviour is quarantined.** A helper that depends on API behaviour Discogs does not document lives in
+  an experimental module. It documents that dependency and its consequences, such as whether its result can be
+  trusted to be complete; it raises when it detects that the behaviour clearly no longer holds; and it may change or
+  be removed without a deprecation period. Core methods never depend on undocumented behaviour.
+
 ## Documentation
 
 The full guide lives in [`docs/`](https://github.com/jmfontaine/discogs-sdk/tree/main/docs):

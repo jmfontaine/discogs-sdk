@@ -39,6 +39,10 @@ An API name that is a Python keyword, such as `from`, is reachable only through 
 An API name resolves to the same normalized value as the Python name, so `getattr(export, "created_ts")` is a
 `datetime` too. To read what Discogs sent, use [`raw`](#original-api-values).
 
+Renaming a key and parsing a value are normalizations, which the SDK's
+[design principles](../README.md#design-principles) allow only when nothing is lost, the result comes from the
+response alone, and the change is documented on this page.
+
 ## Search result links
 
 Every Discogs entity (release, master, artist, label, listing, order, user, list) carries an absolute `uri` linking to

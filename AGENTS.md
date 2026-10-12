@@ -197,6 +197,10 @@ Env vars: `DISCOGS_TOKEN`, `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `D
 
 ## Design Decisions
 
+The "Design principles" section of README.md states what the SDK may normalize, which calls it may combine, and
+that it never invents data or depends on undocumented API behaviour outside an experimental module. Check every new
+feature against it.
+
 ### Field Aliases
 
 Where the Discogs API uses inconsistent or cryptic field names (`uri150`, `anv`, `catno`, `extraartists`, etc.), models use clean Python names with `Field(validation_alias="api_name")`. Both names work for deserialization; attribute access uses the Python name. See the "Field naming" table in `docs/models.md`.
@@ -208,7 +212,8 @@ Embedded objects like `SubLabel`, `ArtistCredit`, and `LabelCredit` stay minimal
 ## User Docs
 
 - The user guide lives in `docs/`, one page per topic, indexed by `docs/README.md`. README.md keeps the pitch,
-  features, comparison, installation, a short quick start and a "Documentation" section linking every page
+  features, comparison, installation, a short quick start, the design principles and a "Documentation" section
+  linking every page
 - Pages render on GitHub as plain Markdown: CommonMark plus GitHub alerts (`> [!NOTE]`), no docs generator and no
   generator-specific syntax. Pages link to each other relatively; README.md links to them by absolute URL
 - `tests/test_doc_links.py` checks without network I/O that every local link in README.md, `docs/` and the packaged

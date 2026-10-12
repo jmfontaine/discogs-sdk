@@ -18,6 +18,10 @@ Before opening an issue, search [existing issues](https://github.com/jmfontaine/
 **Feature requests** — describe the problem you want to solve, not just the solution.
 For new API resource coverage, note which Discogs API endpoints are involved.
 
+A new feature, and any change to what the SDK sends or returns, must follow the
+[design principles](README.md#design-principles): predictable requests, lossless and documented normalization, no
+invented data, no default caps, and undocumented API behaviour kept out of the core.
+
 ## Setup
 
 ```bash
@@ -206,6 +210,7 @@ Before opening a PR, make sure the following are done:
 - [ ] Sync code regenerated if `_async/` changed (`just generate-sync`)
 - [ ] Endpoint map regenerated if a resource method changed (`just generate-endpoints`)
 - [ ] New public APIs exported from `__init__.py`
+- [ ] The change follows the [design principles](README.md#design-principles)
 
 ### What to expect
 
