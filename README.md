@@ -146,9 +146,46 @@ may and may not do, and every new feature is checked against them.
 - **Defaults are safe, sane and unsurprising.** In particular, helpers don't cap their effort by default. A caller who
   wants a bound passes one, and a capped result says whether it is complete.
 - **Undocumented behaviour is quarantined.** A helper that depends on API behaviour Discogs does not document lives in
-  an experimental module. It documents that dependency and its consequences, such as whether its result can be
-  trusted to be complete; it raises when it detects that the behaviour clearly no longer holds; and it may change or
-  be removed without a deprecation period. Core methods never depend on undocumented behaviour.
+  [`discogs_sdk.experimental`](#experimental-helpers). It documents that dependency and its consequences, such as
+  whether its result can be trusted to be complete; it raises when it detects that the behaviour clearly no longer
+  holds; and it may change or be removed without a deprecation period. Core methods never depend on undocumented
+  behaviour.
+
+## Experimental helpers
+
+`discogs_sdk.experimental` holds helpers that depend on API behaviour Discogs does not document, under the
+[rules above](#design-principles): each may change or be removed without a deprecation period.
+
+`releases_added_since()` answers a question the API has no filter for: which releases matching a search were added to
+Discogs on or after a date. It takes a `Discogs` client; `async_releases_added_since()` takes an `AsyncDiscogs` one.
+
+```python
+from datetime import date
+
+from discogs_sdk import Discogs
+from discogs_sdk.experimental import releases_added_since
+
+with Discogs() as client:
+    result = releases_added_since(client, date(2026, 10, 1), artist="Nine Inch Nails")
+    for release in result.releases:  # newest first
+        print(release.date_added, release.title)
+    print(result.complete)  # False only when max_requests stopped the scan
+```
+
+- **Completeness assumes an undocumented sort.** The helper searches with `sort="date_added"` and
+  `sort_order="desc"`, which Discogs answers newest-added first without documenting it, and looks up each result to
+  read its `date_added`, stopping at the first release added before the date. Every release it returns has a verified
+  date, but a newer release that Discogs sorts after an older one is never seen. A `date_added` newer than the one
+  before it shows the sort is not holding and raises `DiscogsError`.
+- **Cost.** One search request per page scanned, plus one lookup per release in the window, plus one for the release
+  that ends the scan (none when the results run out first). A release without a `date_added` is skipped and costs a
+  lookup too. Cache hits cost nothing, and each retry is one more send.
+- **No cap by default.** `max_requests=N` bounds the HTTP sends, retries included. Once the sends reach it the helper
+  returns what it found with `complete=False`; a request already started may still retry, so the total can exceed `N`
+  by up to `client.max_retries`.
+
+A `date` means the start of that day in UTC; a `datetime` must be timezone-aware. `type` may only be `"release"`, and
+`sort`, `sort_order` and `page` belong to the helper: passing them raises `ValueError` before any request.
 
 ## Documentation
 

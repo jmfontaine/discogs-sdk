@@ -198,8 +198,10 @@ Env vars: `DISCOGS_TOKEN`, `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `D
 ## Design Decisions
 
 The "Design principles" section of README.md states what the SDK may normalize, which calls it may combine, and
-that it never invents data or depends on undocumented API behaviour outside an experimental module. Check every new
-feature against it.
+that it never invents data or depends on undocumented API behaviour outside `discogs_sdk.experimental`. Check every
+new feature against it. A helper in `experimental` (async source in `_async/_experimental.py`, shared result types in
+`_experimental_types.py`) is reached only through that module, never exported from `__init__.py`, and its docstring
+links the principles section.
 
 ### Field Aliases
 

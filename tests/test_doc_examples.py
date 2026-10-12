@@ -48,6 +48,7 @@ from tests.conftest import (
     make_master_version,
     make_order,
     make_paginated_response,
+    make_release,
     make_search_result,
     make_want,
     mock_router,
@@ -209,6 +210,13 @@ def _artist_releases(router: MockRouter) -> None:
     )
 
 
+def _release_added_recently(router: MockRouter) -> None:
+    # The release _search returns, looked up by releases_added_since().
+    router.get("/releases/400027").respond(
+        200, json={**make_release(id=400027), "date_added": "2026-10-05T09:12:44-07:00"}
+    )
+
+
 def _sub_resources(router: MockRouter) -> None:
     router.get("/releases/352665/rating").respond(
         200, json=make_community_rating(release_id=352665)
@@ -345,7 +353,7 @@ SKILL_MD = "src/discogs_sdk/.agents/skills/discogs-sdk/SKILL.md"
 # Keyed by path relative to the repository root.
 DOC_ROUTES: dict[str, DocRoutes] = {
     "README.md": DocRoutes(
-        routes=(_release, _artist_releases, _search),
+        routes=(_release, _artist_releases, _search, _release_added_recently),
         requests=(
             # Introduction
             RELEASE_GET,
@@ -355,6 +363,9 @@ DOC_ROUTES: dict[str, DocRoutes] = {
             "GET /artists/3857/releases",
             RELEASE_GET,
             SEARCH_GET,
+            # Experimental helpers: one search page, then its one result
+            SEARCH_GET,
+            "GET /releases/400027",
         ),
     ),
     "docs/authentication.md": DocRoutes(

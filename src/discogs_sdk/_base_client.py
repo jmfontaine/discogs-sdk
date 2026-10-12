@@ -9,7 +9,9 @@ import os
 import random
 import time
 import urllib.parse
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any, Literal, NoReturn
@@ -33,6 +35,12 @@ logger = logging.getLogger("discogs_sdk")
 DEFAULT_BASE_URL = "https://api.discogs.com"
 DEFAULT_TIMEOUT = 30.0
 DEFAULT_CACHE_TTL = 3600.0
+# Event lists collecting what each client emits in the current execution context,
+# as (id(client), events) pairs. A ContextVar, like the cache scopes, so one task's
+# or thread's collector never sees another's requests.
+_EVENT_COLLECTORS: ContextVar[tuple[tuple[int, list[RequestEvent]], ...]] = ContextVar(
+    "discogs_sdk_event_collectors", default=()
+)
 # Statuses worth retrying when replaying the request cannot duplicate an effect.
 _RETRY_STATUSES: frozenset[int] = frozenset({429, 500, 502, 503, 504})
 _SAFE_METHODS: frozenset[str] = frozenset({"GET", "HEAD"})
@@ -454,11 +462,31 @@ class BaseClient:
         return self._ratelimit
 
     def _observe(self, event: RequestEvent) -> None:
-        """Record *event*'s rate limit and hand it to the ``on_request`` callback."""
+        """Record *event*'s rate limit, hand it to every collector active for this
+        client in the current context, then to the ``on_request`` callback."""
         if event.ratelimit is not None:
             self._ratelimit = event.ratelimit
+        for client_id, events in _EVENT_COLLECTORS.get():
+            if client_id == id(self):
+                events.append(event)
         if self._on_request is not None:
             self._on_request(event)
+
+    @contextmanager
+    def _collect_events(self) -> Iterator[list[RequestEvent]]:
+        """Collect the ``RequestEvent``s this client emits inside the block.
+
+        Only requests made in the current execution context are collected, those
+        of tasks it starts included, since they inherit it; other tasks and
+        threads using the same client are not. Scopes nest, and ``on_request``
+        still receives every event.
+        """
+        events: list[RequestEvent] = []
+        token = _EVENT_COLLECTORS.set((*_EVENT_COLLECTORS.get(), (id(self), events)))
+        try:
+            yield events
+        finally:
+            _EVENT_COLLECTORS.reset(token)
 
     def _build_auth_namespace(self) -> str:
         """Stable, non-reversible identity for cache partitioning.
