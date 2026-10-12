@@ -247,7 +247,17 @@ class TestSortCheck:
 class TestArguments:
     @pytest.mark.parametrize(
         "params",
-        [{"type": "artist"}, {"sort": "year"}, {"sort_order": "asc"}, {"page": 2}],
+        [
+            {"type": "artist"},
+            {"sort": "year"},
+            {"sort_order": "asc"},
+            {"page": 2},
+            # Rejected by presence: None is not "release", nor the helper's sort.
+            {"type": None},
+            {"sort": None},
+            {"sort_order": None},
+            {"page": None},
+        ],
     )
     async def test_owned_search_params_raise_before_any_request(
         self, no_retry_client, respx_mock, params

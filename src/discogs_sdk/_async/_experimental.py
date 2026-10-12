@@ -76,7 +76,9 @@ async def releases_added_since(
         **search_params: Other search parameters, such as ``artist`` or
             ``format``, passed to ``client.search()``. ``type`` may only be
             ``"release"``; ``sort``, ``sort_order`` and ``page`` belong to the
-            scan. ``None`` values are dropped, as ``search()`` does.
+            scan. These are checked by presence, so passing any of them as
+            ``None`` (or ``type=None``) raises too. Other ``None`` values are
+            dropped, as ``search()`` does.
 
     Returns:
         The releases added on or after *since*, newest first, and whether the
@@ -93,17 +95,20 @@ async def releases_added_since(
     cutoff = _cutoff(since)
     if max_requests is not None and max_requests < 1:
         raise ValueError(f"max_requests must be at least 1, got {max_requests}")
-    params = {k: v for k, v in search_params.items() if v is not None}
-    if params.get("type", "release") != "release":
+    # Checked on the arguments as passed, before None values are dropped: the
+    # helper owns these keys, so even an explicit None is a caller error.
+    if "type" in search_params and search_params["type"] != "release":
         raise ValueError(
-            f"releases_added_since() searches releases only; got type={params['type']!r}"
+            "releases_added_since() searches releases only; "
+            f"got type={search_params['type']!r}"
         )
-    owned = [name for name in _OWNED_PARAMS if name in params]
+    owned = [name for name in _OWNED_PARAMS if name in search_params]
     if owned:
         raise ValueError(
             f"releases_added_since() sets {', '.join(owned)} itself; "
             "remove it from the search parameters"
         )
+    params = {k: v for k, v in search_params.items() if v is not None}
     params.update(type="release", sort="date_added", sort_order="desc")
 
     found: list[Release] = []
