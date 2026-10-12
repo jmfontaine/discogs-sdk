@@ -126,7 +126,11 @@ async def releases_added_since(
                     continue
                 if _capped(events, max_requests):
                     return ReleasesAddedSince(found, complete=False)
-                release = await client.releases.get(item.id)._resolve()
+                if True:  # ASYNC
+                    release = await client.releases.get(item.id)
+                else:
+                    # A sync proxy has no public way to return its model.
+                    release = client.releases.get(item.id)._resolve()
                 seen.add(item.id)
                 added = release.date_added
                 if added is None:
