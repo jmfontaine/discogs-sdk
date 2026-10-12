@@ -19,8 +19,7 @@ exactly one logical GET.
 ## Stopping early
 
 Iterate only as far as you need and `break`: no later page is requested. A larger `per_page` (Discogs allows up to
-100) means fewer requests for the same items. Never pass a large result set to `list()` or a comprehension, which
-pages through all of it.
+100) means fewer requests for the same items.
 
 ```python
 from discogs_sdk import Discogs
