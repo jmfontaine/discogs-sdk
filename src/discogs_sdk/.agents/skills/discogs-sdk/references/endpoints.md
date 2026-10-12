@@ -1,4 +1,4 @@
-<!-- Generated from docs/endpoints.md by scripts/generate_skill_refs.py for v0.7.0; do not edit. -->
+<!-- Generated from docs/endpoints.md by scripts/generate_skill_refs.py for v0.8.0; do not edit. -->
 
 # Endpoint map
 
@@ -12,7 +12,7 @@ Discogs API reference and read off the call, or look up a call and see what it s
 
 - **Calls** use the sync client (`client = Discogs(...)`). `AsyncDiscogs` has the same
   chain: `await` an operation, `await` a lazy result to load it, and iterate a page with
-  `async for`. See [Getting started](https://github.com/jmfontaine/discogs-sdk/blob/v0.7.0/docs/getting-started.md) and [Pagination](pagination.md).
+  `async for`. See [Getting started](https://github.com/jmfontaine/discogs-sdk/blob/v0.8.0/docs/getting-started.md) and [Pagination](pagination.md).
 - **Arguments** carry the parameter names from the method signature. Required ones are
   shown, as `name=...` when keyword-only, and so are the optional ones that change the
   route. A trailing `...` stands for the other optional arguments, so `list(...)` can
@@ -100,7 +100,7 @@ Discogs API reference and read off the call, or look up a call and see what it s
 The token-exchange routes are not client operations: they run before there is an
 authorized client, so they are module-level functions of `discogs_sdk.oauth` with no
 `client.` chain. Each has an async twin named `async_<name>`. See
-[Authentication](https://github.com/jmfontaine/discogs-sdk/blob/v0.7.0/docs/authentication.md).
+[Authentication](https://github.com/jmfontaine/discogs-sdk/blob/v0.8.0/docs/authentication.md).
 
 | Verb | Route | Call | Returns |
 |---|---|---|---|

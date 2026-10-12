@@ -1,4 +1,4 @@
-<!-- Generated from docs/migrating-from-python3-discogs-client.md by scripts/generate_skill_refs.py for v0.7.0; do not edit. -->
+<!-- Generated from docs/migrating-from-python3-discogs-client.md by scripts/generate_skill_refs.py for v0.8.0; do not edit. -->
 
 # Migrating from python3-discogs-client
 
@@ -78,7 +78,7 @@ print(created.listing_id)
 **Lazy loading.** Both libraries defer the request, but `client.releases.get(352665)` sends nothing at all: the first
 data attribute access sends the GET, and that is where `NotFoundError` is raised, so put the `try` around the
 attribute access. With `AsyncDiscogs`, `await` the proxy instead. See
-[Behaviors to know](https://github.com/jmfontaine/discogs-sdk/blob/v0.7.0/docs/getting-started.md#lazy-loading).
+[Behaviors to know](https://github.com/jmfontaine/discogs-sdk/blob/v0.8.0/docs/getting-started.md#lazy-loading).
 
 **Iteration instead of `.page(n)`.** A page has no `.page(n)`, `.pages` or `.count`, and no `len()` or indexing.
 Iterate it, and `break` once you have enough; each page costs a request against the rate limit. `per_page` sets the
@@ -86,7 +86,7 @@ page size, and `total_items`/`total_pages` are filled in once the first page arr
 [Pagination](pagination.md).
 
 **Typed models instead of `.data`.** Every field is a typed attribute with a Python name: `catalog_number` rather than
-`catno`, `extra_artists` rather than `extraartists` (the full list is in [Models](https://github.com/jmfontaine/discogs-sdk/blob/v0.7.0/docs/models.md#field-naming)).
+`catno`, `extra_artists` rather than `extraartists` (the full list is in [Models](https://github.com/jmfontaine/discogs-sdk/blob/v0.8.0/docs/models.md#field-naming)).
 Timestamps are timezone-aware `datetime` objects. What Discogs sent is still in `model.raw`. In the async client,
 `await client.artists.get(3857)` returns the `Artist` model, which has no `releases`: keep the proxy to chain.
 
@@ -121,7 +121,7 @@ if client.ratelimit is not None and client.ratelimit.remaining < 5:
 
 The predecessor's `identity()` returns a `User` with collection and wantlist accessors. discogs-sdk's `Identity` holds
 only `id`, `username`, `consumer_name` and `resource_url`; the collection, wantlist, inventory and lists live on the
-user proxy, so build one from the username (see [The authenticated user](https://github.com/jmfontaine/discogs-sdk/blob/v0.7.0/docs/authentication.md#the-authenticated-user)):
+user proxy, so build one from the username (see [The authenticated user](https://github.com/jmfontaine/discogs-sdk/blob/v0.8.0/docs/authentication.md#the-authenticated-user)):
 
 ```python
 identity = client.user.identity()

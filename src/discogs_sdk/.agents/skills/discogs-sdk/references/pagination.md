@@ -1,4 +1,4 @@
-<!-- Generated from docs/pagination.md by scripts/generate_skill_refs.py for v0.7.0; do not edit. -->
+<!-- Generated from docs/pagination.md by scripts/generate_skill_refs.py for v0.8.0; do not edit. -->
 
 # Pagination
 

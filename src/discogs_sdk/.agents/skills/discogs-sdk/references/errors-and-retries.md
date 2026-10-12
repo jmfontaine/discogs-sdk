@@ -1,4 +1,4 @@
-<!-- Generated from docs/errors-and-retries.md by scripts/generate_skill_refs.py for v0.7.0; do not edit. -->
+<!-- Generated from docs/errors-and-retries.md by scripts/generate_skill_refs.py for v0.8.0; do not edit. -->
 
 # Errors and retries
 
@@ -36,7 +36,7 @@ Fewer attempts are sent when:
 - the request is a mutation and the failure may have reached the server (see the warning above);
 - a `Retry-After` exceeds 60 seconds, which raises at once.
 
-The `attempts` field of [`RequestEvent`](https://github.com/jmfontaine/discogs-sdk/blob/v0.7.0/docs/observability.md) reports how many were sent.
+The `attempts` field of [`RequestEvent`](https://github.com/jmfontaine/discogs-sdk/blob/v0.8.0/docs/observability.md) reports how many were sent.
 
 ## Settling an ambiguous write
 
