@@ -33,7 +33,6 @@ Discogs API reference and read off the call, or look up a call and see what it s
 | GET | `/artists/{artist_id}` | `client.artists.get(artist_id)` | `Artist (lazy)` | no |
 | GET | `/artists/{artist_id}/releases` | `client.artists.get(artist_id).releases.list(...)` | `SyncPage[ArtistRelease]` | yes |
 | GET | `/database/search` | `client.search(...)` | `SyncPage[SearchResult]` | yes |
-| GET | `/inventory/export` | `client.exports.list(...)` | `SyncPage[Export]` | yes |
 | POST | `/inventory/export` | `client.exports.request()` | `int` | no |
 | GET | `/inventory/export/{export_id}` | `client.exports.get(export_id)` | `Export (lazy)` | no |
 | GET | `/inventory/export/{export_id}/download` | `client.exports.download(export_id)` | `bytes` | no |
