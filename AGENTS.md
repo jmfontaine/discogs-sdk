@@ -398,7 +398,11 @@ page or the upload API — there is no `pip yank`), then bump the patch version 
 - Finished work is committed, pushed and opened as a pull request without asking first.
   Stop for input only when a decision needs the user
 - `main` accepts only signed commits that GitHub verifies, and rejects force pushes and
-  deletion (ruleset "Protect default branch"). GitHub's "Rebase and merge" drops commit
-  signatures, so the rule blocks it: a pull request lands by fast-forwarding `main` to its
-  branch, `git push origin origin/<branch>:main`, after rebasing the branch if `main`
-  moved
+  deletion (ruleset "Protect default branch"). Pull requests land by squash merge, the
+  only method the repository allows: `gh pr merge <n> --squash`, or, for a stack,
+  `gh stack merge --yes --squash` run with no number from a worktree that has the stack
+  checked out (a bare number is read as a stack number before a pull request number).
+  GitHub signs the squash commit itself, but the ruleset also checks every commit on the
+  pull request branch, so each one must be signed and verified. The pull request title
+  becomes the commit subject, and git-cliff builds the changelog from it, so write the
+  title as a Conventional Commit

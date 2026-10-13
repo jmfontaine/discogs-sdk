@@ -215,7 +215,10 @@ Before opening a PR, make sure the following are done:
 ### What to expect
 
 A maintainer will review your PR, usually within a few days. Change requests are normal and collaborative.
-Push additional commits to the same branch — no need to force-push or squash until asked.
+Push additional commits to the same branch; no need to squash. Every commit on the branch must be signed and show as
+verified on GitHub: `main` requires signed commits, and an unsigned one blocks the merge until it is re-signed and
+force-pushed. Pull requests are squash-merged, so the pull request title becomes the commit subject on `main`, and
+git-cliff builds the changelog from it: write it as a Conventional Commit.
 
 ## License
 
