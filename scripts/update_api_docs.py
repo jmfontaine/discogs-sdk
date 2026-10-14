@@ -316,7 +316,10 @@ def main() -> int:
         print("\nThe local reference matches upstream.")
         return 0
     if args.check:
-        print(f"\n{len(changes)} page(s) differ. Run `just update-api-docs --write`.")
+        print(
+            f"\n{len(changes)} page(s) differ. Run `just update-api-docs --write`.",
+            file=sys.stderr,
+        )
         return 1
     if not args.write:
         print(

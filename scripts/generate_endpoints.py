@@ -111,7 +111,6 @@ _Function = ast.FunctionDef | ast.AsyncFunctionDef
 class ClassInfo:
     name: str
     module: str
-    node: ast.ClassDef
     methods: dict[str, _Function] = field(default_factory=dict)
     properties: set[str] = field(default_factory=set)
     bases: list[str] = field(default_factory=list)
@@ -303,7 +302,7 @@ class Extractor:
                 f"class {node.name} is defined in both {other} and {module}; "
                 "the extractor identifies classes by name"
             )
-        info = ClassInfo(node.name, module, node)
+        info = ClassInfo(node.name, module)
         for base in node.bases:
             if isinstance(base, ast.Subscript) and isinstance(base.value, ast.Name):
                 info.bases.append(base.value.id)
@@ -814,10 +813,10 @@ def _row_key(row: Row) -> tuple[str, int, str]:
 # --- Loading and rendering -------------------------------------------------
 
 
-def load_sources(directory: Path = ASYNC_SRC) -> dict[str, str]:
+def load_sources() -> dict[str, str]:
     return {
-        path.relative_to(directory).with_suffix("").as_posix(): path.read_text()
-        for path in sorted(directory.rglob("*.py"))
+        path.relative_to(ASYNC_SRC).with_suffix("").as_posix(): path.read_text()
+        for path in sorted(ASYNC_SRC.rglob("*.py"))
     }
 
 

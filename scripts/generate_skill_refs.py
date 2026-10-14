@@ -115,11 +115,17 @@ def main() -> int:
             for path, text in expected.items()
             if not path.is_file() or path.read_text(encoding="utf-8") != text
         ]
-        for path in [*stale, *unexpected]:
-            print(f"stale: {path.relative_to(ROOT)}")
+        for path in stale:
+            print(f"stale: {path.relative_to(ROOT)}", file=sys.stderr)
+        for path in unexpected:
+            print(
+                f"unexpected: {path.relative_to(ROOT)} is not generated from a page",
+                file=sys.stderr,
+            )
         if stale or unexpected:
             print(
-                "The skill references are out of date. Run `just generate-skill-refs`."
+                "The skill references are out of date. Run `just generate-skill-refs`.",
+                file=sys.stderr,
             )
             return 1
         print("The skill references are up to date.")

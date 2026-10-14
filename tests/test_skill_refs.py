@@ -8,7 +8,11 @@ link in SKILL.md to a reference that is not generated.
 from __future__ import annotations
 
 import importlib.util
+import sys
+from pathlib import Path
 from types import ModuleType
+
+import pytest
 
 from tests.conftest import REPO_ROOT
 from tests.markdown_links import find_links
@@ -37,6 +41,36 @@ def _skill_tree() -> set[str]:
 def test_every_skill_file_is_generated_or_skill_md():
     pages = _script("generate_skill_refs").PAGES
     assert _skill_tree() == {"SKILL.md", *(f"references/{page}" for page in pages)}
+
+
+def test_check_tells_a_stale_reference_from_an_unexpected_one(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    # A one-page project, so the paths printed are relative to tmp_path.
+    generator = _script("generate_skill_refs")
+    (tmp_path / "pyproject.toml").write_text('version = "1.0.0"\n', encoding="utf-8")
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "guide.md").write_text("# Guide\n", encoding="utf-8")
+    references = tmp_path / "references"
+    references.mkdir()
+    (references / "guide.md").write_text("edited\n", encoding="utf-8")
+    (references / "notes.md").write_text("notes\n", encoding="utf-8")
+    monkeypatch.setattr(generator, "ROOT", tmp_path)
+    monkeypatch.setattr(generator, "DOCS", docs)
+    monkeypatch.setattr(generator, "PAGES", ("guide.md",))
+    monkeypatch.setattr(generator, "REFERENCES", references)
+    monkeypatch.setattr(sys, "argv", ["generate_skill_refs.py", "--check"])
+
+    assert generator.main() == 1
+    out, err = capsys.readouterr()
+    assert out == ""
+    assert "stale: references/guide.md" in err
+    assert "unexpected: references/notes.md" in err
+    assert "stale: references/notes.md" not in err
+    assert "just generate-skill-refs" in err
 
 
 def test_skill_md_links_every_reference():

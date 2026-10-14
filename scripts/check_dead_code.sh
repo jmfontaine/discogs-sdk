@@ -11,14 +11,17 @@
 # Python, or swap in a maintained analyzer.
 set -uo pipefail
 
-output=$(uvx --python 3.13 --from deadcode==2.4.1 deadcode src tests examples 2>&1)
-echo "$output"
+output=$(uvx --python 3.13 --from deadcode==2.4.1 deadcode src tests examples scripts 2>&1)
 
 if grep -q "DC0" <<<"$output"; then
+    echo "$output" >&2
     exit 1
 fi
 
 if ! grep -q "Well done" <<<"$output"; then
+    echo "$output" >&2
     echo "check_dead_code: deadcode did not run to completion" >&2
     exit 1
 fi
+
+echo "$output"
