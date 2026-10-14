@@ -382,6 +382,21 @@ def _is_public_member(declaration: str) -> bool:
     return not name.startswith("_")
 
 
+def _is_private_member(declaration: str) -> bool:
+    """Whether a rendered member is private pydantic machinery, such as a validator.
+
+    Dunder methods (``__getitem__``) are part of the consumer surface.
+    """
+    node = ast.parse(declaration).body[0]
+    if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+        name = node.target.id
+    elif isinstance(node, ast.FunctionDef):
+        name = node.name
+    else:
+        return False
+    return name.startswith("_") and not (name.startswith("__") and name.endswith("__"))
+
+
 def _mixin_block(model: str, declarations: list[str], base: str | None) -> str:
     """Render the ``TYPE_CHECKING``-only mixin declaring *model*'s members."""
     body = (
@@ -423,8 +438,9 @@ def _render_field_mixins() -> str:
                 file=sys.stderr,
             )
             sys.exit(1)
-        declared.extend(members[model])
-        blocks.append(_mixin_block(model, members[model], f"{BASE_MODEL}Fields"))
+        own = [decl for decl in members[model] if not _is_private_member(decl)]
+        declared.extend(own)
+        blocks.append(_mixin_block(model, own, f"{BASE_MODEL}Fields"))
 
     needed = {name for decl in declared for name in _referenced_names(decl)}
     imports = sorted({(symbols[name], name) for name in needed if name in symbols})

@@ -500,6 +500,36 @@ class TestFieldMixins:
         assert "_validate" not in base
         assert "model_config" not in base
 
+    def test_proxied_model_mixin_leaves_out_private_members(self, tree: Path) -> None:
+        # A validator is machinery, and its decorator would import pydantic into
+        # the generated module; a dunder method is still part of the surface.
+        (tree / "models" / "things.py").write_text(
+            _source(
+                """
+                from pydantic import field_validator
+
+
+                class Solo(SDKModel):
+                    title: str
+
+                    @field_validator("title", mode="before")
+                    @classmethod
+                    def _clean(cls, value: object) -> object:
+                        return value
+
+                    def __getitem__(self, key: str) -> str:
+                        return key
+                """
+            )
+        )
+        rendered = gen._render_field_mixins()
+        solo = rendered.split("class SoloFields(SDKModelFields):")[1]
+        assert "title: str" in solo
+        assert "def __getitem__(self, key: str) -> str" in solo
+        assert "_clean" not in rendered
+        assert "field_validator" not in rendered
+        assert "pydantic" not in rendered
+
     def test_annotation_names_are_imported_from_where_models_import_them(
         self, tree: Path
     ) -> None:

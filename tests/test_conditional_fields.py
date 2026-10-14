@@ -11,10 +11,19 @@ covered by the documented-payload corpus; these tests pin the absent side.
 
 from __future__ import annotations
 
+import pytest
+from pydantic import ValidationError
+
 from discogs_sdk.models.marketplace import Listing, Order, OrderMessage
 from discogs_sdk.models.release import MarketplaceReleaseStats
 from discogs_sdk.models.user import User
-from tests.conftest import make_listing, make_order, make_order_message, make_user
+from tests.conftest import (
+    make_inventory_listing,
+    make_listing,
+    make_order,
+    make_order_message,
+    make_user,
+)
 
 
 class TestListing:
@@ -29,6 +38,36 @@ class TestListing:
 
     def test_original_shipping_price_absent(self) -> None:
         assert Listing.model_validate(make_listing()).original_shipping_price is None
+
+    def test_empty_shipping_prices_read_as_none(self) -> None:
+        # The live inventory endpoint sends ``{}`` when the seller set no shipping.
+        payload = make_inventory_listing()
+        listing = Listing.model_validate(payload)
+        assert listing.shipping_price is None
+        assert listing.original_shipping_price is None
+        assert listing.raw["shipping_price"] == {}
+        assert listing.raw["original_shipping_price"] == {}
+        assert listing.price is not None
+        assert listing.price.value == 28.69
+
+    def test_populated_shipping_prices_still_parse(self) -> None:
+        listing = Listing.model_validate(
+            make_inventory_listing()
+            | {
+                "shipping_price": {"currency": "USD", "value": 2.5},
+                "original_shipping_price": {"curr_abbr": "USD", "value": 2.5},
+            }
+        )
+        assert listing.shipping_price is not None
+        assert listing.shipping_price.value == 2.5
+        assert listing.original_shipping_price is not None
+        assert listing.original_shipping_price.value == 2.5
+
+    def test_partial_shipping_price_still_fails(self) -> None:
+        with pytest.raises(ValidationError, match="shipping_price.value"):
+            Listing.model_validate(
+                make_inventory_listing() | {"shipping_price": {"currency": "USD"}}
+            )
 
     def test_release_summary_fields_absent(self) -> None:
         listing = Listing.model_validate(make_listing() | {"release": {"id": 352665}})
