@@ -17,6 +17,7 @@ from tests.conftest import (
     SpyCache,
     make_artist,
     make_identity,
+    make_inventory_listing,
     make_label,
     make_listing,
     make_paginated_response,
@@ -195,6 +196,20 @@ class TestUserInventory:
         assert params["sort"] == "price"
         assert params["sort_order"] == "desc"
         assert params["status"] == "For Sale"
+
+    async def test_inventory_list_with_empty_shipping_prices(self, client, respx_mock):
+        respx_mock.get("/users/redscroll/inventory").mock(
+            return_value=respx.MockResponse(
+                200,
+                json=make_paginated_response("listings", [make_inventory_listing()]),
+            )
+        )
+        lazy = client.users.get("redscroll")
+        results = [item async for item in lazy.inventory.list()]
+        assert len(results) == 1
+        assert results[0].id == 3254229818
+        assert results[0].shipping_price is None
+        assert results[0].original_shipping_price is None
 
 
 class TestUserNamespace:

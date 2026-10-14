@@ -314,6 +314,32 @@ def make_listing(
     return {"id": id, "status": status, "price": {"value": 9.99, "currency": "USD"}}
 
 
+def make_inventory_listing(id: int = 3254229818) -> dict[str, Any]:
+    """A listing as GET /users/{username}/inventory returns it for a seller with no
+    shipping price: both shipping fields are empty objects (observed 2026-10-14).
+    """
+    return {
+        "id": id,
+        "status": "For Sale",
+        "posted": "2024-09-18T07:13:38-07:00",
+        "price": {"value": 28.69, "currency": "USD"},
+        "original_price": {
+            "curr_abbr": "USD",
+            "curr_id": 1,
+            "formatted": "$28.69",
+            "value": 28.69,
+            "converted": {
+                "curr_abbr": "EUR",
+                "curr_id": 3,
+                "formatted": "\u20ac25.53",
+                "value": 25.53,
+            },
+        },
+        "shipping_price": {},
+        "original_shipping_price": {},
+    }
+
+
 def make_listing_created(listing_id: int = 41578241) -> dict[str, Any]:
     """HTTP 201 body from POST /marketplace/listings (identifier only)."""
     return {

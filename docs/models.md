@@ -67,6 +67,28 @@ print(result.uri)  # 'https://www.discogs.com/release/352665'
 print(result.raw["uri"])  # '/release/352665'
 ```
 
+## Shipping prices
+
+A seller who set no shipping price on a listing sends `"shipping_price": {}` and `"original_shipping_price": {}`
+instead of leaving the keys out or sending `null`. `Listing.shipping_price` and `Listing.original_shipping_price`
+read an empty object as `None`, the same as an absent key, and `raw` keeps the `{}`. A price that is partly filled
+in, such as a `currency` without a `value`, still fails validation:
+
+```python
+from discogs_sdk import Listing
+
+listing = Listing.model_validate(
+    {
+        "id": 41578241,
+        "price": {"currency": "USD", "value": 25.0},
+        "shipping_price": {},
+        "original_shipping_price": {},
+    }
+)
+print(listing.shipping_price)  # None
+print(listing.raw["shipping_price"])  # {}
+```
+
 ## Timestamps
 
 Discogs sends timestamps as strings in several shapes:

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from discogs_sdk.models._common import (
     Condition,
@@ -94,6 +95,10 @@ class Listing(SDKModel):
     ``weight`` are returned only to the listing owner, and ``in_cart`` only to
     an authenticated user, so they stay ``None`` for everyone else.
 
+    ``shipping_price`` and ``original_shipping_price`` are ``None`` when the
+    seller set no shipping price, which Discogs sends as an empty object;
+    ``raw`` keeps it.
+
     ``posted`` is an aware ``datetime`` parsed from ISO 8601 with an offset;
     ``raw["posted"]`` holds the string as sent.
     """
@@ -121,6 +126,16 @@ class Listing(SDKModel):
     status: str | None = None
     uri: str | None = None
     weight: float | None = None
+
+    @field_validator("original_shipping_price", "shipping_price", mode="before")
+    @classmethod
+    def _no_shipping_price(cls, value: object) -> object:
+        # Inventory and single-listing reads send ``{}`` for both shipping fields
+        # when the seller set no shipping price. That is an absent price, not a
+        # price with missing parts; ``raw`` keeps the ``{}`` as sent.
+        if isinstance(value, Mapping) and not value:
+            return None
+        return value
 
 
 class ListingCreated(SDKModel):
