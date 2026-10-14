@@ -3,10 +3,6 @@ set quiet := true
 _list:
     just --list
 
-# Verify the SDK reaches every documented endpoint (add --compare-upstream for the README comparison)
-check-endpoints *args:
-    uv run python scripts/check_endpoint_coverage.py {{ args }}
-
 # Preview release notes for unreleased changes
 changelog-preview:
     uvx git-cliff --unreleased
@@ -18,7 +14,7 @@ deps-unused:
 # Update deps to latest versions
 deps-update:
     uv lock --upgrade
-    uv sync --all-extras --all-groups
+    uv sync --all-groups
 
 # Find dead code
 dead-code:
@@ -27,6 +23,10 @@ dead-code:
 # Check docs/endpoints.md is up to date with the SDK sources
 endpoints-check:
     uv run python scripts/generate_endpoints.py --check
+
+# Verify the SDK reaches every documented endpoint (add --compare-upstream for the README comparison)
+endpoints-coverage *args:
+    uv run python scripts/check_endpoint_coverage.py {{ args }}
 
 # Run formatters
 format:
@@ -38,13 +38,13 @@ format-check:
     uv run pyproject-fmt --check pyproject.toml
     uv run ruff format --check
 
-# Generate docs/endpoints.md (the endpoint-to-SDK-call map) from the SDK sources
-generate-endpoints:
+# Generate docs/endpoints.md (the endpoint-to-SDK-call map) from the SDK sources, then the skill's copy of it
+generate-endpoints: && generate-skill-refs
     uv run python scripts/generate_endpoints.py
 
-# Copy the docs pages the packaged agent skill uses into its references/ (--check to verify)
-generate-skill-refs *args:
-    uv run python scripts/generate_skill_refs.py {{ args }}
+# Copy the docs pages the packaged agent skill uses into its references/
+generate-skill-refs:
+    uv run python scripts/generate_skill_refs.py
 
 # Generate sync code from async sources
 generate-sync:
@@ -126,9 +126,8 @@ release:
 
 # Set local dev environment up
 setup:
-    uv sync --all-extras --all-groups  # Install dependencies
+    uv sync --all-groups  # Install dependencies
     uv run pre-commit install  # Install pre-commit hooks
-    echo "Run 'source .venv/bin/activate' to activate the Python virtual environment"
 
 # Check the agent skill's references/ match the docs pages they copy
 skill-refs-check:
@@ -140,7 +139,7 @@ sync-check:
 
 # Run tests
 test *args:
-    uv run pytest --cov --cov-report=term-missing {{ args }}
+    uv run pytest --cov {{ args }}
 
 # Run authenticated integration tests
 test-integration *args:

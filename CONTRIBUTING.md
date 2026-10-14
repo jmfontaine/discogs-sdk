@@ -42,7 +42,7 @@ them. If you use [direnv](https://direnv.net/), `.envrc` loads `.env` whenever i
 > [!TIP]
 > The task runner is [just](https://github.com/casey/just). If you don't have it installed, you can run the underlying
 > commands directly. Check [`justfile`](justfile) to see what each recipe runs — most are one-line `uv run` commands.
-> For example, `just test` runs `uv run pytest --cov --cov-report=term-missing`.
+> For example, `just test` runs `uv run pytest --cov`.
 
 ## Commands
 
@@ -68,11 +68,11 @@ just verify-types          # Audit public API type completeness; fails below 100
 
 # Generators
 just generate-sync         # Generate _sync/ from _async/
-just generate-endpoints    # Generate docs/endpoints.md from the SDK sources
-just generate-skill-refs   # Copy docs pages into the agent skill's references/ (--check to verify)
+just generate-endpoints    # Generate docs/endpoints.md from the SDK sources, then its copy in the skill's references/
+just generate-skill-refs   # Copy docs pages into the agent skill's references/
 
 # Against the git-ignored API reference copy in reference/discogs_api/ (never run in CI)
-just check-endpoints       # Check the SDK's routes and the documented payloads against reference/discogs_api/
+just endpoints-coverage    # Check the SDK's routes and the documented payloads against reference/discogs_api/
 just update-api-docs       # Compare reference/discogs_api/ with the official reference (--diff, --check, --write)
 
 # Against the live Discogs API (not part of pull request CI)
@@ -114,14 +114,14 @@ Code and docstrings that must differ between the two clients use the generator's
 `docs/endpoints.md` maps each Discogs endpoint to the SDK call that reaches it, one row per verb and route. It is
 generated from the SDK sources (`src/discogs_sdk/_async/` and `src/discogs_sdk/oauth.py`), never by hand nor from the
 API reference, so the `endpoints-check` hook (run by the git hooks, `just qa` and the CI quality job, which also gates
-every release) can fail a stale copy. The packaged agent skill carries a copy of the page in its `references/`. After
-adding or renaming a resource method, run `just generate-endpoints`, then `just generate-skill-refs`, and commit both
-results. The generator stops with an error on a resource class it cannot reach from `client`, so a new resource is
-never left out silently.
+every release) can fail a stale copy. The packaged agent skill carries a copy of the page in its `references/`, which
+`just generate-endpoints` regenerates too. After adding or renaming a resource method, run `just generate-endpoints`
+and commit the result. The generator stops with an error on a resource class it cannot reach from `client`, so a new
+resource is never left out silently.
 
 ### Endpoint coverage
 
-`just check-endpoints` runs two checks against the local API reference in `reference/discogs_api/`:
+`just endpoints-coverage` runs two checks against the local API reference in `reference/discogs_api/`:
 
 - **Routes.** It fails on a documented route the SDK never reaches and on a route the SDK calls that the reference does
   not document. It checks routes only — not query or body parameters, which the reference describes in prose.
@@ -145,7 +145,7 @@ means re-read its sources before trusting the comparison table. Run it before ed
 3. Add its models to `src/discogs_sdk/models/` and export them from `models/__init__.py` and `__init__.py`
 4. Run `just generate-sync` to create the sync source code
 5. Write tests in `tests/async/` and their twins in `tests/sync/`
-6. Run `just generate-endpoints` and `just generate-skill-refs` to update the endpoint map and its skill copy
+6. Run `just generate-endpoints` to update the endpoint map and its skill copy
 
 ## Testing
 
@@ -277,8 +277,7 @@ Before opening a PR, make sure the following are done:
 - [ ] Tests added or updated and passing (`just test`)
 - [ ] `just qa` passes
 - [ ] Sync code regenerated if `_async/` changed (`just generate-sync`)
-- [ ] Endpoint map and its skill copy regenerated if a resource method changed (`just generate-endpoints`,
-      `just generate-skill-refs`)
+- [ ] Endpoint map and its skill copy regenerated if a resource method changed (`just generate-endpoints`)
 - [ ] New public APIs exported from `__init__.py`
 - [ ] The change follows the [design principles](README.md#design-principles)
 

@@ -2,9 +2,9 @@
 """Copy the docs pages the packaged agent skill relies on into its references/.
 
 Usage:
-    just generate-skill-refs           # write the copies
-    just generate-skill-refs --check   # exit 1 when a copy differs from what
-                                       # this script would write
+    just generate-skill-refs   # write the copies (just generate-endpoints runs it too)
+    just skill-refs-check      # exit 1 when a copy differs from what this
+                               # script would write
 
 The skill ships inside the wheel (``discogs_sdk/.agents/skills/discogs-sdk/``),
 so its references must match the installed version. Each copy gets a header
