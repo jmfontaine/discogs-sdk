@@ -1,7 +1,7 @@
 """Authentication — every way to authenticate with the Discogs API.
 
 Covers:
-  - Personal access token (simplest, read + limited write)
+  - Personal access token (simplest, read + write as its owner)
   - Consumer key/secret (app-level, no user context)
   - Full OAuth 1.0a flow (read + write on behalf of a user)
   - Environment variables
@@ -19,6 +19,7 @@ from discogs_sdk.oauth import (
 # Generate at https://www.discogs.com/settings/developers
 # Simplest option.  Good for scripts and personal tools.
 client = Discogs(token="YOUR_PERSONAL_TOKEN")
+client.close()  # release the client's connections once you are done with it
 
 
 # ━━ 2. Consumer key / secret (no user context) ━━━━━━━━━━━━━━━━━━━━
@@ -29,10 +30,12 @@ client = Discogs(
     consumer_key="YOUR_CONSUMER_KEY",
     consumer_secret="YOUR_CONSUMER_SECRET",
 )
+client.close()
 
 
 # ━━ 3. Full OAuth 1.0a flow ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# Required for write operations (marketplace, collection, wantlist).
+# Lets your app act on behalf of any user who authorizes it. A personal
+# token gives the same access, but only to its owner's account.
 #
 # Step 1: Get a request token.
 request_token: RequestToken = get_request_token(
@@ -75,6 +78,7 @@ client = Discogs(
 # Now you can access user-specific endpoints:
 me = client.user.identity()
 print(f"Authenticated as: {me.username}")
+client.close()
 
 
 # ━━ 4. Environment variables ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -88,5 +92,6 @@ print(f"Authenticated as: {me.username}")
 #
 # Just set the env vars and create a bare client:
 client = Discogs()  # picks up credentials from the environment
+client.close()
 
 # Priority order: constructor args > environment variables.

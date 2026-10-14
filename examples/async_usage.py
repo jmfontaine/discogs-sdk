@@ -54,7 +54,7 @@ async def main() -> None:
         async for rel in artist_proxy.releases.list(sort="year"):
             print(f"  {rel.title} ({rel.year})")
 
-        # ── Collection (requires OAuth) ────────────────────────────
+        # ── Collection (needs a personal token or OAuth) ───────────
         user = client.users.get("your_username")
         # Note: user itself is lazy, but sub-resource navigation
         # doesn't need await — only data access does.

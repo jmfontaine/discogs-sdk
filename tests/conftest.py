@@ -6,7 +6,7 @@ import functools
 import json
 import re
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -120,6 +120,16 @@ def exclusive_lock(cache_dir: Path) -> Iterator[None]:
         holder.execute("ROLLBACK")
     finally:
         holder.close()
+
+
+def recording_init(original: Callable[..., None], store: list) -> Callable[..., None]:
+    """Wrap the ``__init__`` *original* to add every instance built to *store*."""
+
+    def init(self, *args, **kwargs) -> None:
+        store.append(self)
+        original(self, *args, **kwargs)
+
+    return init
 
 
 class SpyCache(MemoryCache):

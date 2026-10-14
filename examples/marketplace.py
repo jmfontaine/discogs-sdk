@@ -7,13 +7,13 @@ Covers:
   - Fee lookup
   - User inventory browsing
 
-All write operations require OAuth authentication.
+Writes and orders need a personal token or OAuth.
 """
 
 from discogs_sdk import Discogs
 
-# Reads DISCOGS_CONSUMER_KEY, DISCOGS_CONSUMER_SECRET, DISCOGS_ACCESS_TOKEN,
-# and DISCOGS_ACCESS_TOKEN_SECRET from the environment.
+# Reads DISCOGS_TOKEN, or DISCOGS_CONSUMER_KEY, DISCOGS_CONSUMER_SECRET,
+# DISCOGS_ACCESS_TOKEN and DISCOGS_ACCESS_TOKEN_SECRET, from the environment.
 # You can also pass them explicitly as constructor arguments.
 client = Discogs()
 
@@ -116,3 +116,6 @@ for listing in user.inventory.list(sort="price", sort_order="asc"):
 # Filter by status.
 for listing in user.inventory.list(status="For Sale"):
     print(f"  {listing.id}")
+
+# Release the client's connections.
+client.close()

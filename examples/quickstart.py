@@ -18,11 +18,14 @@ from discogs_sdk import Discogs
 # Option 1 (recommended): set the DISCOGS_TOKEN env var and let the
 # SDK pick it up automatically — avoids hardcoding secrets in code.
 client = Discogs()
+# A client holds open connections: close it once you are done with it.
+client.close()
 
 # Option 2: pass the token explicitly.
 client = Discogs(token="YOUR_TOKEN_HERE")
+client.close()
 
-# Use a context manager so the HTTP client is closed automatically:
+# Better: use a context manager so the HTTP client is closed automatically:
 with Discogs() as client:
     # ── Fetch a release ────────────────────────────────────────────
     # .get() returns a LazyResource — no HTTP request yet.

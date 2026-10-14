@@ -105,3 +105,6 @@ for result in client.search(
 
 # Search returns a paginated iterator.  The SDK fetches the next page
 # automatically when you exhaust the current one.
+
+# Release the client's connections.
+client.close()
