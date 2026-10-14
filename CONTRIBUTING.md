@@ -66,9 +66,9 @@ part of `just qa`, because that reference copy is git-ignored and so is absent i
 
 `docs/endpoints.md` maps each Discogs endpoint to the SDK call that reaches it, one row per verb and route. It is
 generated from the SDK sources alone, never from the reference, so `just endpoints-check` (part of `just qa`, and a
-step in the CI and publish quality jobs) can fail a stale copy. After adding or renaming a resource method, run
-`just generate-endpoints` and commit the result. The generator stops with an error on a resource class it cannot
-reach from `client`, so a new resource is never left out silently.
+step in the CI quality job, which also gates every release) can fail a stale copy. After adding or renaming a resource
+method, run `just generate-endpoints` and commit the result. The generator stops with an error on a resource class it
+cannot reach from `client`, so a new resource is never left out silently.
 
 Adding `--compare-upstream` runs drift probes against a fresh clone of `python3-discogs-client`: markers that must
 stay present, or substrings that must stay absent, in its sources. They are signals, not proof — a firing probe
