@@ -73,10 +73,19 @@ pre-commit-update:
 # Run all quality assurance checks
 qa: dead-code deps-unused endpoints-check format-check lint skill-refs-check sync-check type-check verify-types
 
-# Tag, push, and monitor the publish workflow
+# Tag the merged origin/main, push the tag, and monitor the publish workflow
 release:
     #!/usr/bin/env bash
     set -euo pipefail
+    # Only the merged version bump may be tagged: a squash merge creates a new commit,
+    # so a tag on the release branch would name a commit that never reaches main.
+    echo "Fetching origin/main..."
+    git fetch --quiet origin main
+    if [ "$(git rev-parse HEAD)" != "$(git rev-parse refs/remotes/origin/main)" ]; then
+        echo "Error: HEAD is not origin/main. Merge the release pull request, then run" \
+            "'git checkout main && git pull --ff-only' and rerun 'just release'."
+        exit 1
+    fi
     version=$(uv run python -c "import tomllib, pathlib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
     tag="v${version}"
     if git rev-parse "$tag" >/dev/null 2>&1; then
@@ -89,8 +98,8 @@ release:
     fi
     echo "Creating signed tag $tag..."
     git tag -s "$tag" -m "Release $tag"
-    echo "Pushing main and $tag to origin..."
-    git push origin main "$tag"
+    echo "Pushing $tag to origin..."
+    git push origin "$tag"
     # The push above is irreversible: from here on, never push again, and tell the
     # user not to rerun this recipe if something fails.
     poll_interval=5

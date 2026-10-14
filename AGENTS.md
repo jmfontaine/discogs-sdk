@@ -34,7 +34,7 @@ just test-unauthenticated # Run credential-free integration tests
 just verify-types       # Audit public API type annotation coverage (informational, not a gate)
 just verify-oauth       # Verify OAuth flow interactively
 just update-api-docs    # Compare reference/discogs_api/ with the official reference (writes only with --write)
-just release            # Tag, push, and monitor the publish workflow
+just release            # Tag the merged origin/main, push the tag, and monitor the publish workflow
 just pre-commit         # Run pre-commit hooks on all files
 just pre-commit-install # Install pre-commit hooks
 just pre-commit-update  # Update pre-commit hooks to latest versions
@@ -339,10 +339,16 @@ Authenticated requests that lack permission (e.g., accessing another user's priv
 
 Publishing is fully automated via CI. The `publish.yml` workflow triggers on `v*` tag push.
 
-1. Update `version` in `pyproject.toml`, then run `just generate-skill-refs`: the skill's references pin their links
-   to the new tag
-2. Commit the version bump with the regenerated references
-3. Run `just release` — creates a signed tag, pushes, and monitors the workflow
+1. On a `release/vX.Y.Z` branch, update `version` in `pyproject.toml`, then run `just generate-skill-refs`: the
+   skill's references pin their links to the new tag. Commit the version bump with the regenerated references
+2. Open the pull request and squash-merge it
+3. Run `git checkout main && git pull --ff-only`
+4. Run `just release` — fetches `origin/main` and refuses to go on unless `HEAD` is that commit, then creates a
+   signed tag, pushes only the tag, and monitors the workflow
+
+The workflow's first job, the tag guard, fails the run before anything is built unless the tag minus its `v` equals
+`project.version` in `pyproject.toml` and the tagged commit is an ancestor of `origin/main`, so a tag pushed by hand
+from anywhere else publishes nothing.
 
 The push is the point of no return, and the recipe's "tag already exists" guard refuses a rerun once the
 tag exists. After pushing, it polls `gh run list` every 5 seconds, for up to 2 minutes, until the
