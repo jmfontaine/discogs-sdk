@@ -24,7 +24,7 @@ repos:
         name: ruff format
         entry: uv run ruff format --force-exclude
         language: system
-        # The file types of the upstream ruff-pre-commit hooks these replace.
+        # The same file types as the upstream ruff hooks these replace.
         types_or: [python, pyi, jupyter, markdown]
         require_serial: true
 
