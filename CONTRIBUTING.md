@@ -28,6 +28,7 @@ invented data, no default caps, and undocumented API behaviour kept out of the c
 git clone https://github.com/jmfontaine/discogs-sdk.git
 cd discogs-sdk
 just setup
+cp .env.example .env
 ```
 
 `just setup` needs only [uv](https://docs.astral.sh/uv/) and
@@ -35,49 +36,68 @@ just setup
 declared in the `dev` dependency group — and then installs the git hooks. Every recipe invokes pre-commit through
 `uv run`, so no global installation is required.
 
+`.env` holds the credentials the [integration tests](#integration-tests) read; its values can stay empty until you run
+them. If you use [direnv](https://direnv.net/), `.envrc` loads `.env` whenever it exists: run `direnv allow` once.
+
 > [!TIP]
 > The task runner is [just](https://github.com/casey/just). If you don't have it installed, you can run the underlying
 > commands directly. Check [`justfile`](justfile) to see what each recipe runs — most are one-line `uv run` commands.
 > For example, `just test` runs `uv run pytest --cov --cov-report=term-missing`.
 
-## Development workflow
+## Commands
 
-Key commands:
+Every recipe, as `just --list` shows them:
 
 ```bash
-just check-endpoints    # Verify every documented endpoint is reachable
-just endpoints-check    # Verify docs/endpoints.md is up to date without regenerating
-just format             # Auto-format code
-just generate-endpoints # Regenerate docs/endpoints.md from the SDK sources
-just generate-sync      # Regenerate _sync/ from _async/ sources
-just lint-fix           # Auto-fix lint issues
-just qa                 # All checks: every pre-commit hook on all files, then verify-types
-just sync-check         # Verify _sync/ is up to date without regenerating
-just test               # Unit tests with coverage (fast, no network)
-just type-check         # Run type checker
-```
+# Everyday
+just test                  # Unit tests with coverage (fast, no network)
+just qa                    # All checks: every pre-commit hook on all files, then verify-types
+just format                # Run the formatters (pyproject-fmt, ruff format)
+just lint-fix              # Fix lint issues (ruff check --fix)
 
-Run `just --list` to see all available commands.
+# One check at a time (each also runs in just qa)
+just dead-code             # Find dead code (deadcode, pinned in scripts/check_dead_code.sh)
+just deps-unused           # Check for unused or undeclared dependencies (deptry)
+just endpoints-check       # Check docs/endpoints.md is up to date with the SDK sources
+just format-check          # Check formatting without modifying files
+just lint                  # Run the linter (ruff check)
+just skill-refs-check      # Check the agent skill's references/ match the docs pages they copy
+just sync-check            # Check _sync/ is up to date with _async/
+just type-check            # Run the type checker (ty)
+just verify-types          # Audit public API type completeness; fails below 100%
+
+# Generators
+just generate-sync         # Generate _sync/ from _async/
+just generate-endpoints    # Generate docs/endpoints.md from the SDK sources
+just generate-skill-refs   # Copy docs pages into the agent skill's references/ (--check to verify)
+
+# Against the git-ignored API reference copy in reference/discogs_api/ (never run in CI)
+just check-endpoints       # Check the SDK's routes and the documented payloads against reference/discogs_api/
+just update-api-docs       # Compare reference/discogs_api/ with the official reference (--diff, --check, --write)
+
+# Against the live Discogs API (not part of pull request CI)
+just test-integration      # Authenticated integration tests (needs DISCOGS_TOKEN)
+just test-unauthenticated  # Integration tests that use no credentials
+just verify-oauth          # Walk through the OAuth flow interactively
+
+# Maintenance
+just setup                 # Install dependencies and the git hooks
+just deps-update           # Upgrade uv.lock to the latest versions and sync
+just pre-commit            # Run every pre-commit hook on all files
+just pre-commit-install    # Install the git hooks
+just pre-commit-update     # Update the remote pre-commit hooks (the local ones use the uv.lock versions)
+just changelog-preview     # Preview release notes for unreleased changes
+just release               # Maintainers only: tag the merged origin/main and publish it
+```
 
 `just qa` runs every hook in `.pre-commit-config.yaml` against all files, then `just verify-types` (the
 type-completeness audit of the whole package, which is not a hook). The CI quality job runs the same two. Hooks that
 fix files (ruff, pyproject-fmt, whitespace) apply their fixes and fail, so run `just qa` again after reviewing what
 they changed.
 
-`just check-endpoints` compares the routes the SDK calls against the local API reference in `reference/discogs_api/`,
-failing on a documented route the SDK never reaches and on a route the SDK calls that the reference does not
-document. It checks routes only — not query or body parameters, which the reference describes in prose. It is not
-part of `just qa`, because that reference copy is git-ignored and so is absent in CI.
+`just release` follows the release steps in [AGENTS.md](AGENTS.md#releasing).
 
-`docs/endpoints.md` maps each Discogs endpoint to the SDK call that reaches it, one row per verb and route. It is
-generated from the SDK sources alone, never from the reference, so the `endpoints-check` hook (run by the git hooks,
-`just qa` and the CI quality job, which also gates every release) can fail a stale copy. After adding or renaming a
-resource method, run `just generate-endpoints` and commit the result. The generator stops with an error on a resource
-class it cannot reach from `client`, so a new resource is never left out silently.
-
-Adding `--compare-upstream` runs drift probes against a fresh clone of `python3-discogs-client`: markers that must
-stay present, or substrings that must stay absent, in its sources. They are signals, not proof — a firing probe
-means re-read its sources before trusting the comparison table. Run it before editing that table.
+## Development workflow
 
 ### Async-first architecture
 
@@ -86,22 +106,55 @@ means re-read its sources before trusting the comparison table. Run it before ed
 > Never edit them directly — your changes will be overwritten. Edit the `_async/`
 > originals instead, then run `just generate-sync`.
 
+Code and docstrings that must differ between the two clients use the generator's directives, described in
+[AGENTS.md](AGENTS.md#async-first-generate-sync).
+
+### Endpoint map
+
+`docs/endpoints.md` maps each Discogs endpoint to the SDK call that reaches it, one row per verb and route. It is
+generated from the SDK sources (`src/discogs_sdk/_async/` and `src/discogs_sdk/oauth.py`), never by hand nor from the
+API reference, so the `endpoints-check` hook (run by the git hooks, `just qa` and the CI quality job, which also gates
+every release) can fail a stale copy. The packaged agent skill carries a copy of the page in its `references/`. After
+adding or renaming a resource method, run `just generate-endpoints`, then `just generate-skill-refs`, and commit both
+results. The generator stops with an error on a resource class it cannot reach from `client`, so a new resource is
+never left out silently.
+
+### Endpoint coverage
+
+`just check-endpoints` runs two checks against the local API reference in `reference/discogs_api/`:
+
+- **Routes.** It fails on a documented route the SDK never reaches and on a route the SDK calls that the reference does
+  not document. It checks routes only — not query or body parameters, which the reference describes in prose.
+- **Payloads.** Every JSON example in the reference must be claimed by an `Example` in `tests/documented_payloads.py`
+  (a payload, envelope or error), and no two payloads may claim the same example at the same path. A claimed payload
+  must have the example's keys, give or take the `extra_keys` it declares; dynamic payloads, envelopes and errors are
+  checked structurally. The rules are in the docstring of `scripts/check_endpoint_coverage.py`. After refreshing the
+  reference (`just update-api-docs --write`), a new example shows up as `UNCLAIMED`: register it there.
+
+It is not part of `just qa`, because that reference copy is git-ignored and so is absent in CI.
+
+Adding `--compare-upstream` runs drift probes against a fresh clone of `python3-discogs-client`: markers that must
+stay present, or substrings that must stay absent, in its sources. They are signals, not proof — a firing probe
+means re-read its sources before trusting the comparison table. Run it before editing that table.
+
 ### Adding a new resource
 
 1. Add the resource to `src/discogs_sdk/_async/resources/`
-2. Wire it into `src/discogs_sdk/_async/_client.py`
-3. Add models to `src/discogs_sdk/models/`, export from `models/__init__.py` and `__init__.py`
-4. Write tests in `tests/async/` and `tests/sync/`
-5. Run `just generate-sync` to create the sync source code
+2. Wire it into `src/discogs_sdk/_async/_client.py`. Resource classes are reached through the client and are not
+   exported
+3. Add its models to `src/discogs_sdk/models/` and export them from `models/__init__.py` and `__init__.py`
+4. Run `just generate-sync` to create the sync source code
+5. Write tests in `tests/async/` and their twins in `tests/sync/`
+6. Run `just generate-endpoints` and `just generate-skill-refs` to update the endpoint map and its skill copy
 
 ## Testing
 
 ### Unit tests
 
 ```bash
-just test                                          # All unit tests
-just test tests/async/test_releases.py             # Single file
-just test tests/async/test_releases.py -k test_get # Single test
+just test                                                              # All unit tests
+just test tests/async/test_releases.py                                 # Single file
+just test tests/async/test_releases.py -k test_get_resolves_to_release # Single test
 ```
 
 Unit tests use [respx](https://github.com/lundberg/respx) to mock HTTP at the transport level. They never hit the
@@ -112,8 +165,11 @@ network.
 Integration tests run against the real Discogs API. They are excluded from `just test` and only run explicitly:
 
 ```bash
-just test-integration
+just test-integration      # Authenticated tests: personal token, and OAuth when its tokens are set
+just test-unauthenticated  # Tests that send no credentials at all
 ```
+
+`just test-integration` needs `DISCOGS_TOKEN`; `just test-unauthenticated` needs nothing.
 
 **Use a disposable test account.** Some of these tests mutate account data: they add and remove collection
 instances, wantlist entries and folders. They only touch what they create and skip a wantlist entry that already
@@ -130,7 +186,7 @@ account whose collection, wantlist or inventory you care about.
 DISCOGS_TOKEN=your_token_here
 ```
 
-If you use [direnv](https://direnv.net/), the `.envrc` already loads `.env` automatically.
+With direnv, run `direnv allow` (or `direnv reload`) to pick up the change.
 
 #### OAuth token setup
 
@@ -187,12 +243,18 @@ From then on, `just test-integration` automatically runs both the personal token
 
 #### Rate limits
 
-The Discogs API allows 60 authenticated requests per minute. The integration test suite uses ~30 calls with a
-session-scoped client, so it stays well within the limit. Avoid running the suite in a tight loop.
+The Discogs API allows 60 authenticated requests per minute, and 25 per minute per IP address without credentials.
+
+- The authenticated suite has 32 tests sharing one session-scoped client, and `tests/integration/conftest.py` budgets
+  it at under 40 calls. Every read-back of a write polls through `eventually()`, though, which retries its check (up
+  to six attempts, each of which can send several requests, as `tests/integration/test_wantlist.py` explains) while
+  the write is not yet visible, so a slow run spends more. Avoid running the suite in a tight loop.
+- **Keep the two recipes apart.** The anonymous limit is per IP and the authenticated calls use it up, so running
+  `just test-unauthenticated` within a minute of `just test-integration` makes the anonymous tests fail with 429.
 
 ## Code style
 
-- Python 3.10+, ruff targets py310 to match `requires-python`, line length 88
+- Python 3.10+ (CI tests through 3.15), ruff targets py310 to match `requires-python`, line length 88
 - Formatting and linting handled by ruff (`just format`, `just lint-fix`)
 - Type checking with ty (`just type-check`)
 - Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/): `<type>: <description>`
@@ -200,7 +262,9 @@ session-scoped client, so it stays well within the limit. Avoid running the suit
 
 ## Submitting a pull request
 
-1. Fork the repo and create a branch from `main` (e.g., `fix/rate-limit-retry`, `feat/add-list-items`)
+1. Fork the repo and create a branch from `main` named `<type>/issue-<N>-<slug>` for an issue, otherwise
+   `<type>/<slug>`, where `<type>` is the Conventional Commits type of the change (e.g., `fix/issue-42-rate-limit-retry`,
+   `feat/add-list-items`)
 2. Make your changes — if touching `_async/`, run `just generate-sync`
 3. Add or update tests
 4. Run `just qa` to catch issues before CI does
@@ -213,7 +277,8 @@ Before opening a PR, make sure the following are done:
 - [ ] Tests added or updated and passing (`just test`)
 - [ ] `just qa` passes
 - [ ] Sync code regenerated if `_async/` changed (`just generate-sync`)
-- [ ] Endpoint map regenerated if a resource method changed (`just generate-endpoints`)
+- [ ] Endpoint map and its skill copy regenerated if a resource method changed (`just generate-endpoints`,
+      `just generate-skill-refs`)
 - [ ] New public APIs exported from `__init__.py`
 - [ ] The change follows the [design principles](README.md#design-principles)
 
