@@ -54,6 +54,7 @@ from tests.conftest import (
     make_user,
     make_user_release_rating,
     make_want,
+    recording_init,
 )
 
 
@@ -183,17 +184,24 @@ def _sent(router: MockRouter) -> list[Sent]:
 
 @pytest.fixture
 def run_example(monkeypatch) -> Callable[[str], None]:
-    """Run ``examples/<name>`` as a script with a fake token and silenced stdout."""
+    """Run ``examples/<name>`` as a script with a fake token and silenced stdout.
+
+    Every ``Discogs`` the script builds must be closed by the time it returns.
+    """
     monkeypatch.setenv("DISCOGS_TOKEN", "example-token")
+    built: list[Discogs] = []
+    monkeypatch.setattr(Discogs, "__init__", recording_init(Discogs.__init__, built))
 
     def run(name: str) -> None:
         with contextlib.redirect_stdout(io.StringIO()):
-            namespace = runpy.run_path(str(EXAMPLES_DIR / name))
-        # The examples end without closing their clients; close the ones still
-        # bound, so advanced.py's SQLite cache does not outlive the test.
-        for value in namespace.values():
-            if isinstance(value, Discogs):
-                value.close()
+            runpy.run_path(str(EXAMPLES_DIR / name))
+        assert built, f"{name} built no Discogs client"
+        left_open = [
+            index
+            for index, client in enumerate(built)
+            if not client._http_client.is_closed
+        ]
+        assert left_open == [], f"{name} left clients open (0-based build order)"
 
     return run
 

@@ -88,6 +88,9 @@ except DiscogsConnectionError as exc:
 except DiscogsError:
     print("Unexpected SDK error")
 
+# Close a client once you are done with it, to release its connections.
+client.close()
+
 
 # ━━ Retry behavior ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Reads (GET) are retried on 429, 500, 502, 503 and 504, and on network
@@ -103,11 +106,13 @@ client = Discogs(
     max_retries=5,  # increase retries for flaky connections
     timeout=60.0,  # seconds per request
 )
+client.close()
 
 
 # ━━ Response caching ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # In-memory cache with 1-hour TTL (default):
 cached_client = Discogs(token="YOUR_TOKEN_HERE", cache=True)
+cached_client.close()
 
 # Custom TTL (5 minutes) and SQLite persistence. The database holds your private
 # responses, so keep it in a directory only you can read, never under /tmp:
@@ -141,6 +146,9 @@ with cached_client.cache_only():
 # Purge all cached responses:
 cached_client.clear_cache()
 
+# Closing a client also closes the cache it built, SQLite database included.
+cached_client.close()
+
 
 # ━━ Request events and rate-limit budget ━━━━━━━━━━━━━━━━━━━━━━━━━━
 # on_request receives one RequestEvent per logical request, before the call
@@ -162,6 +170,8 @@ _ = observed.artists.get(3857).name  # cache event, attempts=0
 # live response. Cache hits never touch it; it is None before the first one.
 if observed.ratelimit and observed.ratelimit.remaining < 10:
     print(f"Only {observed.ratelimit.remaining} requests left this minute")
+
+observed.close()
 
 
 # ━━ Custom cache backend ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -202,6 +212,7 @@ class DictCache(ResponseCache):
 
 # Pass the custom cache instance directly:
 client = Discogs(token="YOUR_TOKEN_HERE", cache=DictCache())
+client.close()  # leaves the cache alone: a cache you pass in is yours to close
 
 
 # ━━ Custom User-Agent ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -210,6 +221,7 @@ client = Discogs(token="YOUR_TOKEN_HERE", cache=DictCache())
 client = Discogs(
     token="YOUR_TOKEN_HERE", user_agent="MyApp/1.0 +https://myapp.example.com"
 )
+client.close()
 
 
 # ━━ Custom httpx2 client ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -290,7 +302,7 @@ user = client.users.get("jmfontaine")
 print(f"{user.username}: {user.name}")
 print(f"Location: {user.location}")
 
-# Update your own profile (requires OAuth).
+# Update your own profile (needs a personal token or OAuth).
 client.users.get("your_username").update(
     name="New Display Name",
     location="Brooklyn, NY",
@@ -312,3 +324,5 @@ for artist in user.submissions.artists.list():
 
 for label in user.submissions.labels.list():
     print(f"  {label.name}")
+
+client.close()

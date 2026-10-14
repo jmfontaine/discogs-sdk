@@ -52,6 +52,7 @@ from tests.conftest import (
     make_search_result,
     make_want,
     mock_router,
+    recording_init,
 )
 from tests.documented_payloads import ARTIST, RELEASE
 
@@ -135,14 +136,6 @@ class _Tracked:
     caches: list[ResponseCache] = field(default_factory=list)
 
 
-def _recording_init(original: Callable[..., None], store: list) -> Callable[..., None]:
-    def init(self, *args, **kwargs) -> None:
-        store.append(self)
-        original(self, *args, **kwargs)
-
-    return init
-
-
 @contextmanager
 def _tracking(monkeypatch: pytest.MonkeyPatch) -> Iterator[_Tracked]:
     """Record every client and cache built inside; close them all on the way out."""
@@ -152,7 +145,7 @@ def _tracking(monkeypatch: pytest.MonkeyPatch) -> Iterator[_Tracked]:
         (AsyncDiscogs, tracked.async_clients),
         (ResponseCache, tracked.caches),
     ):
-        monkeypatch.setattr(cls, "__init__", _recording_init(cls.__init__, store))
+        monkeypatch.setattr(cls, "__init__", recording_init(cls.__init__, store))
     try:
         yield tracked
     finally:

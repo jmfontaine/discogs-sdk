@@ -9,13 +9,13 @@ Covers:
   - Collection value
   - Wantlist CRUD
 
-All operations require OAuth authentication and target a specific user.
+All operations need a personal token or OAuth and target a specific user.
 """
 
 from discogs_sdk import Discogs
 
-# Reads DISCOGS_CONSUMER_KEY, DISCOGS_CONSUMER_SECRET, DISCOGS_ACCESS_TOKEN,
-# and DISCOGS_ACCESS_TOKEN_SECRET from the environment.
+# Reads DISCOGS_TOKEN, or DISCOGS_CONSUMER_KEY, DISCOGS_CONSUMER_SECRET,
+# DISCOGS_ACCESS_TOKEN and DISCOGS_ACCESS_TOKEN_SECRET, from the environment.
 # You can also pass them explicitly as constructor arguments.
 client = Discogs()
 
@@ -141,3 +141,6 @@ user.wantlist.update(352665, notes="Looking for original US pressing", rating=4)
 
 # Remove from wantlist.
 user.wantlist.delete(352665)
+
+# Release the client's connections.
+client.close()
