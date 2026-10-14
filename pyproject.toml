@@ -4,7 +4,7 @@ requires = [ "uv-build>=0.10.3,<0.14" ]
 
 [project]
 name = "discogs-sdk"
-version = "0.8.0"
+version = "0.8.1"
 description = "Modern Python client for the Discogs API"
 readme = "README.md"
 keywords = [ "api", "discogs", "music", "python", "sdk" ]
