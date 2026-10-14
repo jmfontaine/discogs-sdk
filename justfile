@@ -137,9 +137,12 @@ skill-refs-check:
 sync-check:
     uv run python scripts/generate_sync.py --check
 
+# `--cov` takes an optional source, so `--cov-config` follows it to keep a first argument such as a test path from
+# being read as one; [tool.coverage] in pyproject.toml sets the source and the missing-lines column.
+
 # Run tests
 test *args:
-    uv run pytest --cov {{ args }}
+    uv run pytest --cov --cov-config=pyproject.toml {{ args }}
 
 # Run authenticated integration tests
 test-integration *args:

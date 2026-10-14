@@ -42,7 +42,7 @@ them. If you use [direnv](https://direnv.net/), `.envrc` loads `.env` whenever i
 > [!TIP]
 > The task runner is [just](https://github.com/casey/just). If you don't have it installed, you can run the underlying
 > commands directly. Check [`justfile`](justfile) to see what each recipe runs — most are one-line `uv run` commands.
-> For example, `just test` runs `uv run pytest --cov`.
+> For example, `just test` runs `uv run pytest --cov --cov-config=pyproject.toml`.
 
 ## Commands
 
