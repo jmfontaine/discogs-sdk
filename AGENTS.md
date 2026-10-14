@@ -198,8 +198,9 @@ Embedded objects like `SubLabel`, `ArtistCredit`, and `LabelCredit` stay minimal
   `PAGES` in `scripts/generate_skill_refs.py`: never edit it by hand. Regenerate after editing one of those pages and
   after every version bump, since links into the other pages are pinned to `v<project.version>`; `just qa` and the CI
   quality job check them (the `skill-refs-check` hook). The generator rewrites only bare inline links
-  (`[text](target)`), so copied pages use no other link form. A new reference also goes in `SKILL_FILES` in
-  `scripts/check_distributions.py` and `scripts/check_installed_package.py`, and gets a line in `SKILL.md`
+  (`[text](target)`), so copied pages use no other link form. A new reference goes in `PAGES` and gets a line in
+  `SKILL.md`; the release checks (`scripts/check_distributions.py`, `scripts/check_installed_package.py`) build their
+  file lists from `PAGES`
 
 ## Discogs API Documentation
 
