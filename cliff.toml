@@ -1,4 +1,6 @@
 [changelog]
+# Not git-cliff's default, which is no header: an empty one starts the notes
+# with a blank line, as every release so far has.
 header = ""
 body = """
 {% for group, commits in commits | group_by(attribute="group") %}
@@ -11,12 +13,8 @@ body = """
     {%- endfor %}
 {% endfor %}
 """
-trim = true
 
 [git]
-conventional_commits = true
-filter_unconventional = true
-split_commits = false
 commit_parsers = [
     { message = "^feat", group = "Features" },
     { message = "^fix", group = "Bug Fixes" },
@@ -26,9 +24,7 @@ commit_parsers = [
     { message = "^style", group = "Styling" },
     { message = "^test", group = "Testing" },
     { message = "^chore|^ci|^build", group = "Miscellaneous Tasks" },
+    # Every other type, such as revert, so no conventional commit is left out.
+    { message = ".*", group = "Other" },
 ]
-filter_commits = false
 tag_pattern = "v[0-9].*"
-
-[git.filter]
-exclude_patterns = ["^Merge"]

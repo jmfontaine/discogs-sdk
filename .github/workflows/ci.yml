@@ -39,7 +39,7 @@ jobs:
           # race to reserve it, which logs a warning in whichever loses.
           cache-suffix: ${{ github.job }}
       - name: Install dependencies
-        run: uv sync --locked --all-extras --all-groups
+        run: uv sync --locked --all-groups
       - name: Run the pre-commit checks
         # The one list of fast checks, shared with `just qa` and the git hooks.
         # Hooks that fix files fail here when they change something, and the
@@ -64,9 +64,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache-suffix: ${{ github.job }}
       - name: Install dependencies
-        run: uv sync --locked --all-extras --all-groups
+        run: uv sync --locked --all-groups
       - name: Run tests
-        run: uv run pytest --cov --cov-report=term-missing
+        run: uv run pytest --cov
 
   lowest:
     name: Lowest direct deps (Python ${{ matrix.python-version }})
@@ -91,7 +91,7 @@ jobs:
         # The lockfile always resolves newest, so the floors in pyproject.toml
         # are otherwise never exercised. Note this rewrites uv.lock in the
         # runner; never run it in a working tree you care about.
-        run: uv sync --all-extras --all-groups --resolution lowest-direct
+        run: uv sync --all-groups --resolution lowest-direct
       - name: Run tests
         # `--frozen` is required: plain `uv run` sees a `lowest-direct` lock
         # while defaulting to `highest`, re-resolves, and quietly reinstalls the

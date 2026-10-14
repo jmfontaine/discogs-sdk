@@ -3,7 +3,6 @@
   "projectTitle": "discogs-sdk",
   "description": "Typed Python SDK for the Discogs API v2 (PyPI: discogs-sdk, import discogs_sdk), with sync and async clients, lazy loading, auto-paging iterators, bounded retries and optional response caching.",
   "folders": ["docs"],
-  "excludeFolders": ["./reference", "./tests", "./scripts", "./src"],
   "excludeFiles": [
     "AGENTS.md",
     "CLAUDE.md",
