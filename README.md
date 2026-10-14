@@ -107,17 +107,19 @@ asyncio.run(main())
 
 - **Lazy loading.** `.get()` sends no request; the first data attribute access does, and that is where
   `NotFoundError` is raised. [More](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/getting-started.md#lazy-loading)
-- **Async.** `await` a proxy for its data and use `async for` on pages. Awaiting returns the model, which has no
-  sub-resources, so keep the proxy to chain (`artist_proxy.releases.list()`).
-  [More](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/getting-started.md#async-proxies)
-- **Pagination cost.** `search()` and most `.list()` methods fetch pages on demand. Each page is a GET against the rate
-  limit (60/min authenticated, 25/min anonymous); a cache hit costs nothing (one request if the entry no longer parses)
-  and retries can cost more.
-  [More](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/pagination.md)
-- **Retries.** Reads retry; a mutation is never replayed after an ambiguous failure.
-  [More](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/errors-and-retries.md#settling-an-ambiguous-write)
-- **Caching.** Off by default; only `GET`/`HEAD` are cached; a successful write clears the cache.
-  [More](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/caching.md)
+- **Async.** `await` a proxy for its model, which has no sub-resources, so keep the proxy to chain and use `async for`
+  on pages. [More](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/getting-started.md#async-proxies)
+- **Pagination cost.** `search()` and paginated `.list()` methods fetch one page per GET as you iterate, each against
+  the rate limit unless the cache serves it, so `break` once you have enough.
+  [More](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/getting-started.md#pagination-cost)
+- **Retries.** Reads retry on rate limits and transient failures, honouring `Retry-After` up to 60 seconds.
+  [More](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/getting-started.md#retries)
+- **Writes.** A mutation is never replayed after an ambiguous failure, so settle its outcome by reading, never by
+  resubmitting. [More](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/getting-started.md#writes)
+- **Caching.** Off by default; only `GET`/`HEAD` responses are cached, and a successful write clears the cache.
+  [More](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/getting-started.md#caching)
+- **Field names.** Models use Python names for cryptic API keys (`catalog_number` for `catno`), and `model.raw` keeps
+  what Discogs sent. [More](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/getting-started.md#field-names)
 
 ## Design principles
 
@@ -191,11 +193,11 @@ A `date` means the start of that day in UTC; a `datetime` must be timezone-aware
 
 The full guide lives in [`docs/`](https://github.com/jmfontaine/discogs-sdk/tree/main/docs):
 
-- [Getting started](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/getting-started.md) — behaviors to know, installation, fetching, search, sub-resources, async usage
+- [Getting started](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/getting-started.md) — behaviors to know, installation, fetching resources, search, sub-resources, async usage
 - [Pagination](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/pagination.md) — what a page costs, stopping early, fetching one page, page attributes
 - [Authentication](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/authentication.md) — personal token, consumer key/secret, OAuth 1.0a, credential precedence
 - [Collection and marketplace](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/collection-and-marketplace.md) — folders, instances, wantlist, listings, orders
-- [Errors and retries](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/errors-and-retries.md) — rate limits, retries, the exception hierarchy
+- [Errors and retries](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/errors-and-retries.md) — rate limits, retries, settling an ambiguous write, the exception hierarchy
 - [Configuration](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/configuration.md) — every client parameter
 - [Caching](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/caching.md) — the response cache, `no_cache()`, `cache_only()`, custom backends
 - [Observability](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/observability.md) — `client.ratelimit` and `on_request` events
@@ -203,7 +205,7 @@ The full guide lives in [`docs/`](https://github.com/jmfontaine/discogs-sdk/tree
 - [Custom HTTP clients](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/http-clients.md) — injecting an `httpx2` client
 - [Models](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/models.md) — field naming, search result links, timestamps, original API values
 - [Migrating from python3-discogs-client](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/migrating-from-python3-discogs-client.md) — idiom-by-idiom translation and behaviour differences
-- [Endpoint map](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/endpoints.md) — which SDK call reaches which Discogs endpoint
+- [Endpoint map](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/endpoints.md) — which SDK call reaches which Discogs endpoint, with verbs, access chains and return types
 - [AI coding agents](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/ai-agents.md) — installing the packaged agent skill, and a rules snippet for other agents
 
 ## Examples

@@ -79,7 +79,7 @@ print(created.listing_id)
 **Lazy loading.** Both libraries defer the request, but `client.releases.get(352665)` sends nothing at all: the first
 data attribute access sends the GET, and that is where `NotFoundError` is raised, so put the `try` around the
 attribute access. With `AsyncDiscogs`, `await` the proxy instead. See
-[Behaviors to know](https://github.com/jmfontaine/discogs-sdk/blob/v0.8.0/docs/getting-started.md#lazy-loading).
+[Behaviors to know](getting-started.md#lazy-loading).
 
 **Iteration instead of `.page(n)`.** A page has no `.page(n)`, `.pages` or `.count`, and no `len()` or indexing.
 Iterate it, and `break` once you have enough; each page costs a request against the rate limit. `per_page` sets the

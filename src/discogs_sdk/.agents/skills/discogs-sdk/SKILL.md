@@ -20,29 +20,30 @@ skill ships inside the installed package, so it matches that version.
    Take the token from `DISCOGS_TOKEN`; never hard-code it.
 3. **Lazy loading.** `.get()` sends no request. Catch `NotFoundError` around resolution (the first data access, or a
    subscription in the sync client where the model supports it), not around `.get()`. Sub-resource accessors such as
-   `.rating` or `.releases` do not fetch the parent.
+   `.rating` or `.releases` do not fetch the parent. See
+   [references/getting-started.md](references/getting-started.md#lazy-loading).
 4. **Async.** Use `AsyncDiscogs`, `await` a proxy for its data and `async for` over pages. `await` returns a model,
-   which has no sub-resources: keep the proxy for chaining.
-5. **Pagination.** Paginated methods (`search()` and the `.list()` methods returning `SyncPage`/`AsyncPage`) fetch
-   pages on demand. Each page starts a logical GET: a cache hit sends no network request (one, if the cached entry no
-   longer parses), and retries can send several. Each network attempt consumes the applicable budget (60/min
-   authenticated, 25/min anonymous). These
-   methods accept `per_page`, have no `len()` or slicing, and populate `total_items`/`total_pages` from the first
-   fetched response when it supplies them. `collection.folders.list()` and `collection.fields.list()` each make one
-   logical GET and return a plain list. `break` early; never `list()` a large result set. For exactly one page at a
-   fixed cost, pass `page`/`per_page` and call `.fetch()`: one logical GET returning a `PageResult`, iteration untouched.
+   which has no sub-resources: keep the proxy for chaining. See
+   [references/getting-started.md](references/getting-started.md#async-proxies).
+5. **Pagination.** Iterate `search()` and paginated `.list()` methods with a `per_page` that fits (up to 100); they
+   have no `len()` or slicing. `break` early; never `list()` a large result set. For exactly one page at a fixed cost,
+   pass `page`/`per_page` and call `.fetch()`, which returns a `PageResult` and leaves iteration untouched. What each
+   page costs: [references/pagination.md](references/pagination.md#what-a-page-costs).
 6. **Rate limits.** The SDK does not pace requests. Check `client.ratelimit is not None` before reading `.remaining`;
    the value is a pacing hint, not an atomic budget shared across concurrent work. Do not wrap reads in another retry
-   layer: reads already retry.
+   layer: reads already retry. See
+   [references/errors-and-retries.md](references/errors-and-retries.md#rate-limits-and-retries).
 7. **Writes.** After an ambiguous failure (a timeout, a dropped connection, a 5xx), poll for a bounded time with new
    proxies or iterators inside `client.no_cache()`: Discogs serves stale reads after a write, and a resolved proxy
    never refetches. One read missing the change does not prove failure. Do not blindly resubmit a create; report an
-   outcome polling cannot establish as unknown.
+   outcome polling cannot establish as unknown. See
+   [references/errors-and-retries.md](references/errors-and-retries.md#settling-an-ambiguous-write).
 8. **Caching.** Off by default (`cache=True` turns it on). `client.no_cache()` bypasses it; `client.cache_only()`
    raises `CacheMissError` instead of sending a request. On `AsyncDiscogs` both are async context managers, so write
-   `async with client.no_cache():` and `async with client.cache_only():`; a plain `with` fails.
+   `async with client.no_cache():` and `async with client.cache_only():`; a plain `with` fails. See
+   [references/caching.md](references/caching.md).
 9. **Field names.** Use the Python names (`catalog_number`, `extra_artists`, `name_variation`, …); `model.raw` holds
-   what Discogs sent.
+   what Discogs sent. See [references/getting-started.md](references/getting-started.md#field-names).
 10. **HTTP clients.** A custom `http_client` must be an `httpx2` client, never `httpx`; the SDK does not close it.
 11. **Public API only.** Never import `discogs_sdk._*`. Never call api.discogs.com directly when an SDK method exists.
 
@@ -114,6 +115,8 @@ with Discogs(cache=True) as client:
 
 Open these copies of the documentation, generated for this version, when the rules above are not enough:
 
+- [references/getting-started.md](references/getting-started.md): the full statement of the behaviors behind rules 3
+  to 9, then installation, fetching, search and sub-resources.
 - [references/migrating-from-python3-discogs-client.md](references/migrating-from-python3-discogs-client.md): the
   code imports `discogs_client`, or you are porting python3-discogs-client idioms.
 - [references/endpoints.md](references/endpoints.md): you know a Discogs endpoint and need the SDK call that reaches

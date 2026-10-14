@@ -12,7 +12,7 @@ Discogs API reference and read off the call, or look up a call and see what it s
 
 - **Calls** use the sync client (`client = Discogs(...)`). `AsyncDiscogs` has the same
   chain: `await` an operation, `await` a lazy result to load it, and iterate a page with
-  `async for`. See [Getting started](https://github.com/jmfontaine/discogs-sdk/blob/v0.8.0/docs/getting-started.md) and [Pagination](pagination.md).
+  `async for`. See [Getting started](getting-started.md) and [Pagination](pagination.md).
 - **Arguments** carry the parameter names from the method signature. Required ones are
   shown, as `name=...` when keyword-only, and so are the optional ones that change the
   route. A trailing `...` stands for the other optional arguments, so `list(...)` can

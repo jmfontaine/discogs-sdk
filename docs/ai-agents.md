@@ -7,9 +7,9 @@ discogs-sdk ships an agent skill inside the package that covers these points, ma
 ## Install the skill
 
 The skill lives in the installed package, at `site-packages/discogs_sdk/.agents/skills/discogs-sdk/` (the
-[library-skills](https://library-skills.io/create/) convention), with copies of the pagination, errors, caching,
-endpoint-map and migration pages for that version beside it. The `library-skills` command links it into your project
-where agents look for skills.
+[library-skills](https://library-skills.io/create/) convention), with copies of the getting-started, pagination,
+errors, caching, endpoint-map and migration pages for that version beside it. The `library-skills` command links it
+into your project where agents look for skills.
 
 Declare discogs-sdk as a dependency of the project and install it, for example with `uv add discogs-sdk`. By default
 `library-skills` only offers skills from your direct dependencies, so the interactive run and `--yes` on its own do
@@ -54,6 +54,7 @@ For an agent that reads only a rules file, paste this into `AGENTS.md`, a file u
 - Async: `await` a proxy for its model. The model has no sub-resources, so keep the proxy for chaining (`artist_proxy.releases.list()`); use `async for` on pages.
 - `search()` and paginated `.list()` methods make one logical GET per page: a cache hit sends no request (one if the cached entry no longer parses), retries can send several, and each network attempt consumes the budget (60/min, 25/min anonymous). `break` early; never `list()` a large result set.
 - After a write fails ambiguously, poll inside `client.no_cache()` with a new proxy or iterator; never resubmit a create blindly.
+- Use the Python field names (`catalog_number`, `extra_artists`); the raw payload is in `model.raw`.
 - A custom `http_client` must be an `httpx2` client, never `httpx`; the SDK does not close it.
 - Endpoint-to-method map: https://github.com/jmfontaine/discogs-sdk/blob/main/docs/endpoints.md
 ```

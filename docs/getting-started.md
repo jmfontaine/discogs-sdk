@@ -60,15 +60,28 @@ attempt counts against the rate limit. They have no `len()` or slicing, so `brea
 
 ### Retries
 
-Reads retry; a mutation is never replayed after an ambiguous failure, so its outcome may be unknown. See
-[Errors and retries](errors-and-retries.md#rate-limits-and-retries), and
-[Settling an ambiguous write](errors-and-retries.md#settling-an-ambiguous-write) for what to do then.
+Reads retry on 429, 500, 502, 503 and 504 and on transient transport failures, up to `max_retries` times (3 by
+default), honouring a `Retry-After` of up to 60 seconds; do not wrap them in a retry layer of your own. The SDK does
+not pace requests. See [Rate limits and retries](errors-and-retries.md#rate-limits-and-retries).
+
+### Writes
+
+A `POST`, `PUT` or `DELETE` is never replayed after an ambiguous failure (a timeout, a dropped connection, a 5xx), so
+its outcome may be unknown. Settle it by polling with new proxies or iterators inside `client.no_cache()`, never by
+resubmitting a create blindly: Discogs serves stale reads after a write, so one read missing the change proves
+nothing. See [Settling an ambiguous write](errors-and-retries.md#settling-an-ambiguous-write).
 
 ### Caching
 
-Caching is off by default. Only `GET`/`HEAD` responses are cached, and a successful write clears the whole cache.
-A proxy or page that has already fetched keeps its data, so fetch a new one to see a change. See
-[Caching](caching.md).
+Caching is off by default. Only `GET`/`HEAD` responses are cached, and a successful write clears the whole cache. A
+cache hit sends no request, unless the cached entry no longer parses: then the SDK fetches it again. A proxy or page
+that has already fetched keeps its data, so fetch a new one to see a change. See [Caching](caching.md).
+
+### Field names
+
+Models use Python names where the API's keys are cryptic or inconsistent: `catalog_number` for `catno`,
+`extra_artists` for `extraartists`, `name_variation` for `anv`. The Python name is the typed attribute, and
+`model.raw` keeps what Discogs sent. See [Field naming](models.md#field-naming).
 
 ## Installation
 
