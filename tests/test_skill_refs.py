@@ -1,9 +1,8 @@
-"""The packaged agent skill: its references and the release checks that guard it.
+"""The packaged agent skill and its references.
 
 ``scripts/generate_skill_refs.py --check`` keeps each reference equal to its
-docs page. What it cannot see is a reference added there but forgotten in the
-distribution checks, which would then let a wheel ship without it, or a link
-in SKILL.md to a reference that is not generated.
+docs page. What it cannot see is a stray file outside ``references/``, or a
+link in SKILL.md to a reference that is not generated.
 """
 
 from __future__ import annotations
@@ -38,15 +37,6 @@ def _skill_tree() -> set[str]:
 def test_every_skill_file_is_generated_or_skill_md():
     pages = _script("generate_skill_refs").PAGES
     assert _skill_tree() == {"SKILL.md", *(f"references/{page}" for page in pages)}
-
-
-def test_release_checks_require_every_skill_file():
-    expected = {f".agents/skills/discogs-sdk/{name}" for name in _skill_tree()}
-    distributions = _script("check_distributions")
-    assert {
-        name.removeprefix("discogs_sdk/") for name in distributions.SKILL_FILES
-    } == expected
-    assert set(_script("check_installed_package").SKILL_FILES) == expected
 
 
 def test_skill_md_links_every_reference():

@@ -20,6 +20,9 @@ from importlib.resources import files
 
 import pydantic
 
+# Run as a script, so scripts/ is first on sys.path.
+from generate_skill_refs import PAGES
+
 from discogs_sdk import Discogs
 from discogs_sdk.models import Release
 
@@ -27,16 +30,11 @@ MINIMUM_PYDANTIC = (2, 12)
 # Mirrors the Python 3.15 clause in pyproject.toml: 2.13 and earlier have no
 # cp315 wheels.
 MINIMUM_PYDANTIC_315 = (2, 14)
-# Relative to the installed package; the same files as SKILL_FILES in
-# scripts/check_distributions.py.
-SKILL_FILES = (
-    ".agents/skills/discogs-sdk/SKILL.md",
-    ".agents/skills/discogs-sdk/references/caching.md",
-    ".agents/skills/discogs-sdk/references/endpoints.md",
-    ".agents/skills/discogs-sdk/references/errors-and-retries.md",
-    ".agents/skills/discogs-sdk/references/getting-started.md",
-    ".agents/skills/discogs-sdk/references/migrating-from-python3-discogs-client.md",
-    ".agents/skills/discogs-sdk/references/pagination.md",
+# Relative to the installed package: SKILL.md plus the references
+# scripts/generate_skill_refs.py generates.
+SKILL_FILES = tuple(
+    f".agents/skills/discogs-sdk/{name}"
+    for name in ("SKILL.md", *(f"references/{page}" for page in PAGES))
 )
 
 
