@@ -397,6 +397,8 @@ DOC_ROUTES: dict[str, DocRoutes] = {
         requests=(
             # no_cache(); cache_only() raises CacheMissError before any request
             RELEASE_GET,
+            # The same two scopes on AsyncDiscogs, entered with async with
+            RELEASE_GET,
             # Shared SQLiteCache: only the first client reaches the API
             RELEASE_GET,
         ),
