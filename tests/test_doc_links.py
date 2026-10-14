@@ -1,10 +1,11 @@
-"""Check the links in the user documentation.
+"""Check the links in the user and contributor documentation.
 
 README.md is the PyPI long description, and PyPI keeps relative links as they
 are, so they break there: every target in it must be absolute or an in-page
 anchor.
 
-Every local target in README.md and docs/ must exist, and so must the heading a
+Every local target in README.md, docs/, the packaged skill, AGENTS.md and
+CONTRIBUTING.md must exist, and so must the heading a
 ``#fragment`` names. Absolute URLs into this repository's ``blob/main/`` or
 ``tree/main/`` count as local and are checked against the working tree. Nothing
 here touches the network.
@@ -24,6 +25,8 @@ from tests.markdown_links import Link, find_anchors, find_links
 README = REPO_ROOT / "README.md"
 DOCUMENTS = [
     README,
+    REPO_ROOT / "AGENTS.md",
+    REPO_ROOT / "CONTRIBUTING.md",
     *sorted((REPO_ROOT / "docs").glob("**/*.md")),
     # The packaged agent skill and its generated references
     *sorted((REPO_ROOT / "src" / "discogs_sdk" / ".agents").glob("**/*.md")),
