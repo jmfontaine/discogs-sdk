@@ -70,7 +70,8 @@ print(identity.username)  # "trent_reznor"
 
 user = client.users.get(identity.username)
 for want in user.wantlist.list():
-    print(want.basic_information.title)
+    if want.basic_information:  # None when Discogs omits it
+        print(want.basic_information.title)
 ```
 
 With `AsyncDiscogs`, `identity()` is a coroutine: await it before reading `username`.
@@ -87,7 +88,8 @@ async def main():
         identity = await client.user.identity()
         user = client.users.get(identity.username)
         async for want in user.wantlist.list():
-            print(want.basic_information.title)
+            if want.basic_information:
+                print(want.basic_information.title)
 
 
 asyncio.run(main())

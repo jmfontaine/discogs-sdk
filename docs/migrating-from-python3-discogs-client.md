@@ -38,7 +38,8 @@ for result in client.search(query="Nine Inch Nails", type="artist"):
 identity = client.user.identity()
 user = client.users.get(identity.username)
 for item in user.collection.folders.get(0).releases.list():
-    print(item.basic_information.title)
+    if item.basic_information:  # None when Discogs omits it
+        print(item.basic_information.title)
 ```
 
 ## Translation table

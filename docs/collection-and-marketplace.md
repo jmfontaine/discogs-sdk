@@ -15,12 +15,15 @@ user = client.users.get(client.user.identity().username)
 folders = user.collection.folders.list()
 user.collection.folders.create(name="Industrial")
 
-# Browse folder contents
+# Browse folder contents. Folder 0 is "All": every release in the collection,
+# read-only, so nothing can be added to it.
 for item in user.collection.folders.get(0).releases.list(sort="added"):
-    print(item.basic_information.title)
+    if item.basic_information:  # None when Discogs omits it
+        print(item.basic_information.title)
 
-# Add a release. The response identifies the copy you just created, which is
-# how you tell it apart from copies of the same release you already own.
+# Add a release to folder 1, "Uncategorized", the default destination. The
+# response identifies the copy you just created, which is how you tell it
+# apart from copies of the same release you already own.
 created = user.collection.folders.get(1).releases.create(release_id=352665)
 
 # Deep chaining: folder -> release -> instance -> fields
@@ -36,7 +39,8 @@ print(f"Median: {value.median}, Maximum: {value.maximum}")
 user.wantlist.create(release_id=352665)
 user.wantlist.update(352665, notes="Original pressing", rating=4)
 for want in user.wantlist.list():
-    print(want.basic_information.title)
+    if want.basic_information:
+        print(want.basic_information.title)
 ```
 
 ## Marketplace
