@@ -24,7 +24,7 @@ import asyncio
 import re
 import time
 import traceback
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -137,7 +137,7 @@ class _Tracked:
 
 
 @contextmanager
-def _tracking(monkeypatch: pytest.MonkeyPatch) -> Iterator[_Tracked]:
+def _tracking(monkeypatch: pytest.MonkeyPatch) -> Generator[_Tracked]:
     """Record every client and cache built inside; close them all on the way out."""
     tracked = _Tracked()
     for cls, store in (
