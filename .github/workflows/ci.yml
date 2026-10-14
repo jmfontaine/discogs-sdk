@@ -40,24 +40,11 @@ jobs:
           cache-suffix: ${{ github.job }}
       - name: Install dependencies
         run: uv sync --locked --all-extras --all-groups
-      - name: Check sync codegen
-        run: uv run python scripts/generate_sync.py --check
-      - name: Check endpoint map
-        run: uv run python scripts/generate_endpoints.py --check
-      - name: Check agent skill references
-        run: uv run python scripts/generate_skill_refs.py --check
-      - name: Check dead code
-        run: scripts/check_dead_code.sh
-      - name: Check pyproject.toml
-        run: uv run pyproject-fmt --check pyproject.toml
-      - name: Check formatting
-        run: uv run ruff format --check
-      - name: Lint
-        run: uv run ruff check
-      - name: Check types
-        run: uv run ty check
-      - name: Check unused dependencies
-        run: uv run deptry src
+      - name: Run the pre-commit checks
+        # The one list of fast checks, shared with `just qa` and the git hooks.
+        # Hooks that fix files fail here when they change something, and the
+        # diff shows what they changed.
+        run: uv run pre-commit run --all-files --show-diff-on-failure
       - name: Verify type completeness
         run: uv run pyright --ignoreexternal --verifytypes discogs_sdk
 

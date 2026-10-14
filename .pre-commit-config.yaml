@@ -15,25 +15,54 @@ repos:
     hooks:
       - id: actionlint
 
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: e8f7d69b957a30acb2c875078d5fd012de24b64c  # frozen: v0.16.7
-    hooks:
-      - id: ruff-format
-      - id: ruff-check
-        args: [--fix]
-
-  - repo: https://github.com/tox-dev/pyproject-fmt
-    rev: 59e7b26529dc6f15c43063064b8b06ded60d0910  # frozen: v2.29.4
-    hooks:
-      - id: pyproject-fmt
-
+  # Every tool below runs through `uv run`, so uv.lock is its only version source
+  # and the hooks, `just` and CI can never disagree about a tool's version. The
+  # one exception is dead-code, which scripts/check_dead_code.sh pins itself.
   - repo: local
     hooks:
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format --force-exclude
+        language: system
+        # The same file types as the upstream ruff hooks these replace.
+        types_or: [python, pyi, jupyter, markdown]
+        require_serial: true
+
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --fix --force-exclude
+        language: system
+        types_or: [python, pyi, jupyter]
+        require_serial: true
+
+      - id: pyproject-fmt
+        name: pyproject-fmt
+        entry: uv run pyproject-fmt
+        language: system
+        files: ^pyproject\.toml$
+
       - id: sync-codegen-check
         name: sync-codegen-check
         entry: uv run python scripts/generate_sync.py --check
         language: system
-        files: ^(src/discogs_sdk/(_async|_sync|models)/|scripts/generate_sync\.py$)
+        # .python-version: generated output depends on the pinned patch release.
+        files: ^(src/discogs_sdk/(_async|_sync|models)/|scripts/generate_sync\.py$|\.python-version$)
+        pass_filenames: false
+
+      - id: endpoints-check
+        name: endpoints-check
+        entry: uv run python scripts/generate_endpoints.py --check
+        language: system
+        files: ^(src/discogs_sdk/(_async/|oauth\.py$)|docs/endpoints\.md$|scripts/generate_endpoints\.py$)
+        pass_filenames: false
+
+      - id: skill-refs-check
+        name: skill-refs-check
+        entry: uv run python scripts/generate_skill_refs.py --check
+        language: system
+        # Every docs page, not only the copied ones (their links are rewritten
+        # against the rest), and pyproject.toml for the version links pin to.
+        files: ^(docs/|src/discogs_sdk/\.agents/skills/discogs-sdk/references/|pyproject\.toml$|scripts/generate_skill_refs\.py$)
         pass_filenames: false
 
       - id: dead-code
