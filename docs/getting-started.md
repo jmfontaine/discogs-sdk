@@ -2,7 +2,8 @@
 
 ## Behaviors to know
 
-Read these before writing code against the SDK; each one links to its full page.
+Read these before writing code against the SDK. Lazy loading and async proxies are covered in full here; each of the
+other items summarizes the page it links to.
 
 ### Lazy loading
 
@@ -53,12 +54,9 @@ asyncio.run(main())
 
 ### Pagination cost
 
-Paginated methods (`search()` and the `.list()` methods returning `SyncPage`/`AsyncPage`) fetch pages on demand. Each
-page starts a logical GET: a cache hit sends no network request, and retries can send several. Each network attempt
-consumes the applicable budget (60/min authenticated, 25/min anonymous). These methods accept `per_page`, have no
-`len()` or slicing, and populate `total_items`/`total_pages` from the first fetched response when it supplies them.
-`collection.folders.list()` and `collection.fields.list()` each make one logical GET and return a plain list. See
-[Pagination](pagination.md).
+`search()` and the paginated `.list()` methods fetch pages on demand, one logical GET per page, and every network
+attempt counts against the rate limit. They have no `len()` or slicing, so `break` once you have what you need. See
+[What a page costs](pagination.md#what-a-page-costs).
 
 ### Retries
 
@@ -140,6 +138,7 @@ for v in client.masters.get(3719).versions.list(format="Vinyl", country="US"):
 
 ```python
 import asyncio
+
 from discogs_sdk import AsyncDiscogs
 
 

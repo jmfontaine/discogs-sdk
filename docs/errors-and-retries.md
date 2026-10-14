@@ -34,6 +34,12 @@ Fewer attempts are sent when:
 - the request is a mutation and the failure may have reached the server (see the warning above);
 - a `Retry-After` exceeds 60 seconds, which raises at once.
 
+Before each retry the SDK sleeps for the response's `Retry-After` when it carries a usable one: a finite,
+non-negative number of seconds or an HTTP-date. Otherwise, after a transport failure or a response without a usable
+`Retry-After`, it backs off exponentially: `min(2**attempt, 60) + random.random()` seconds, where `attempt` is the
+zero-based index of the attempt that just failed. The default three retries therefore wait 1, 2 and 4 seconds, each
+plus up to one second of random jitter.
+
 The `attempts` field of [`RequestEvent`](observability.md) reports how many were sent.
 
 ## Settling an ambiguous write

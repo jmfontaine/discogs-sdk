@@ -45,11 +45,13 @@ response alone, and the change is documented on this page.
 
 ## Search result links
 
-Every Discogs entity (release, master, artist, label, listing, order, user, list) carries an absolute `uri` linking to
-its page, such as `https://www.discogs.com/release/352665`. `/database/search` results are the exception: Discogs
-sends a site-relative path such as `/release/352665`. `SearchResult.uri` normalizes the value rather than renaming the
-key: a path starting with `/` gets `https://www.discogs.com` prefixed and is otherwise kept as sent, percent-encoding
-included. An absolute value and a missing one (`None`) are unchanged, and `raw["uri"]` keeps the relative path:
+Every Discogs entity (release, master, artist, label, listing, order, user) carries an absolute `uri` linking to its
+page, such as `https://www.discogs.com/release/352665`, and so do a user's list summaries (`ListSummary`) and the
+items of a list (`ListItem`). A full list (`List_`) carries its page link as `url` instead, as Discogs sends it.
+`/database/search` results are the exception: Discogs sends a site-relative path such as `/release/352665`.
+`SearchResult.uri` normalizes the value rather than renaming the key: a path starting with `/` gets
+`https://www.discogs.com` prefixed and is otherwise kept as sent, percent-encoding included. An absolute value and a
+missing one (`None`) are unchanged, and `raw["uri"]` keeps the relative path:
 
 ```python
 from discogs_sdk import SearchResult
