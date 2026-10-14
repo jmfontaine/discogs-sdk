@@ -1,6 +1,7 @@
 # Collection and marketplace
 
-These examples need a personal token or OAuth: consumer credentials alone cannot reach user-specific resources.
+These examples need a personal token or OAuth: consumer credentials alone cannot reach user-specific resources (see
+[what each mode can reach](authentication.md#what-each-mode-can-reach)).
 [`client.user.identity()`](authentication.md#the-authenticated-user) tells you whose account that is.
 
 ## Collection

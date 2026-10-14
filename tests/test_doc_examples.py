@@ -290,6 +290,22 @@ def _identity(router: MockRouter) -> None:
     router.get("/oauth/identity").respond(200, json=make_identity())
 
 
+def _oauth_tokens(router: MockRouter) -> None:
+    # Discogs answers both token steps with a form-encoded body, not JSON.
+    form = {"Content-Type": "application/x-www-form-urlencoded"}
+    router.get("/oauth/request_token").respond(
+        200,
+        text="oauth_token=request-token&oauth_token_secret=request-secret"
+        "&oauth_callback_confirmed=true",
+        headers=form,
+    )
+    router.post("/oauth/access_token").respond(
+        200,
+        text="oauth_token=access-token&oauth_token_secret=access-secret",
+        headers=form,
+    )
+
+
 def _wants(router: MockRouter) -> None:
     router.get(f"{COLLECTION_USER}/wants").respond(
         200, json=make_paginated_response("wants", [make_want(id=352665)])
@@ -362,13 +378,18 @@ DOC_ROUTES: dict[str, DocRoutes] = {
         ),
     ),
     "docs/authentication.md": DocRoutes(
-        routes=(_identity, _wants),
+        routes=(_identity, _wants, _oauth_tokens),
         requests=(
             # Sync, then async: identity first, then the user's wantlist
             "GET /oauth/identity",
             f"GET {COLLECTION_USER}/wants",
             "GET /oauth/identity",
             f"GET {COLLECTION_USER}/wants",
+            # OAuth 1.0a, sync then async: request token, then the exchange
+            "GET /oauth/request_token",
+            "POST /oauth/access_token",
+            "GET /oauth/request_token",
+            "POST /oauth/access_token",
         ),
     ),
     "docs/caching.md": DocRoutes(
