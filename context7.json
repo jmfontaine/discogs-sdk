@@ -18,13 +18,14 @@
     "code_of_conduct.md"
   ],
   "rules": [
-    "This is jmfontaine/discogs-sdk: PyPI package discogs-sdk, imported as discogs_sdk (github.com/jmfontaine/discogs-sdk).",
-    "It is not python3-discogs-client (import discogs_client) and not crate-ai/discogs-sdk; never mix their APIs with this one.",
+    "This is jmfontaine/discogs-sdk (PyPI package discogs-sdk, imported as discogs_sdk; github.com/jmfontaine/discogs-sdk), not python3-discogs-client (import discogs_client) or crate-ai/discogs-sdk; never mix their APIs with this one.",
     "Create one client per program: `with Discogs() as client:` or `async with AsyncDiscogs() as client:`; read the token from DISCOGS_TOKEN.",
     "`.get()` returns a lazy proxy and sends no request; the first data attribute access fetches, so catch NotFoundError there.",
-    "With AsyncDiscogs, await a proxy to get its model and keep the proxy for sub-resources such as `artist_proxy.releases.list()`.",
-    "`search()` and paginated `.list()` methods fetch pages on demand, one logical GET per page; break early and never call list() on a large result set. `collection.folders.list()` and `fields.list()` return plain lists.",
+    "With AsyncDiscogs, await a proxy to get its model and keep the proxy for sub-resources such as `artist_proxy.releases.list()`; use `async for` on pages.",
+    "`search()` and paginated `.list()` methods make one logical GET per page: a cache hit sends no request (one if the cached entry no longer parses), and retries can send several. Break early; never call list() on a large result set.",
+    "After a write fails ambiguously (a timeout, a dropped connection, a 5xx), poll inside `client.no_cache()` with a new proxy or iterator; never resubmit a create blindly.",
     "Use the Python field names (`catalog_number`, `extra_artists`); the raw payload is in `model.raw`.",
-    "A custom http_client must be an httpx2 client, never httpx; the SDK does not close it."
+    "A custom http_client must be an httpx2 client, never httpx; the SDK does not close it.",
+    "Endpoint-to-method map: https://github.com/jmfontaine/discogs-sdk/blob/main/docs/endpoints.md"
   ]
 }

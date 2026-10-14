@@ -32,6 +32,7 @@ PAGES = (
     "caching.md",
     "endpoints.md",
     "errors-and-retries.md",
+    "getting-started.md",
     "migrating-from-python3-discogs-client.md",
     "pagination.md",
 )

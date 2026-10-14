@@ -34,6 +34,7 @@ SKILL_FILES = (
     ".agents/skills/discogs-sdk/references/caching.md",
     ".agents/skills/discogs-sdk/references/endpoints.md",
     ".agents/skills/discogs-sdk/references/errors-and-retries.md",
+    ".agents/skills/discogs-sdk/references/getting-started.md",
     ".agents/skills/discogs-sdk/references/migrating-from-python3-discogs-client.md",
     ".agents/skills/discogs-sdk/references/pagination.md",
 )
