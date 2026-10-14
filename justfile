@@ -70,8 +70,8 @@ pre-commit-install:
 pre-commit-update:
     uv run pre-commit autoupdate --freeze
 
-# Run all quality assurance checks
-qa: dead-code deps-unused endpoints-check format-check lint skill-refs-check sync-check type-check verify-types
+# Run all quality assurance checks: every pre-commit hook on all files, then the type-completeness audit
+qa: pre-commit verify-types
 
 # Tag the merged origin/main, push the tag, and monitor the publish workflow
 release:

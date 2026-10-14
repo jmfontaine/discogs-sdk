@@ -14,7 +14,7 @@ Task runner is `just`. All commands use `uv run` under the hood.
 just setup              # Install deps + pre-commit hooks
 just test               # Run pytest with coverage (excludes integration tests)
 just test <path>        # Run specific test file or directory
-just qa                 # All checks: dead-code, deps-unused, endpoints-check, format-check, lint, skill-refs-check, sync-check, type-check, verify-types
+just qa                 # All checks: every pre-commit hook on all files (fixers fail when they change a file), then verify-types
 just lint               # ruff check
 just lint-fix           # ruff check --fix
 just format             # ruff format + pyproject-fmt
@@ -37,7 +37,7 @@ just update-api-docs    # Compare reference/discogs_api/ with the official refer
 just release            # Tag the merged origin/main, push the tag, and monitor the publish workflow
 just pre-commit         # Run pre-commit hooks on all files
 just pre-commit-install # Install pre-commit hooks
-just pre-commit-update  # Update pre-commit hooks to latest versions
+just pre-commit-update  # Update the remote pre-commit hooks (the local ones use the uv.lock versions)
 ```
 
 Run a single test: `uv run pytest tests/async/test_releases.py -k test_get_release`
@@ -378,7 +378,11 @@ page or the upload API — there is no `pip yank`), then bump the patch version 
 - Python 3.15 needs `pydantic>=2.14` (earlier pins lack cp315 wheels), declared in `pyproject.toml`
   with a marker whose exact form matters — read the comment there before touching it
 - Dead-code analysis runs through `scripts/check_dead_code.sh`, which pins the tool and its interpreter;
-  every caller (justfile, pre-commit, the CI quality job) invokes that script rather than `deadcode` directly
+  every caller (the `dead-code` recipe and the pre-commit hook) invokes that script rather than `deadcode` directly
+- `.pre-commit-config.yaml` is the one list of fast checks: the git hooks, `just qa` and the CI quality job all run
+  it, so a new check goes there as a hook. Python tools run as `local` hooks through `uv run`, so `uv.lock` is their
+  only version source (except dead code, pinned by its script); Dependabot's `uv` updates and `just deps-update` move
+  them
 - Every `uses:` in `.github/workflows/` names a full commit SHA followed by its release tag as a comment
   (`actions/checkout@<sha> # v7.0.1`); Dependabot's `github-actions` updates rewrite both. Pin a new action the
   same way, to the SHA of a version tag, never a branch
