@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """Smoke-check an installed discogs-sdk wheel.
 
 Run with the interpreter of an environment where the wheel was installed from
@@ -68,13 +68,16 @@ def main() -> None:
             "labels": [{"id": 647, "name": "Nothing Records", "catno": "IND 92346"}],
         }
     )
-    labels = release.labels or []
-    assert [label.catalog_number for label in labels] == ["IND 92346"], labels
+    expected = ["IND 92346"]
+    catalog_numbers = [label.catalog_number for label in release.labels or []]
+    if catalog_numbers != expected:
+        raise SystemExit(f"catalog_number is {catalog_numbers}, expected {expected}")
 
     with Discogs(token="not-a-real-token") as client:
         # Lazy proxies must not perform any HTTP call on construction.
         proxy = client.releases.get(352665)
-        assert "352665" in repr(proxy), repr(proxy)
+        if "352665" not in repr(proxy):
+            raise SystemExit(f"the lazy proxy's repr lacks its id: {proxy!r}")
 
     print(f"ok: python {sys.version.split()[0]}, pydantic {pydantic.VERSION}")
 

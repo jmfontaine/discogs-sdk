@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import inspect
+import shutil
 import sys
 import textwrap
 from pathlib import Path
@@ -434,6 +435,30 @@ class TestRunOnMalformedSource:
             gen.main()
         assert exc_info.value.code != 0
         assert "src/_async/bad.py:2: in f:" in capsys.readouterr().err
+
+
+class TestCheckOnStaleOutput:
+    def test_check_reports_stale_files_on_stderr(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        dst = tmp_path / "_sync"
+        shutil.copytree(gen.DST, dst)
+        (dst / "_client.py").write_text("stale\n")
+        fields = tmp_path / "_lazy_fields.py"
+        shutil.copyfile(gen.FIELDS_MODULE, fields)
+        monkeypatch.setattr(gen, "DST", dst)
+        monkeypatch.setattr(gen, "FIELDS_MODULE", fields)
+        monkeypatch.setattr(sys, "argv", ["generate_sync.py", "--check"])
+        with pytest.raises(SystemExit) as exc_info:
+            gen.main()
+        assert exc_info.value.code != 0
+        out, err = capsys.readouterr()
+        assert out == ""
+        assert "_client.py" in err
+        assert "just generate-sync" in err
 
 
 class TestFieldMixins:

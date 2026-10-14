@@ -15,9 +15,10 @@ Three independent checks:
    route has drifted -- not that every operation and parameter is implemented.
 
 2. Every ```json``` example block in the reference is claimed by exactly one
-   ``Example`` in ``tests/documented_payloads.py``, and every claimed body
-   matches its example(s) key-for-key. Runs only where the reference is
-   present, for the same reason as check 1.
+   ``Example`` in ``tests/documented_payloads.py``. Every claimed payload body,
+   unless it is dynamic, matches its example(s) key-for-key; envelope and error
+   examples are checked for their structure only. Runs only where the
+   reference is present, for the same reason as check 1.
 
    Scope: shape, not values. This re-derives key sets from the reference and
    from the registered payloads/envelopes/errors and diffs them; it does not
@@ -100,23 +101,18 @@ def _documented_routes() -> set[str]:
     found = {
         normalise_route(raw)
         for doc in sorted(API_DOCS.glob("*.md"))
-        for raw in re.findall(r"^`(/[^`]+)`", doc.read_text(), re.MULTILINE)
+        for raw in re.findall(r"^`(/[^`\n]+)`$", doc.read_text(), re.MULTILINE)
     }
     found.discard("")
     return found
 
 
-def _sdk_routes() -> set[str]:
-    """Route templates the SDK sends, from the extractor behind ``docs/endpoints.md``."""
-    return sdk_routes()
-
-
 def _check_sdk() -> bool:
     documented = _documented_routes()
     try:
-        reached = _sdk_routes()
+        reached = sdk_routes()
     except ExtractionError as exc:
-        print(f"ERROR: {exc}")
+        print(f"ERROR: {exc}", file=sys.stderr)
         return False
     missing = sorted(documented - reached)
     unknown = sorted(reached - documented)
@@ -124,9 +120,9 @@ def _check_sdk() -> bool:
     print(f"Documented routes  : {len(documented)}")
     print(f"Reached by the SDK : {len(documented & reached)}")
     for route in missing:
-        print(f"  UNREACHED     {route}")
+        print(f"  UNREACHED     {route}", file=sys.stderr)
     for route in unknown:
-        print(f"  UNDOCUMENTED  {route}")
+        print(f"  UNDOCUMENTED  {route}", file=sys.stderr)
     if not missing and not unknown:
         print("OK: the SDK reaches every documented route, and no others.")
     return not missing and not unknown
@@ -315,16 +311,17 @@ def _check_examples() -> bool:
 
     Every ```json``` block in the reference must be claimed by exactly one
     Example across DOCUMENTED_PAYLOADS, DOCUMENTED_ENVELOPES and
-    DOCUMENTED_ERRORS, and every claimed payload/envelope/error body must
-    match its example(s) key-for-key (payloads only; dynamic payloads and
-    envelope/error bodies are checked structurally, not key-for-key).
+    DOCUMENTED_ERRORS. A claimed payload body must match its example(s)
+    key-for-key, unless the payload is dynamic. Envelope and error examples are
+    checked structurally instead: an envelope's example has ``pagination`` and
+    its items key, and an error's example body is ``{"message": ...}``.
     """
     from tests import documented_payloads as docs
 
     try:
         found = _documented_examples()
     except _UnparseableBlock as exc:
-        print(f"\nERROR: unparseable example block in {exc}")
+        print(f"\nERROR: unparseable example block in {exc}", file=sys.stderr)
         return False
 
     # Two payloads may claim the same block at different paths — an item and the
@@ -412,7 +409,7 @@ def _check_examples() -> bool:
     print(f"\nExample blocks in the reference    : {len(found)}")
     print(f"Claimed by documented_payloads.py  : {len(claimed)}")
     for problem in problems:
-        print(f"  {problem}")
+        print(f"  {problem}", file=sys.stderr)
     if not problems:
         print("OK: every example is claimed, and every body matches it.")
     return not problems
@@ -443,7 +440,8 @@ def _check_upstream() -> bool:
             # not a reason to certify the claims unchecked.
             print(
                 f"\nERROR: could not clone {UPSTREAM_REPO}: "
-                f"{clone.stderr.strip() or 'clone failed'}"
+                f"{clone.stderr.strip() or 'clone failed'}",
+                file=sys.stderr,
             )
             return False
 
@@ -490,7 +488,7 @@ def _check_upstream() -> bool:
         )
         print(f"Drift probes run: {probes}")
         for line in stale:
-            print(f"  STALE  {line}")
+            print(f"  STALE  {line}", file=sys.stderr)
         if not stale:
             print("OK: nothing upstream has drifted away from the README.")
         return not stale
@@ -513,7 +511,8 @@ def main() -> None:
     if not API_DOCS.is_dir():
         print(
             f"ERROR: {API_DOCS.relative_to(ROOT)} is missing. "
-            "It holds the local API reference copy."
+            "It holds the local API reference copy.",
+            file=sys.stderr,
         )
         sys.exit(1)
 

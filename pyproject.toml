@@ -160,4 +160,6 @@ ignore_names = [
   "handle_starttag",
   "model_config",
   "pytestmark",
+  # ast.NodeTransformer dispatches to them by name (scripts/generate_sync.py).
+  "visit_*",
 ]

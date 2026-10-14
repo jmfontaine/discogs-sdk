@@ -56,7 +56,7 @@ just format                # Run the formatters (pyproject-fmt, ruff format)
 just lint-fix              # Fix lint issues (ruff check --fix)
 
 # One check at a time (each also runs in just qa)
-just dead-code             # Find dead code (deadcode, pinned in scripts/check_dead_code.sh)
+just dead-code             # Find dead code in src tests examples scripts (deadcode, pinned in scripts/check_dead_code.sh)
 just deps-unused           # Check for unused or undeclared dependencies (deptry)
 just endpoints-check       # Check docs/endpoints.md is up to date with the SDK sources
 just format-check          # Check formatting without modifying files

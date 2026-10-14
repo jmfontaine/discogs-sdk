@@ -2,7 +2,9 @@
 """Generate sync client code from the async source of truth.
 
 Usage:
-    python scripts/generate_sync.py
+    just generate-sync   # write src/discogs_sdk/_sync/ and models/_lazy_fields.py
+    just sync-check      # --check: exit 1 when either differs from what this
+                         # script would write, writing nothing
 
 The async code under src/discogs_sdk/_async/ is the single source of truth.
 This script uses an AST-based transformer to produce the sync equivalent
@@ -24,8 +26,8 @@ Strings: runtime string literals are copied verbatim, except the entries of
 REPR_RENAMES inside a ``__repr__``. Docstrings get NAME_MAP on whole words,
 their code samples are rewritten to sync syntax, and a few fixed phrases are
 reworded (DOC_CODE_REWRITES, DOC_PROSE_REWRITES). A docstring that still
-mentions ``async def``, ``async with``, ``async for``, ``await`` or an async
-name after that is an error: word it so it holds for both clients. Where the
+mentions ``async def``, ``async with``, ``async for`` or ``await`` after that
+is an error: word it so it holds for both clients. Where the
 clients need different prose, follow the docstring with an ASYNC directive
 whose else branch is a single string: the sync code gets that string as its
 docstring instead, reworded and checked the same way. Such a directive
@@ -192,9 +194,7 @@ DOC_PROSE_REWRITES = (
 )
 
 _NAME_WORDS = re.compile(r"\b(?:" + "|".join(map(re.escape, NAME_MAP)) + r")\b")
-_DOC_ASYNC_LEFTOVER = re.compile(
-    r"\basync\s+(?:def|with|for)\b|\bawait\b|" + _NAME_WORDS.pattern
-)
+_DOC_ASYNC_LEFTOVER = re.compile(r"\basync\s+(?:def|with|for)\b|\bawait\b")
 _INLINE_LITERAL = re.compile(r"``[^`]+``")
 
 
@@ -668,8 +668,7 @@ def _build(tmp: Path) -> tuple[Path, Path, int]:
     count = _generate(tmp_dst)
     tmp_fields = tmp / "_lazy_fields.py"
     tmp_fields.write_text(_render_field_mixins())
-    _ruff_format(tmp_dst)
-    _ruff_format(tmp_fields)
+    _ruff_format(tmp_dst, tmp_fields)
     return tmp_dst, tmp_fields, count
 
 
@@ -681,7 +680,8 @@ def _check() -> None:
         if not DST.exists():
             print(
                 f"ERROR: {DST.relative_to(ROOT)} does not exist. "
-                "Run: python scripts/generate_sync.py"
+                "Run `just generate-sync`.",
+                file=sys.stderr,
             )
             sys.exit(1)
 
@@ -694,11 +694,11 @@ def _check() -> None:
 
         if stale:
             print(
-                "ERROR: generated code is out of date. "
-                "Run: python scripts/generate_sync.py"
+                "ERROR: generated code is out of date. Run `just generate-sync`.",
+                file=sys.stderr,
             )
             for path in sorted(stale):
-                print(f"  {path}")
+                print(f"  {path}", file=sys.stderr)
             sys.exit(1)
 
         print(f"OK: generated code is up to date ({count + 1} files)")
@@ -733,7 +733,7 @@ def _generate(dst: Path) -> int:
     return count
 
 
-def _ruff_format(target: Path) -> None:
+def _ruff_format(*targets: Path) -> None:
     # `format` runs first: ast_comments.unparse emits f-strings that reuse the outer
     # quote (3.12+ syntax only), and formatting normalizes them. `check` then sorts the
     # single unseparated import block unparse produces (I001), and `format` runs again
@@ -746,7 +746,7 @@ def _ruff_format(target: Path) -> None:
         # The output lives in a temp dir outside the project, where ruff takes its
         # settings (and first-party detection for import sorting) from the cwd.
         result = subprocess.run(
-            [sys.executable, "-m", "ruff", *args, str(target)],
+            [sys.executable, "-m", "ruff", *args, *map(str, targets)],
             cwd=ROOT,
             capture_output=True,
             text=True,

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """Validate the contents of built distributions before they are published.
 
 Usage: ``python scripts/check_distributions.py dist``
@@ -18,6 +18,7 @@ import sys
 import tarfile
 import zipfile
 from pathlib import Path
+from typing import NoReturn
 
 # Run as a script, so scripts/ is first on sys.path.
 from generate_skill_refs import PAGES
@@ -55,7 +56,7 @@ SDIST_REQUIRED = (
 )
 
 
-def fail(message: str) -> None:
+def fail(message: str) -> NoReturn:
     print(f"check_distributions: {message}", file=sys.stderr)
     raise SystemExit(1)
 
