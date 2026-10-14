@@ -117,6 +117,30 @@ with client.cache_only():
         print(f"Not cached: {exc.method} {exc.url}")
 ```
 
+On `AsyncDiscogs`, both scopes are async context managers: enter them with `async with`, since a plain `with` fails.
+
+```python
+import asyncio
+
+from discogs_sdk import AsyncDiscogs, CacheMissError
+
+
+async def main():
+    async with AsyncDiscogs(cache=True) as client:
+        async with client.no_cache():
+            release = await client.releases.get(352665)  # always hits the API
+            print(release.title)
+        async with client.cache_only():
+            try:
+                release = await client.releases.get(352665)  # never hits the API
+                print(release.title)
+            except CacheMissError as exc:
+                print(f"Not cached: {exc.method} {exc.url}")
+
+
+asyncio.run(main())
+```
+
 ## Custom backends
 
 The cache types are exported from `discogs_sdk`. To store responses elsewhere, subclass `ResponseCache` and implement

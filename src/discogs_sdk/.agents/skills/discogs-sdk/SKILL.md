@@ -39,7 +39,8 @@ skill ships inside the installed package, so it matches that version.
    never refetches. One read missing the change does not prove failure. Do not blindly resubmit a create; report an
    outcome polling cannot establish as unknown.
 8. **Caching.** Off by default (`cache=True` turns it on). `client.no_cache()` bypasses it; `client.cache_only()`
-   raises `CacheMissError` instead of sending a request.
+   raises `CacheMissError` instead of sending a request. On `AsyncDiscogs` both are async context managers, so write
+   `async with client.no_cache():` and `async with client.cache_only():`; a plain `with` fails.
 9. **Field names.** Use the Python names (`catalog_number`, `extra_artists`, `name_variation`, …); `model.raw` holds
    what Discogs sent.
 10. **HTTP clients.** A custom `http_client` must be an `httpx2` client, never `httpx`; the SDK does not close it.
