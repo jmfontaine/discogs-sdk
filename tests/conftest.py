@@ -6,7 +6,7 @@ import functools
 import json
 import re
 import sqlite3
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -111,7 +111,7 @@ def fast_sqlite_busy_timeout(monkeypatch):
 
 
 @contextmanager
-def exclusive_lock(cache_dir: Path) -> Iterator[None]:
+def exclusive_lock(cache_dir: Path) -> Generator[None]:
     """Hold the write lock on ``cache_dir/cache.db`` from a second connection."""
     holder = sqlite3.connect(cache_dir / "cache.db", isolation_level=None)
     try:

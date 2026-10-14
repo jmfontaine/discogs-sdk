@@ -14,7 +14,7 @@ import sys
 import threading
 import time
 import warnings
-from collections.abc import Iterator
+from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from unittest.mock import patch
@@ -165,7 +165,7 @@ def _entry_count(cache: MemoryCache | SQLiteCache) -> int:
 
 
 @contextmanager
-def _clock(now: float) -> Iterator[None]:
+def _clock(now: float) -> Generator[None]:
     """Freeze both clocks the backends read: monotonic (memory) and wall (SQLite)."""
     with (
         patch("discogs_sdk._cache.time.monotonic", return_value=now),
@@ -474,7 +474,7 @@ class TestSQLiteCachePragmas:
 
 
 @contextmanager
-def umask(mask: int) -> Iterator[None]:
+def umask(mask: int) -> Generator[None]:
     previous = os.umask(mask)
     try:
         yield

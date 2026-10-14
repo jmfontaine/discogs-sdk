@@ -69,6 +69,7 @@ NAME_MAP: dict[str, str] = {
     "AsyncClient": "Client",
     "asynccontextmanager": "contextmanager",
     "AsyncDiscogs": "Discogs",
+    "AsyncGenerator": "Generator",
     "AsyncIterator": "Iterator",
     "AsyncLazyResource": "LazyResource",
     "AsyncPage": "SyncPage",

@@ -9,7 +9,7 @@ import os
 import random
 import time
 import urllib.parse
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timezone
@@ -473,7 +473,7 @@ class BaseClient:
             self._on_request(event)
 
     @contextmanager
-    def _collect_events(self) -> Iterator[list[RequestEvent]]:
+    def _collect_events(self) -> Generator[list[RequestEvent]]:
         """Collect the ``RequestEvent``s this client emits inside the block.
 
         Only requests made in the current execution context are collected, those

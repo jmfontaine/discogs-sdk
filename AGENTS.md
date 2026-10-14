@@ -46,7 +46,7 @@ says `async def`, `async with`, `async for` or `await` fails generation; word it
 for both clients. Where the two clients need different prose (tasks against threads, say),
 follow the docstring with an `ASYNC` directive whose `else` holds only the sync docstring:
 ```python
-async def no_cache(self) -> AsyncIterator[Self]:
+async def no_cache(self) -> AsyncGenerator[Self]:
     """Async docstring."""
     if True:  # ASYNC
         pass

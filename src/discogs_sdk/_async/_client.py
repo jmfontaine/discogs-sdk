@@ -5,7 +5,7 @@ import time
 
 if True:  # ASYNC
     import asyncio
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from functools import cached_property
@@ -551,7 +551,7 @@ class AsyncDiscogs(BaseClient):
             logger.warning("Could not drop a rejected cache entry: %s", exc)
 
     @asynccontextmanager
-    async def no_cache(self) -> AsyncIterator[Self]:
+    async def no_cache(self) -> AsyncGenerator[Self]:
         """Bypass the response cache for the current execution context.
 
         Scopes nest, and the exact previous state is restored on exit, including
@@ -579,7 +579,7 @@ class AsyncDiscogs(BaseClient):
             _CACHE_BYPASS.reset(token)
 
     @asynccontextmanager
-    async def cache_only(self) -> AsyncIterator[Self]:
+    async def cache_only(self) -> AsyncGenerator[Self]:
         """Serve only from the response cache for the current execution context.
 
         A request the cache cannot serve - a miss, an expired entry, a non-GET,
