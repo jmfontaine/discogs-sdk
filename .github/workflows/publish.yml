@@ -10,8 +10,34 @@ permissions:
   contents: read
 
 jobs:
+  guard:
+    name: Tag guard
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history and every branch, so origin/main is there to test
+          # ancestry against.
+          fetch-depth: 0
+      - name: Check the tag matches the version and is on main
+        # A tag pushed by hand would otherwise publish whatever version its
+        # commit carries, from any branch. GITHUB_REF_NAME is read from the
+        # environment, never expanded into the script.
+        run: |
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          if [ "${GITHUB_REF_NAME#v}" != "$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match project.version $version in pyproject.toml"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main; then
+            echo "::error::Tag $GITHUB_REF_NAME points to $GITHUB_SHA, which is not on origin/main"
+            exit 1
+          fi
+
   ci:
     name: CI
+    needs: [guard]
     # The release gate is the CI workflow itself, every job of it, so it can
     # never drift from what pull requests run. Its `dist` artifact belongs to
     # this run, which is where the publish job downloads it from.
@@ -20,7 +46,7 @@ jobs:
   publish:
     name: Publish
     runs-on: ubuntu-26.04
-    needs: [ci]
+    needs: [guard, ci]
     environment: pypi
     permissions:
       contents: read
