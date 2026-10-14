@@ -1,4 +1,4 @@
-<!-- Generated from docs/getting-started.md by scripts/generate_skill_refs.py for v0.8.0; do not edit. -->
+<!-- Generated from docs/getting-started.md by scripts/generate_skill_refs.py for v0.8.1; do not edit. -->
 
 # Getting started
 
@@ -83,7 +83,7 @@ that has already fetched keeps its data, so fetch a new one to see a change. See
 
 Models use Python names where the API's keys are cryptic or inconsistent: `catalog_number` for `catno`,
 `extra_artists` for `extraartists`, `name_variation` for `anv`. The Python name is the typed attribute, and
-`model.raw` keeps what Discogs sent. See [Field naming](https://github.com/jmfontaine/discogs-sdk/blob/v0.8.0/docs/models.md#field-naming).
+`model.raw` keeps what Discogs sent. See [Field naming](https://github.com/jmfontaine/discogs-sdk/blob/v0.8.1/docs/models.md#field-naming).
 
 ## Installation
 
@@ -97,7 +97,7 @@ Requires Python 3.10+.
 
 ## Fetching resources
 
-Set `DISCOGS_TOKEN` to a personal access token first ([Authentication](https://github.com/jmfontaine/discogs-sdk/blob/v0.8.0/docs/authentication.md) covers the other modes).
+Set `DISCOGS_TOKEN` to a personal access token first ([Authentication](https://github.com/jmfontaine/discogs-sdk/blob/v0.8.1/docs/authentication.md) covers the other modes).
 
 ```python
 from discogs_sdk import Discogs
