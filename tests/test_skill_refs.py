@@ -73,6 +73,27 @@ def test_check_tells_a_stale_reference_from_an_unexpected_one(
     assert "just generate-skill-refs" in err
 
 
+@pytest.mark.parametrize(
+    ("version", "ref"),
+    [
+        ("0.8.1", "v0.8.1"),
+        ("0.9.0.dev0", "main"),
+        ("0.9.0rc1", "main"),
+    ],
+)
+def test_references_link_the_release_tag_only_for_a_release_version(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, version: str, ref: str
+):
+    # A development or pre-release version is never tagged, so its links name main.
+    generator = _script("generate_skill_refs")
+    (tmp_path / "pyproject.toml").write_text(
+        f'version = "{version}"\n', encoding="utf-8"
+    )
+    monkeypatch.setattr(generator, "ROOT", tmp_path)
+
+    assert generator.link_ref() == ref
+
+
 def test_skill_md_links_every_reference():
     text = (SKILL_DIR / "SKILL.md").read_text(encoding="utf-8")
     linked = {

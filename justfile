@@ -74,26 +74,22 @@ pre-commit-update:
 qa: pre-commit verify-types
 
 # Tag the merged origin/main, push the tag, and monitor the publish workflow
-release:
+release: _require-synced-main
     #!/usr/bin/env bash
     set -euo pipefail
-    # Only the merged version bump may be tagged: a squash merge creates a new commit,
-    # so a tag on the release branch would name a commit that never reaches main.
-    echo "Fetching origin/main..."
-    git fetch --quiet origin main
-    if [ "$(git rev-parse HEAD)" != "$(git rev-parse refs/remotes/origin/main)" ]; then
-        echo "Error: HEAD is not origin/main. Merge the release pull request, then run" \
-            "'git checkout main && git pull --ff-only' and rerun 'just release'."
+    # _require-synced-main has checked that HEAD is origin/main: only the merged version
+    # bump may be tagged, since a squash merge creates a new commit and a tag on the
+    # release branch would name a commit that never reaches main.
+    version=$(uv version --short)
+    # publish.yml uploads whatever version the tag names, so a development or
+    # pre-release version must never be tagged.
+    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "Error: version $version is not a release version (X.Y.Z). Run 'just release-prepare' first." >&2
         exit 1
     fi
-    version=$(uv run python -c "import tomllib, pathlib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
     tag="v${version}"
     if git rev-parse "$tag" >/dev/null 2>&1; then
         echo "Error: tag $tag already exists"
-        exit 1
-    fi
-    if [ -n "$(git status --porcelain)" ]; then
-        echo "Error: working tree is not clean"
         exit 1
     fi
     echo "Creating signed tag $tag..."
@@ -123,6 +119,93 @@ release:
     fi
     echo "Watching publish run $run_id..."
     gh run watch --exit-status "$run_id"
+    echo "Released $tag. Run 'just release-next' (or 'just release-next patch|major') to start the next development version."
+
+# Open the pull request that starts the next development version: bump is minor, patch or major
+release-next bump="minor": _require-synced-main
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case {{ quote(bump) }} in
+        minor | patch | major) ;;
+        *)
+            echo "Error: bump must be minor, patch or major, not {{ quote(bump) }}" >&2
+            exit 1
+            ;;
+    esac
+    current=$(uv version --short)
+    if [[ ! "$current" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "Error: version $current is not a release version (X.Y.Z), so development is already open." >&2
+        exit 1
+    fi
+    if ! git ls-remote --exit-code --tags origin "refs/tags/v$current" >/dev/null; then
+        echo "Error: tag v$current is not on origin. Release it with 'just release' first." >&2
+        exit 1
+    fi
+    next=$(uv version --bump {{ quote(bump) }} --dry-run --short)
+    # Set .dev0 explicitly: `uv version --bump minor --bump dev` gives .dev1.
+    {{ just_executable() }} _version-pr "release/v$next.dev0" "$next.dev0" \
+        "chore: start $next development" \
+        "Set the version to $next.dev0 in pyproject.toml and uv.lock, so builds from main sort below the $next release, and regenerate the packaged agent skill's references, whose links name main for a development version."
+
+# Open the release pull request: version defaults to the development version without its .devN
+release-prepare version="": _require-synced-main
+    #!/usr/bin/env bash
+    set -euo pipefail
+    current=$(uv version --short)
+    if [[ ! "$current" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.dev[0-9]+$ ]]; then
+        echo "Error: version $current is not a development version (X.Y.Z.devN). Run 'just release-next' first." >&2
+        exit 1
+    fi
+    version={{ quote(version) }}
+    if [ -z "$version" ]; then
+        version=$(uv version --bump stable --dry-run --short)
+    elif [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "Error: $version is not a release version (X.Y.Z)." >&2
+        exit 1
+    fi
+    # --exit-code returns 2 when the tag is absent; anything else (origin unreachable) must stop here too.
+    status=0
+    git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null || status=$?
+    if [ "$status" -ne 2 ]; then
+        [ "$status" -eq 0 ] && echo "Error: tag v$version already exists on origin." >&2
+        exit 1
+    fi
+    {{ just_executable() }} _version-pr "release/v$version" "$version" \
+        "chore: release v$version" \
+        "Set the version to $version for release in pyproject.toml and uv.lock, and regenerate the packaged agent skill's references, whose links now name the v$version tag. Merging this pull request approves the release; 'just release' then tags it."
+
+# Refuse to go on unless HEAD is the freshly fetched origin/main and the working tree is clean
+_require-synced-main:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Fetching origin/main..."
+    git fetch --quiet origin main
+    if [ "$(git rev-parse HEAD)" != "$(git rev-parse refs/remotes/origin/main)" ]; then
+        echo "Error: HEAD is not origin/main. Merge any pending version pull request, run" \
+            "'git checkout main && git pull --ff-only', then rerun." >&2
+        exit 1
+    fi
+    if [ -n "$(git status --porcelain)" ]; then
+        echo "Error: working tree is not clean" >&2
+        exit 1
+    fi
+
+# Commit a version change on a new branch, with the skill references regenerated, and open its pull request
+[positional-arguments]
+_version-pr branch version subject body:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    branch=$1 version=$2 subject=$3 body=$4
+    git switch --create "$branch"
+    # Until the commit lands, a failure leaves the branch checked out with uncommitted changes.
+    trap 'echo "Error: stopped on $branch. Recover with: git reset --hard && git switch main && git branch -D $branch" >&2' ERR
+    uv version "$version"
+    uv run python scripts/generate_skill_refs.py
+    git add pyproject.toml uv.lock src/discogs_sdk/.agents/skills/discogs-sdk/references
+    git commit --quiet -S -m "$subject" -m "$body"
+    trap - ERR
+    git push --quiet --set-upstream origin "$branch"
+    gh pr create --base main --head "$branch" --title "$subject" --body "$body"
 
 # Set local dev environment up
 setup:

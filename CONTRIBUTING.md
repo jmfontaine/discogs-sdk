@@ -87,7 +87,9 @@ just pre-commit            # Run every pre-commit hook on all files
 just pre-commit-install    # Install the git hooks
 just pre-commit-update     # Update the remote pre-commit hooks (the local ones use the uv.lock versions)
 just changelog-preview     # Preview release notes for unreleased changes
+just release-prepare       # Maintainers only: open the pull request that sets the release version
 just release               # Maintainers only: tag the merged origin/main and publish it
+just release-next          # Maintainers only: open the pull request that starts the next development version
 ```
 
 `just qa` runs every hook in `.pre-commit-config.yaml` against all files, then `just verify-types` (the
@@ -95,7 +97,7 @@ type-completeness audit of the whole package, which is not a hook). The CI quali
 fix files (ruff, pyproject-fmt, whitespace) apply their fixes and fail, so run `just qa` again after reviewing what
 they changed.
 
-`just release` follows the release steps in [AGENTS.md](AGENTS.md#releasing).
+The three `release*` recipes follow the release steps in [AGENTS.md](AGENTS.md#releasing).
 
 ## Development workflow
 
