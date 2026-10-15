@@ -1,4 +1,4 @@
-<!-- Generated from docs/endpoints.md by scripts/generate_skill_refs.py for v0.8.1; do not edit. -->
+<!-- Generated from docs/endpoints.md by scripts/generate_skill_refs.py for main; do not edit. -->
 
 # Endpoint map
 
@@ -100,7 +100,7 @@ Discogs API reference and read off the call, or look up a call and see what it s
 The token-exchange routes are not client operations: they run before there is an
 authorized client, so they are module-level functions of `discogs_sdk.oauth` with no
 `client.` chain. Each has an async twin named `async_<name>`. See
-[Authentication](https://github.com/jmfontaine/discogs-sdk/blob/v0.8.1/docs/authentication.md).
+[Authentication](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/authentication.md).
 
 | Verb | Route | Call | Returns |
 |---|---|---|---|

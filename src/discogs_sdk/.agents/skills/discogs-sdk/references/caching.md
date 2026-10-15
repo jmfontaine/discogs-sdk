@@ -1,9 +1,9 @@
-<!-- Generated from docs/caching.md by scripts/generate_skill_refs.py for v0.8.1; do not edit. -->
+<!-- Generated from docs/caching.md by scripts/generate_skill_refs.py for main; do not edit. -->
 
 # Caching
 
 Caching is off by default. `cache=True` keeps responses in memory, or in SQLite under `cache_dir` when you give one;
-`cache_ttl` sets their lifetime in seconds (default one hour). See [Configuration](https://github.com/jmfontaine/discogs-sdk/blob/v0.8.1/docs/configuration.md).
+`cache_ttl` sets their lifetime in seconds (default one hour). See [Configuration](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/configuration.md).
 
 Only successful `GET`/`HEAD` responses are cached, and only once their body has parsed into the model the call
 returns: a `GET` body that is not valid JSON (a gateway's HTML page, an empty body) or does not fit its model (a
@@ -93,7 +93,7 @@ or sidecar that is a symlink, not a regular file, or belongs to another user is 
 `client.no_cache()` bypasses the cache for the current execution context. Scopes nest, the previous state is
 restored even when the block raises, and each context carries its own scope, so leaving it in one thread or task
 never affects another (a pool worker, or a task created before the block, does not see it; see
-[Concurrency](https://github.com/jmfontaine/discogs-sdk/blob/v0.8.1/docs/concurrency.md)):
+[Concurrency](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/concurrency.md)):
 
 ```python
 from discogs_sdk import Discogs

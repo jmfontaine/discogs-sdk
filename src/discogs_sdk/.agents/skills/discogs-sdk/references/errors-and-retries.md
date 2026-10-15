@@ -1,4 +1,4 @@
-<!-- Generated from docs/errors-and-retries.md by scripts/generate_skill_refs.py for v0.8.1; do not edit. -->
+<!-- Generated from docs/errors-and-retries.md by scripts/generate_skill_refs.py for main; do not edit. -->
 
 # Errors and retries
 
@@ -42,7 +42,7 @@ non-negative number of seconds or an HTTP-date. Otherwise, after a transport fai
 zero-based index of the attempt that just failed. The default three retries therefore wait 1, 2 and 4 seconds, each
 plus up to one second of random jitter.
 
-The `attempts` field of [`RequestEvent`](https://github.com/jmfontaine/discogs-sdk/blob/v0.8.1/docs/observability.md) reports how many were sent.
+The `attempts` field of [`RequestEvent`](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/observability.md) reports how many were sent.
 
 ## Settling an ambiguous write
 
