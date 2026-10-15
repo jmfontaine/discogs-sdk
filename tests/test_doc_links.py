@@ -13,7 +13,7 @@ here touches the network.
 
 from __future__ import annotations
 
-import re
+import importlib.util
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -31,18 +31,26 @@ DOCUMENTS = [
     # The packaged agent skill and its generated references
     *sorted((REPO_ROOT / "src" / "discogs_sdk" / ".agents").glob("**/*.md")),
 ]
-_VERSION = re.search(
-    r'^version = "([^"]+)"$',
-    (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"),
-    re.MULTILINE,
-)
-assert _VERSION is not None
-# The skill references pin links to the release tag of the current version,
-# which matches the working tree until the next bump.
+
+
+def _skill_link_ref() -> str:
+    # `scripts/` is not a package, so load the file directly.
+    path = REPO_ROOT / "scripts" / "generate_skill_refs.py"
+    spec = importlib.util.spec_from_file_location("generate_skill_refs", path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.link_ref()
+
+
+# The skill references pin links to the release tag of the current version, or
+# to main for a development version, matching the working tree until the next
+# bump.
 REPO_URLS = tuple(
     f"https://github.com/jmfontaine/discogs-sdk/{kind}/{ref}/"
     for kind in ("blob", "tree")
-    for ref in ("main", f"v{_VERSION.group(1)}")
+    for ref in ("main", _skill_link_ref())
 )
 
 

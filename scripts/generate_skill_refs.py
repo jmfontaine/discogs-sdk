@@ -10,8 +10,10 @@ The skill ships inside the wheel (``discogs_sdk/.agents/skills/discogs-sdk/``),
 so its references must match the installed version. Each copy gets a header
 naming its source, and its links are rewritten: a link to another copied page
 points at that copy, and every other link into this repository becomes an
-absolute GitHub URL pinned to ``v<project.version>``, so an old wheel never
-sends an agent to newer docs. Regenerate after every version bump.
+absolute GitHub URL pinned to ``link_ref()``: the ``v<project.version>`` tag for
+a release version, so an old wheel never sends an agent to newer docs, and
+``main`` for a development version, whose tag never exists. Regenerate after
+every version bump.
 """
 
 from __future__ import annotations
@@ -40,24 +42,28 @@ PAGES = (
 _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 # An inline link or image target, without a title: ](target)
 _INLINE_TARGET = re.compile(r"\]\(([^()\s]+)\)")
+_RELEASE_VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
 
 
-def project_version() -> str:
+def link_ref() -> str:
+    """The Git ref the references link to: the release tag, or ``main``."""
     # tomllib is 3.11+, and the tooling targets 3.10; [project] holds the only
     # top-level `version = "..."` line in pyproject.toml.
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     match = re.search(r'^version = "([^"]+)"$', pyproject, re.MULTILINE)
     if match is None:
         raise SystemExit("generate_skill_refs: no version in pyproject.toml")
-    return match.group(1)
+    version = match.group(1)
+    # `just release` tags only a plain X.Y.Z; main carries X.Y.Z.devN in between.
+    return f"v{version}" if _RELEASE_VERSION.fullmatch(version) else "main"
 
 
-def _rewrite_target(target: str, version: str) -> str:
+def _rewrite_target(target: str, ref: str) -> str:
     """The target a link in a docs page needs once copied into references/."""
     for kind in ("blob", "tree"):
         prefix = f"{REPO_URL}/{kind}/main/"
         if target.startswith(prefix):
-            return f"{REPO_URL}/{kind}/v{version}/{target[len(prefix) :]}"
+            return f"{REPO_URL}/{kind}/{ref}/{target[len(prefix) :]}"
     if target.startswith("#") or re.match(r"^[a-z][a-z0-9+.-]*:", target):
         return target  # an in-page anchor or another site
     path, _, fragment = target.partition("#")
@@ -67,15 +73,15 @@ def _rewrite_target(target: str, version: str) -> str:
         return f"{resolved.name}{suffix}"
     relative = resolved.relative_to(ROOT).as_posix()
     kind = "tree" if resolved.is_dir() else "blob"
-    return f"{REPO_URL}/{kind}/v{version}/{relative}{suffix}"
+    return f"{REPO_URL}/{kind}/{ref}/{relative}{suffix}"
 
 
-def render(page: str, version: str) -> str:
+def render(page: str, ref: str) -> str:
     """The reference copy of ``docs/<page>``."""
     out: list[str] = [
         (
             f"<!-- Generated from docs/{page} by scripts/generate_skill_refs.py "
-            f"for v{version}; do not edit. -->"
+            f"for {ref}; do not edit. -->"
         ),
         "",
     ]
@@ -86,7 +92,7 @@ def render(page: str, version: str) -> str:
             fence = None if fence else match.group(1)[0] * 3
         elif fence is None:
             line = _INLINE_TARGET.sub(
-                lambda m: f"]({_rewrite_target(m.group(1), version)})", line
+                lambda m: f"]({_rewrite_target(m.group(1), ref)})", line
             )
         out.append(line)
     return "\n".join(out) + "\n"
@@ -103,8 +109,8 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    version = project_version()
-    expected = {REFERENCES / page: render(page, version) for page in PAGES}
+    ref = link_ref()
+    expected = {REFERENCES / page: render(page, ref) for page in PAGES}
     unexpected = sorted(
         path for path in REFERENCES.glob("*.md") if path not in expected
     )
