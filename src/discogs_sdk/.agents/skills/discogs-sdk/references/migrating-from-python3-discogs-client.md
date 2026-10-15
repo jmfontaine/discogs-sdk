@@ -1,4 +1,4 @@
-<!-- Generated from docs/migrating-from-python3-discogs-client.md by scripts/generate_skill_refs.py for v0.8.1; do not edit. -->
+<!-- Generated from docs/migrating-from-python3-discogs-client.md by scripts/generate_skill_refs.py for main; do not edit. -->
 
 # Migrating from python3-discogs-client
 
@@ -87,7 +87,7 @@ page size, and `total_items`/`total_pages` are filled in once the first page arr
 [Pagination](pagination.md).
 
 **Typed models instead of `.data`.** Every field is a typed attribute with a Python name: `catalog_number` rather than
-`catno`, `extra_artists` rather than `extraartists` (the full list is in [Models](https://github.com/jmfontaine/discogs-sdk/blob/v0.8.1/docs/models.md#field-naming)).
+`catno`, `extra_artists` rather than `extraartists` (the full list is in [Models](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/models.md#field-naming)).
 Timestamps are timezone-aware `datetime` objects. What Discogs sent is still in `model.raw`. In the async client,
 `await client.artists.get(3857)` returns the `Artist` model, which has no `releases`: keep the proxy to chain.
 
@@ -122,7 +122,7 @@ if client.ratelimit is not None and client.ratelimit.remaining < 5:
 
 The predecessor's `identity()` returns a `User` with collection and wantlist accessors. discogs-sdk's `Identity` holds
 only `id`, `username`, `consumer_name` and `resource_url`; the collection, wantlist, inventory and lists live on the
-user proxy, so build one from the username (see [The authenticated user](https://github.com/jmfontaine/discogs-sdk/blob/v0.8.1/docs/authentication.md#the-authenticated-user)):
+user proxy, so build one from the username (see [The authenticated user](https://github.com/jmfontaine/discogs-sdk/blob/main/docs/authentication.md#the-authenticated-user)):
 
 ```python
 identity = client.user.identity()
