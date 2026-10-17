@@ -327,8 +327,9 @@ still on `X.Y.Z`.
   run `just generate-sync` in the same commit
 - Workarounds that are knowingly less than ideal carry a `KLUDGE:` comment stating what is wrong and what
   removes it. Grep for `KLUDGE` to find them; do not add one without a removal condition
-- Python 3.15 needs `pydantic>=2.14` (earlier pins lack cp315 wheels), declared in `pyproject.toml`
-  with a marker whose exact form matters — read the comment there before touching it
+- `pyproject.toml` requires `pydantic>=2.14` on every Python: 2.14 is the first release with Python 3.15 wheels.
+  Keep pydantic a single entry: a second, marker-scoped one makes Dependabot rewrite the first and break the lock
+  (the comment there links the upstream bug)
 - Dead-code analysis runs through `scripts/check_dead_code.sh`, which pins the tool and its interpreter;
   every caller (the `dead-code` recipe and the pre-commit hook) invokes that script rather than `deadcode` directly
 - `.pre-commit-config.yaml` is the one list of fast checks: the git hooks, `just qa` and the CI quality job all run

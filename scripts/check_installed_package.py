@@ -7,10 +7,9 @@ that metadata is supposed to enforce, checks that the agent skill and its
 references were installed, then exercises the parts of the SDK that need no
 network: model validation and lazy proxy construction.
 
-The pydantic floor is the interesting part. Python 3.15 needs pydantic 2.14 or
-newer, whose pydantic-core pin ships cp315 wheels, and environment markers are
-easy to write in a way that silently skips that floor on a prerelease
-interpreter, leaving the install with an unbuildable pydantic-core.
+The pydantic floor is the interesting part: 2.14 is the first release whose
+pydantic-core pin ships Python 3.15 wheels, so an install below it on 3.15 is
+left with a pydantic-core it cannot build.
 """
 
 from __future__ import annotations
@@ -26,10 +25,8 @@ from generate_skill_refs import PAGES
 from discogs_sdk import Discogs
 from discogs_sdk.models import Release
 
-MINIMUM_PYDANTIC = (2, 12)
-# Mirrors the Python 3.15 clause in pyproject.toml: 2.13 and earlier have no
-# cp315 wheels.
-MINIMUM_PYDANTIC_315 = (2, 14)
+# Mirrors the pydantic floor in pyproject.toml.
+MINIMUM_PYDANTIC = (2, 14)
 # Relative to the installed package: SKILL.md plus the references
 # scripts/generate_skill_refs.py generates.
 SKILL_FILES = tuple(
@@ -45,14 +42,10 @@ def installed_pydantic() -> tuple[int, int]:
 
 def main() -> None:
     installed = installed_pydantic()
-    minimum = (
-        MINIMUM_PYDANTIC_315 if sys.version_info[:2] == (3, 15) else MINIMUM_PYDANTIC
-    )
-    if installed < minimum:
+    if installed < MINIMUM_PYDANTIC:
         raise SystemExit(
             f"pydantic {pydantic.VERSION} is below the "
-            f"{'.'.join(map(str, minimum))} floor "
-            f"required on Python {sys.version.split()[0]}"
+            f"{'.'.join(map(str, MINIMUM_PYDANTIC))} floor"
         )
 
     package = files("discogs_sdk")
