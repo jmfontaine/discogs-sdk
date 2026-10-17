@@ -6,5 +6,9 @@ updates:
       interval: "weekly"
   - package-ecosystem: "uv"
     directory: "/"
+    # Update uv.lock only, never the requirements in pyproject.toml. Those are
+    # the floors the published package declares, and Dependabot rewrote one of
+    # them (pydantic>=2.12 to >=2.14) while leaving the lock's copy stale.
+    versioning-strategy: "lockfile-only"
     schedule:
       interval: "weekly"
