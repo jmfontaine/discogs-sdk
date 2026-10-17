@@ -16,6 +16,9 @@ body = """
 
 [git]
 commit_parsers = [
+    # The version commits the release recipes make (and the older manual bumps)
+    # mean nothing to users. First, since git-cliff stops at the first match.
+    { message = "^chore: (release v[0-9]|start [0-9.]+ development|bump version to )", skip = true },
     { message = "^feat", group = "Features" },
     { message = "^fix", group = "Bug Fixes" },
     { message = "^doc", group = "Documentation" },
