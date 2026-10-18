@@ -364,3 +364,15 @@ still on `X.Y.Z`.
   verified commits ([CONTRIBUTING.md](CONTRIBUTING.md#what-to-expect)). Merge with `gh pr merge <n> --squash`, or, for
   a stack, `gh stack merge --yes --squash` run with no number from a worktree that has the stack checked out (a bare
   number is read as a stack number before a pull request number)
+
+## Shared workflow
+
+This repository follows the shared workflow: the `github-workflow` skill's repository
+setup describes its GitHub settings, rulesets, labels and templates. Those settings are
+managed as code outside this repository; change them there, never with `gh api` or the
+GitHub web UI.
+
+### Deviations from the shared workflow
+
+- **Extra label `integration-failure`.** The scheduled live-API workflow opens or
+  comments on an issue with it, so failures stay visible without anyone relaying them.
