@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
 from urllib.parse import unquote
 
@@ -405,7 +405,7 @@ class TestRetryDelay:
 
     def test_future_http_date(self):
         c = BaseClient(token="t")
-        when = datetime.now(timezone.utc) + timedelta(seconds=30)
+        when = datetime.now(UTC) + timedelta(seconds=30)
         d = c._retry_delay(0, retry_after=format_datetime(when, usegmt=True))
         assert 28.0 < d <= 30.0  # header has whole-second resolution
 
@@ -416,7 +416,7 @@ class TestRetryDelay:
 
     def test_unknown_zone_http_date_read_as_utc(self):
         c = BaseClient(token="t")
-        when = datetime.now(timezone.utc) + timedelta(seconds=30)
+        when = datetime.now(UTC) + timedelta(seconds=30)
         value = format_datetime(when.replace(tzinfo=None))  # naive -> "-0000"
         assert 28.0 < c._retry_delay(0, retry_after=value) <= 30.0
 

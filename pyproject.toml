@@ -11,12 +11,11 @@ keywords = [ "api", "discogs", "music", "python", "sdk" ]
 license = "Apache-2.0"
 license-files = [ "LICENSE.txt" ]
 authors = [ { name = "Jean-Marc Fontaine", email = "jm@jmfontaine.net" } ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
   "Programming Language :: Python :: 3 :: Only",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
@@ -31,7 +30,6 @@ dependencies = [
   # One floor for every Python: a second, marker-scoped pydantic entry breaks
   # Dependabot (https://github.com/dependabot/dependabot-core/issues/16476).
   "pydantic>=2.14",
-  "typing-extensions>=4",
   # Never imported: zoneinfo falls back to it for America/Los_Angeles (naive API
   # timestamps, models/_timestamp.py) where the OS has no tz database (Windows,
   # Alpine, distroless).
@@ -95,7 +93,7 @@ test = [
 default-groups = "all"
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 line-length = 88
 # ruff 0.17 dropped the DTZ rules from its defaults; keep flagging naive datetimes.
 lint.extend-select = [ "DTZ" ]

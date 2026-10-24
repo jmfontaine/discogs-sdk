@@ -10,10 +10,9 @@ from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Self, TypeVar, overload
 
 import httpx2
-from typing_extensions import Self
 
 from discogs_sdk._async.resources.artists import Artists
 from discogs_sdk._async.resources.exports import Exports

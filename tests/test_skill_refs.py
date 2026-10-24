@@ -50,7 +50,9 @@ def test_check_tells_a_stale_reference_from_an_unexpected_one(
 ):
     # A one-page project, so the paths printed are relative to tmp_path.
     generator = _script("generate_skill_refs")
-    (tmp_path / "pyproject.toml").write_text('version = "1.0.0"\n', encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nversion = "1.0.0"\n', encoding="utf-8"
+    )
     docs = tmp_path / "docs"
     docs.mkdir()
     (docs / "guide.md").write_text("# Guide\n", encoding="utf-8")
@@ -87,7 +89,7 @@ def test_references_link_the_release_tag_only_for_a_release_version(
     # A development or pre-release version is never tagged, so its links name main.
     generator = _script("generate_skill_refs")
     (tmp_path / "pyproject.toml").write_text(
-        f'version = "{version}"\n', encoding="utf-8"
+        f'[project]\nversion = "{version}"\n', encoding="utf-8"
     )
     monkeypatch.setattr(generator, "ROOT", tmp_path)
 

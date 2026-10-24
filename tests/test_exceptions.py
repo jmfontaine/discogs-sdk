@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import copy
 import pickle
-import sys
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Any, ClassVar
@@ -59,10 +58,7 @@ def _raise_not_found() -> None:
 
 def _add_note_and_attribute(exc: BaseException) -> None:
     """Give ``exc`` a note and a caller-added ``extra`` attribute."""
-    if sys.version_info >= (3, 11):
-        exc.add_note("n")
-    else:  # add_note() is 3.11+; it only appends to __notes__
-        vars(exc)["__notes__"] = ["n"]
+    exc.add_note("n")
     vars(exc)["extra"] = 1  # an attribute no SDK class declares
 
 
