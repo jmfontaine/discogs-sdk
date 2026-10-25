@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from unittest.mock import patch
 
 import pytest
@@ -18,7 +18,7 @@ from tests.conftest import (
     make_search_result,
 )
 
-CUTOFF = datetime(2026, 10, 1, tzinfo=timezone.utc)
+CUTOFF = datetime(2026, 10, 1, tzinfo=UTC)
 
 
 def _added(days: float) -> str:

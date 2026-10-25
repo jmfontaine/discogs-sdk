@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 import pickle
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
 from unittest.mock import AsyncMock, patch
 
@@ -454,7 +454,7 @@ class TestRateLimitErrorRetryAfterSeconds:
         assert exc_info.value.retry_after_seconds is None
 
     async def test_future_http_date(self, client, respx_mock):
-        when = datetime.now(timezone.utc) + timedelta(seconds=30)
+        when = datetime.now(UTC) + timedelta(seconds=30)
         header = format_datetime(when, usegmt=True)
         respx_mock.get("/releases/352665").respond(
             429, json={"message": "slow down"}, headers={"Retry-After": header}

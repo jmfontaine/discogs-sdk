@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -47,13 +48,11 @@ _RELEASE_VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
 
 def link_ref() -> str:
     """The Git ref the references link to: the release tag, or ``main``."""
-    # tomllib is 3.11+, and the tooling targets 3.10; [project] holds the only
-    # top-level `version = "..."` line in pyproject.toml.
-    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    match = re.search(r'^version = "([^"]+)"$', pyproject, re.MULTILINE)
-    if match is None:
+    with (ROOT / "pyproject.toml").open("rb") as file:
+        project = tomllib.load(file).get("project", {})
+    version = project.get("version")
+    if not isinstance(version, str):
         raise SystemExit("generate_skill_refs: no version in pyproject.toml")
-    version = match.group(1)
     # `just release` tags only a plain X.Y.Z; main carries X.Y.Z.devN in between.
     return f"v{version}" if _RELEASE_VERSION.fullmatch(version) else "main"
 

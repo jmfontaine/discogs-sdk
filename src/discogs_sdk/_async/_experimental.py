@@ -5,7 +5,7 @@ Re-exported by ``discogs_sdk.experimental``; see that module for the terms.
 
 from __future__ import annotations
 
-from datetime import date, datetime, time, timezone
+from datetime import UTC, date, datetime, time
 from typing import TYPE_CHECKING, Any
 
 from discogs_sdk._exceptions import DiscogsError
@@ -155,7 +155,7 @@ def _cutoff(since: date | datetime) -> datetime:
             )
         return since
     if isinstance(since, date):
-        return datetime.combine(since, time.min, tzinfo=timezone.utc)
+        return datetime.combine(since, time.min, tzinfo=UTC)
     raise TypeError(f"since must be a date or datetime, got {type(since).__name__}")
 
 

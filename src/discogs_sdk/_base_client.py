@@ -12,7 +12,7 @@ import urllib.parse
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from typing import Any, Literal, NoReturn
 
@@ -173,8 +173,8 @@ def parse_retry_after(value: str | None) -> float | None:
     except (TypeError, ValueError, OverflowError):  # Overflow: huge year or zone
         return None
     if when.tzinfo is None:  # "-0000" zone: RFC 5322 treats it as UTC
-        when = when.replace(tzinfo=timezone.utc)
-    return max((when - datetime.now(timezone.utc)).total_seconds(), 0.0)
+        when = when.replace(tzinfo=UTC)
+    return max((when - datetime.now(UTC)).total_seconds(), 0.0)
 
 
 def error_message(body: dict[str, Any] | str) -> str:
