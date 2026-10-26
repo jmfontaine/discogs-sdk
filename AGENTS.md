@@ -364,6 +364,8 @@ still on `X.Y.Z`.
   verified commits ([CONTRIBUTING.md](CONTRIBUTING.md#what-to-expect)). Merge with `gh pr merge <n> --squash`, or, for
   a stack, `gh stack merge --yes --squash` run with no number from a worktree that has the stack checked out (a bare
   number is read as a stack number before a pull request number)
+- `CI passed`, the `ci-passed` job in `.github/workflows/ci.yml`, is the only required status check. It needs every
+  other job in that workflow, so a job added there must be added to its `needs`; no ruleset change is required
 
 ## Shared workflow
 
