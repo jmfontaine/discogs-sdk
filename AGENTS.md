@@ -367,14 +367,14 @@ still on `X.Y.Z`.
 - `CI passed`, the `ci-passed` job in `.github/workflows/ci.yml`, is the only required status check. It needs every
   other job in that workflow, so a job added there must be added to its `needs`; no ruleset change is required
 
-## Shared workflow
+## Shared Workflow
 
 This repository follows the shared workflow: the `github-workflow` skill's repository
 setup describes its GitHub settings, rulesets, labels and templates. Those settings are
 managed as code outside this repository; change them there, never with `gh api` or the
 GitHub web UI.
 
-### Deviations from the shared workflow
+### Deviations From the Shared Workflow
 
 - **Extra label `integration-failure`.** The scheduled live-API workflow opens or
   comments on an issue with it, so failures stay visible without anyone relaying them.
