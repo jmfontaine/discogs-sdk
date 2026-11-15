@@ -96,7 +96,7 @@ async def async_mutation_usage(client: AsyncDiscogs) -> None:
 # Snippet name -> (ty rule the snippet must break, snippet).
 INVALID_SNIPPETS = {
     "misspelled_sync_field": (
-        "unresolved-attribute",
+        "missing-attribute",
         """
 from discogs_sdk import Discogs
 
@@ -106,7 +106,7 @@ def usage(client: Discogs) -> None:
 """,
     ),
     "misspelled_subresource": (
-        "unresolved-attribute",
+        "missing-attribute",
         """
 from discogs_sdk import Discogs
 
@@ -126,7 +126,7 @@ def usage(client: Discogs) -> None:
 """,
     ),
     "async_field_without_await": (
-        "unresolved-attribute",
+        "missing-attribute",
         """
 from discogs_sdk import AsyncDiscogs
 
@@ -136,7 +136,7 @@ def usage(client: AsyncDiscogs) -> None:
 """,
     ),
     "average_on_user_rating": (
-        "unresolved-attribute",
+        "missing-attribute",
         """
 from discogs_sdk import Discogs
 
@@ -146,7 +146,7 @@ def usage(client: Discogs) -> None:
 """,
     ),
     "misspelled_awaited_model_field": (
-        "unresolved-attribute",
+        "missing-attribute",
         """
 from discogs_sdk import AsyncDiscogs
 
@@ -157,7 +157,7 @@ async def usage(client: AsyncDiscogs) -> None:
 """,
     ),
     "misspelled_paginated_item_field": (
-        "unresolved-attribute",
+        "missing-attribute",
         """
 from discogs_sdk import Discogs
 
@@ -168,7 +168,7 @@ def usage(client: Discogs) -> None:
 """,
     ),
     "misspelled_embedded_list_item_field": (
-        "unresolved-attribute",
+        "missing-attribute",
         """
 from discogs_sdk import AsyncDiscogs
 
@@ -180,7 +180,7 @@ async def usage(client: AsyncDiscogs) -> None:
 """,
     ),
     "track_type_api_name": (
-        "unresolved-attribute",
+        "missing-attribute",
         """
 from discogs_sdk import Discogs
 
