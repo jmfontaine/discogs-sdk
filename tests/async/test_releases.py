@@ -259,7 +259,7 @@ class TestTrackType:
         tracks = await self._tracks(client, respx_mock)
         for track in tracks:
             # The API name is hidden from type checkers; only runtime resolves it.
-            assert track.type_ == track.type  # ty: ignore[unresolved-attribute]
+            assert track.type_ == track.type  # ty: ignore[missing-attribute]
 
 
 class TestCurrencySelection:

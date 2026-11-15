@@ -57,13 +57,15 @@ dev = [
   "pyproject-fmt>=2.16.1",
   "pyright>=1.1.408",
   "ruff>=0.15.2",
-  "ty>=0.0.17",
+  "ty>=0.0.100",
 ]
 # KLUDGE: ty is declared twice — `just type-check` runs it as a dev tool, and
 # tests/test_lazy_typing.py invokes `python -m ty` as part of the suite, which
 # also has to work in an environment built from the test group alone. The two
 # floors must stay identical; collapse the duplication if these groups ever
 # share a common included group.
+# ty floor is 0.0.100: it renamed the rule `unresolved-attribute` to
+# `missing-attribute`, the name tests/test_lazy_typing.py expects in ty's output.
 # pytest-asyncio floor is 1.4: it is the first version verified deprecation-
 # clean on Python 3.15. The releases tested below it call asyncio APIs that
 # 3.15 deprecates and marks as slated for removal in 3.16
@@ -83,7 +85,7 @@ test = [
   "pytest-cov>=6",
   "pytest-httpx2>=1",
   "respx>=0.22",
-  "ty>=0.0.17",
+  "ty>=0.0.100",
 ]
 
 [tool.uv]
