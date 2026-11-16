@@ -237,7 +237,7 @@ test-unauthenticated *args:
 
 # Compare reference/discogs_api/ with the official API reference (--diff, --check, --write)
 update-api-docs *args:
-    uv run python scripts/update_api_docs.py {{ args }}
+    uvx --from git+https://github.com/jmfontaine/discogs-api-reference discogs-api-reference {{ args }}
 
 # Run type checker
 type-check:
