@@ -236,8 +236,9 @@ test-unauthenticated *args:
     uv run pytest -m 'integration and unauthenticated' {{ args }}
 
 # Compare reference/discogs_api/ with the official API reference (--diff, --check, --write)
+[positional-arguments]
 update-api-docs *args:
-    uvx --from git+https://github.com/jmfontaine/discogs-api-reference discogs-api-reference {{ args }}
+    uvx --from git+https://github.com/jmfontaine/discogs-api-reference discogs-api-reference "$@"
 
 # Run type checker
 type-check:
