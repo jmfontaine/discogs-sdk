@@ -207,8 +207,9 @@ Embedded objects like `SubLabel`, `ArtistCredit`, and `LabelCredit` stay minimal
 
 The official Discogs API documentation is available locally in `reference/discogs_api/` as Markdown files. This directory is git-ignored for copyright reasons, and it sits outside `docs/` so that a docs build pointed at `docs/` can never pick it up. Use these files as a reference when implementing or verifying API endpoints, request/response shapes, and query parameters.
 
-Refresh it with `just update-api-docs` (`scripts/update_api_docs.py`), which fetches
-the official reference and reports drift. Because the directory is git-ignored, an
+Refresh it with `just update-api-docs`, which runs
+[discogs-api-reference](https://github.com/jmfontaine/discogs-api-reference) to fetch
+the official reference and report drift. Because the directory is git-ignored, an
 overwrite is irreversible, so writing is opt-in: the default run and `--check` only
 report, `--diff` prints the unified diffs, and `--write` is required to replace the
 local files. After a refresh, `just endpoints-coverage` checks the new examples against `tests/documented_payloads.py`
