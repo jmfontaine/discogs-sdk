@@ -238,7 +238,8 @@ test-unauthenticated *args:
 # Compare reference/discogs_api/ with the official API reference (--diff, --check, --write)
 [positional-arguments]
 update-api-docs *args:
-    uvx --from git+https://github.com/jmfontaine/discogs-api-reference discogs-api-reference "$@"
+    # @latest: without it, uvx keeps the version it cached on its first run.
+    uvx discogs-api-reference@latest "$@"
 
 # Run type checker
 type-check:
