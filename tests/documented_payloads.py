@@ -295,6 +295,7 @@ SEARCH_RESULT: dict[str, Any] = {
     "catno": "HALO EIGHT",
     "community": {"have": 25185, "want": 8721},
     "country": "US",
+    "cover_image": IMAGE_URL,
     "format": ["Vinyl", "LP", "Album"],
     "genre": ["Electronic", "Rock"],
     "id": 352665,
